@@ -9,6 +9,7 @@ from django.http import HttpRequest, HttpResponse
 
 from core.models import Script, Run
 from core.forms import ScriptForm
+from core.executor import execute_run
 
 
 @login_required
@@ -99,8 +100,9 @@ def script_run_view(request: HttpRequest, pk) -> HttpResponse:
         code_snapshot=script.code,
     )
 
-    # TODO: Queue the actual execution with django-q2 (Step 5)
-    messages.success(request, f'Script "{script.name}" queued for execution.')
+    # Execute synchronously (can switch to async with django-q2 later)
+    execute_run(run)
+    messages.success(request, f'Script "{script.name}" completed with status: {run.status}.')
     return redirect("cpanel:run_detail", pk=run.pk)
 
 

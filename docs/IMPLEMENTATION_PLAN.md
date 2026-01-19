@@ -112,10 +112,10 @@ PyRunner/
 - [x] Email configuration (Resend API + console backend)
 
 ### Step 4: Script Executor
-- [ ] core/executor.py
-- [ ] Subprocess execution
-- [ ] Timeout handling
-- [ ] Output capture
+- [x] core/executor.py
+- [x] Subprocess execution
+- [x] Timeout handling
+- [x] Output capture
 
 ### Step 5: django-q2 Integration
 - [ ] core/tasks.py
@@ -123,9 +123,9 @@ PyRunner/
 - [ ] Async task execution
 
 ### Step 6: Tailwind Setup
-- [ ] django-tailwind init
-- [ ] Configure content paths
-- [ ] Build CSS
+- [x] django-tailwind init
+- [x] Configure content paths
+- [x] Build CSS
 
 ### Step 7: Views & Templates
 - [x] Dashboard view (placeholder)
@@ -135,7 +135,7 @@ PyRunner/
 - [x] All templates
 
 ### Step 8: Default Environment
-- [ ] setup_default_env command
+- [x] setup_default_env command
 - [ ] Auto-create on first run
 
 ### Step 9: Docker Deployment
