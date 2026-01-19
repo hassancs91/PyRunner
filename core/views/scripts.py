@@ -9,7 +9,7 @@ from django.http import HttpRequest, HttpResponse
 
 from core.models import Script, Run
 from core.forms import ScriptForm
-from core.executor import execute_run
+from core.tasks import queue_script_run
 
 
 @login_required
@@ -100,9 +100,16 @@ def script_run_view(request: HttpRequest, pk) -> HttpResponse:
         code_snapshot=script.code,
     )
 
-    # Execute synchronously (can switch to async with django-q2 later)
-    execute_run(run)
-    messages.success(request, f'Script "{script.name}" completed with status: {run.status}.')
+    # Queue for async execution via django-q2
+    try:
+        queue_script_run(run)
+        messages.info(request, f'Script "{script.name}" has been queued for execution.')
+    except Exception as e:
+        run.status = Run.Status.FAILED
+        run.stderr = f"Failed to queue task: {str(e)}"
+        run.save()
+        messages.error(request, f"Failed to queue script: {str(e)}")
+
     return redirect("cpanel:run_detail", pk=run.pk)
 
 

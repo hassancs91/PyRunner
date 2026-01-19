@@ -118,9 +118,9 @@ PyRunner/
 - [x] Output capture
 
 ### Step 5: django-q2 Integration
-- [ ] core/tasks.py
-- [ ] Q_CLUSTER configuration
-- [ ] Async task execution
+- [x] core/tasks.py
+- [x] Q_CLUSTER configuration
+- [x] Async task execution
 
 ### Step 6: Tailwind Setup
 - [x] django-tailwind init
