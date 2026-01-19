@@ -5,7 +5,8 @@
       "Bash(.\\\\venv\\\\Scripts\\\\pip install:*)",
       "Bash(d:/repos/PyRunner/venv/Scripts/pip.exe install:*)",
       "Bash(d:/repos/PyRunner/venv/Scripts/django-admin.exe startproject pyrunner .)",
-      "Bash(d:/repos/PyRunner/venv/Scripts/python.exe:*)"
+      "Bash(d:/repos/PyRunner/venv/Scripts/python.exe:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

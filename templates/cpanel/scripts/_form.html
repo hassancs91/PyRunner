@@ -1,0 +1,74 @@
+<!-- Script Form Partial -->
+<div class="space-y-6">
+    <!-- Name -->
+    <div>
+        <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
+            {{ form.name.label }}
+        </label>
+        {{ form.name }}
+        {% if form.name.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Description -->
+    <div>
+        <label for="id_description" class="block text-sm font-medium text-code-text mb-2">
+            {{ form.description.label }}
+        </label>
+        {{ form.description }}
+        {% if form.description.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.description.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Code -->
+    <div>
+        <label for="id_code" class="block text-sm font-medium text-code-text mb-2">
+            {{ form.code.label }}
+        </label>
+        {{ form.code }}
+        {% if form.code.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.code.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Environment and Timeout Row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Environment -->
+        <div>
+            <label for="id_environment" class="block text-sm font-medium text-code-text mb-2">
+                {{ form.environment.label }}
+            </label>
+            {{ form.environment }}
+            {% if form.environment.errors %}
+            <p class="mt-1 text-sm text-code-red">{{ form.environment.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Timeout -->
+        <div>
+            <label for="id_timeout_seconds" class="block text-sm font-medium text-code-text mb-2">
+                {{ form.timeout_seconds.label }}
+            </label>
+            {{ form.timeout_seconds }}
+            {% if form.timeout_seconds.help_text %}
+            <p class="mt-1 text-xs text-code-muted">{{ form.timeout_seconds.help_text }}</p>
+            {% endif %}
+            {% if form.timeout_seconds.errors %}
+            <p class="mt-1 text-sm text-code-red">{{ form.timeout_seconds.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Enabled -->
+    <div class="flex items-center space-x-3">
+        {{ form.is_enabled }}
+        <label for="id_is_enabled" class="text-sm font-medium text-code-text">
+            {{ form.is_enabled.label }}
+        </label>
+        {% if form.is_enabled.errors %}
+        <p class="text-sm text-code-red">{{ form.is_enabled.errors.0 }}</p>
+        {% endif %}
+    </div>
+</div>

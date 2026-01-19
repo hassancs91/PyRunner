@@ -129,10 +129,10 @@ PyRunner/
 
 ### Step 7: Views & Templates
 - [x] Dashboard view (placeholder)
-- [ ] Script CRUD views
-- [ ] Run views
-- [ ] Environment views
-- [ ] All templates
+- [x] Script CRUD views
+- [x] Run views
+- [x] Environment views
+- [x] All templates
 
 ### Step 8: Default Environment
 - [ ] setup_default_env command

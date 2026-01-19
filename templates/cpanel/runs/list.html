@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Runs - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold text-code-text">Runs</h1>
+            <p class="text-code-muted">Execution history for all scripts</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="mb-6 flex flex-wrap items-center gap-4">
+            <div class="flex items-center space-x-2">
+                <span class="text-code-muted text-sm">Status:</span>
+                <a href="{% url 'cpanel:run_list' %}{% if script_filter %}?script={{ script_filter }}{% endif %}"
+                   class="px-3 py-1 text-sm rounded-lg transition-colors {% if not status_filter %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                    All
+                </a>
+                {% for value, label in status_choices %}
+                <a href="{% url 'cpanel:run_list' %}?status={{ value }}{% if script_filter %}&script={{ script_filter }}{% endif %}"
+                   class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == value %}{% if value == 'success' %}bg-code-green/20 text-code-green{% elif value == 'failed' or value == 'timeout' %}bg-code-red/20 text-code-red{% elif value == 'running' %}bg-code-yellow/20 text-code-yellow{% else %}bg-code-muted/20 text-code-muted{% endif %}{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                    {{ label }}
+                </a>
+                {% endfor %}
+            </div>
+
+            {% if scripts %}
+            <div class="flex items-center space-x-2">
+                <span class="text-code-muted text-sm">Script:</span>
+                <select onchange="window.location.href='{% url 'cpanel:run_list' %}{% if status_filter %}?status={{ status_filter }}&{% else %}?{% endif %}script=' + this.value"
+                        class="px-3 py-1 text-sm bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                    <option value="">All Scripts</option>
+                    {% for script in scripts %}
+                    <option value="{{ script.pk }}" {% if script_filter == script.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ script.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Runs Table -->
+        {% if runs %}
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-code-bg border-b border-code-border">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Script</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Duration</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Triggered By</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Started</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-code-border">
+                    {% for run in runs %}
+                    <tr class="hover:bg-code-bg/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="{% url 'cpanel:script_detail' pk=run.script.pk %}" class="text-code-accent hover:underline font-medium">
+                                {{ run.script.name }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if run.status == 'success' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Success</span>
+                            {% elif run.status == 'failed' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Failed</span>
+                            {% elif run.status == 'timeout' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Timeout</span>
+                            {% elif run.status == 'running' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Running</span>
+                            {% elif run.status == 'pending' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Pending</span>
+                            {% elif run.status == 'cancelled' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-text">
+                            {% if run.duration_display %}{{ run.duration_display }}{% else %}-{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted">
+                            {% if run.triggered_by %}{{ run.triggered_by.email }}{% else %}System{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted text-sm">
+                            {% if run.started_at %}{{ run.started_at|date:"M d, H:i" }}{% else %}{{ run.created_at|date:"M d, H:i" }}{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-code-accent hover:underline text-sm">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-code-text mb-2">No runs yet</h3>
+            <p class="text-code-muted mb-6">Run a script to see execution history here.</p>
+            <a href="{% url 'cpanel:script_list' %}"
+               class="inline-flex items-center px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                View Scripts
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

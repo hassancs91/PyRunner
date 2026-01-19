@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Environments - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold text-code-text">Environments</h1>
+            <p class="text-code-muted">Python virtual environments for running scripts</p>
+        </div>
+
+        <!-- Environments Grid -->
+        {% if environments %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for env in environments %}
+            <a href="{% url 'cpanel:environment_detail' pk=env.pk %}"
+               class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-accent transition-colors block">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 bg-code-accent/20 rounded-lg flex items-center justify-center mr-3">
+                            <svg class="w-5 h-5 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-code-text">{{ env.name }}</h3>
+                            <p class="text-xs text-code-muted">Python {{ env.python_version }}</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end space-y-1">
+                        {% if env.is_default %}
+                        <span class="px-2 py-1 text-xs rounded bg-code-accent/20 text-code-accent">Default</span>
+                        {% endif %}
+                        {% if env.is_active %}
+                        <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Active</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Inactive</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if env.description %}
+                <p class="text-code-muted text-sm mb-4 line-clamp-2">{{ env.description }}</p>
+                {% endif %}
+
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-code-muted">{{ env.script_count }} script{{ env.script_count|pluralize }}</span>
+                    <span class="text-code-muted">{{ env.created_at|date:"M d, Y" }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-code-text mb-2">No environments yet</h3>
+            <p class="text-code-muted mb-4">Run the setup command to create the default environment.</p>
+            <div class="bg-code-bg border border-code-border rounded-lg p-4 max-w-md mx-auto">
+                <code class="text-code-accent text-sm font-mono">python manage.py setup_default_env</code>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

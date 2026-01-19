@@ -3,34 +3,194 @@
 {% block title %}Dashboard - PyRunner{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <div class="text-center">
-        <div class="w-16 h-16 bg-code-green/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg class="w-8 h-8 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold text-code-text">Dashboard</h1>
+            <p class="text-code-muted">Welcome back, <span class="text-code-accent">{{ user.email }}</span></p>
         </div>
 
-        <h1 class="text-3xl font-bold text-code-text mb-4">Welcome to PyRunner</h1>
-        <p class="text-code-muted text-lg mb-8">You're logged in as <span class="text-code-accent">{{ user.email }}</span></p>
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <a href="{% url 'cpanel:script_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-accent transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold text-code-accent">{{ scripts_count }}</div>
+                        <div class="text-code-muted">Scripts</div>
+                    </div>
+                    <div class="w-12 h-12 bg-code-accent/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                    </div>
+                </div>
+            </a>
 
-        <div class="bg-code-surface border border-code-border rounded-xl p-8 max-w-md mx-auto">
-            <h2 class="text-xl font-semibold text-code-text mb-4">Dashboard</h2>
-            <p class="text-code-muted mb-6">The control panel is under construction. Scripts, runs, and environments will appear here.</p>
+            <a href="{% url 'cpanel:run_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-accent transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold text-code-green">{{ runs_count }}</div>
+                        <div class="text-code-muted">Total Runs</div>
+                    </div>
+                    <div class="w-12 h-12 bg-code-green/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                </div>
+            </a>
 
-            <div class="grid grid-cols-3 gap-4 text-center">
-                <div class="p-4 bg-code-bg rounded-lg border border-code-border">
-                    <div class="text-2xl font-bold text-code-accent">0</div>
-                    <div class="text-xs text-code-muted">Scripts</div>
+            <a href="{% url 'cpanel:run_list' %}?status=success" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-green transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold text-code-green">{{ success_count }}</div>
+                        <div class="text-code-muted">Successful</div>
+                    </div>
+                    <div class="w-12 h-12 bg-code-green/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
                 </div>
-                <div class="p-4 bg-code-bg rounded-lg border border-code-border">
-                    <div class="text-2xl font-bold text-code-green">0</div>
-                    <div class="text-xs text-code-muted">Runs</div>
+            </a>
+
+            <a href="{% url 'cpanel:environment_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-yellow transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold text-code-yellow">{{ environments_count }}</div>
+                        <div class="text-code-muted">Environments</div>
+                    </div>
+                    <div class="w-12 h-12 bg-code-yellow/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-code-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                        </svg>
+                    </div>
                 </div>
-                <div class="p-4 bg-code-bg rounded-lg border border-code-border">
-                    <div class="text-2xl font-bold text-code-yellow">0</div>
-                    <div class="text-xs text-code-muted">Envs</div>
+            </a>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Recent Scripts -->
+            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                <div class="px-6 py-4 border-b border-code-border flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-code-text">Recent Scripts</h2>
+                    <a href="{% url 'cpanel:script_list' %}" class="text-code-accent hover:underline text-sm">View all</a>
                 </div>
+                <div class="p-6">
+                    {% if recent_scripts %}
+                    <ul class="space-y-4">
+                        {% for script in recent_scripts %}
+                        <li class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 bg-code-bg rounded-lg flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="text-code-accent hover:underline font-medium">
+                                        {{ script.name }}
+                                    </a>
+                                    <p class="text-xs text-code-muted">{{ script.environment.name }}</p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-code-muted">{{ script.updated_at|timesince }} ago</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="text-center py-8">
+                        <p class="text-code-muted mb-4">No scripts yet.</p>
+                        <a href="{% url 'cpanel:script_create' %}" class="text-code-accent hover:underline">Create your first script</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Recent Runs -->
+            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                <div class="px-6 py-4 border-b border-code-border flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-code-text">Recent Runs</h2>
+                    <a href="{% url 'cpanel:run_list' %}" class="text-code-accent hover:underline text-sm">View all</a>
+                </div>
+                <div class="p-6">
+                    {% if recent_runs %}
+                    <ul class="space-y-4">
+                        {% for run in recent_runs %}
+                        <li class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center {% if run.status == 'success' %}bg-code-green/20{% elif run.status == 'failed' or run.status == 'timeout' %}bg-code-red/20{% elif run.status == 'running' %}bg-code-yellow/20{% else %}bg-code-muted/20{% endif %}">
+                                    {% if run.status == 'success' %}
+                                    <svg class="w-4 h-4 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    {% elif run.status == 'failed' or run.status == 'timeout' %}
+                                    <svg class="w-4 h-4 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                    {% elif run.status == 'running' %}
+                                    <svg class="w-4 h-4 text-code-yellow animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                    {% else %}
+                                    <svg class="w-4 h-4 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-code-accent hover:underline font-medium">
+                                        {{ run.script.name }}
+                                    </a>
+                                    <p class="text-xs text-code-muted">
+                                        {% if run.status == 'success' %}Success{% elif run.status == 'failed' %}Failed{% elif run.status == 'timeout' %}Timeout{% elif run.status == 'running' %}Running{% elif run.status == 'pending' %}Pending{% else %}{{ run.status }}{% endif %}
+                                        {% if run.duration_display %} - {{ run.duration_display }}{% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-code-muted">{{ run.created_at|timesince }} ago</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="text-center py-8">
+                        <p class="text-code-muted mb-4">No runs yet.</p>
+                        <a href="{% url 'cpanel:script_list' %}" class="text-code-accent hover:underline">Run a script</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="mt-8">
+            <h2 class="text-lg font-semibold text-code-text mb-4">Quick Actions</h2>
+            <div class="flex flex-wrap gap-4">
+                <a href="{% url 'cpanel:script_create' %}"
+                   class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <span>New Script</span>
+                </a>
+                <a href="{% url 'cpanel:script_list' %}"
+                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                    </svg>
+                    <span>View Scripts</span>
+                </a>
+                <a href="{% url 'cpanel:run_list' %}"
+                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span>View Runs</span>
+                </a>
             </div>
         </div>
     </div>

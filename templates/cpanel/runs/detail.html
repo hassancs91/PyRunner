@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Run {{ run.pk|truncatechars:8 }} - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:run_list' %}" class="hover:text-code-accent">Runs</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Run Details</span>
+            </nav>
+
+            <div class="flex items-start justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-code-text flex items-center">
+                        {{ run.script.name }}
+                        {% if run.status == 'success' %}
+                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Success</span>
+                        {% elif run.status == 'failed' %}
+                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Failed</span>
+                        {% elif run.status == 'timeout' %}
+                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Timeout</span>
+                        {% elif run.status == 'running' %}
+                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Running</span>
+                        {% elif run.status == 'pending' %}
+                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Pending</span>
+                        {% elif run.status == 'cancelled' %}
+                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Cancelled</span>
+                        {% endif %}
+                    </h1>
+                    <p class="text-code-muted mt-1">
+                        Run ID: <span class="font-mono text-sm">{{ run.pk }}</span>
+                    </p>
+                </div>
+
+                <a href="{% url 'cpanel:script_detail' pk=run.script.pk %}"
+                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                    View Script
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column: Output -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Standard Output -->
+                <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                    <div class="px-4 py-3 border-b border-code-border bg-code-bg flex items-center justify-between">
+                        <span class="text-sm font-medium text-code-text flex items-center">
+                            <svg class="w-4 h-4 mr-2 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            Standard Output (stdout)
+                        </span>
+                        {% if run.stdout %}
+                        <span class="text-xs text-code-muted">{{ run.stdout|length }} chars</span>
+                        {% endif %}
+                    </div>
+                    <div class="p-4 overflow-x-auto max-h-96 overflow-y-auto">
+                        {% if run.stdout %}
+                        <pre class="text-code-text font-mono text-sm whitespace-pre-wrap">{{ run.stdout }}</pre>
+                        {% else %}
+                        <p class="text-code-muted text-sm italic">No output</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Standard Error -->
+                {% if run.stderr %}
+                <div class="bg-code-surface border border-code-red/30 rounded-xl overflow-hidden">
+                    <div class="px-4 py-3 border-b border-code-red/30 bg-code-red/10 flex items-center justify-between">
+                        <span class="text-sm font-medium text-code-red flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            Standard Error (stderr)
+                        </span>
+                        <span class="text-xs text-code-red/70">{{ run.stderr|length }} chars</span>
+                    </div>
+                    <div class="p-4 overflow-x-auto max-h-96 overflow-y-auto">
+                        <pre class="text-code-red font-mono text-sm whitespace-pre-wrap">{{ run.stderr }}</pre>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Code Snapshot (Collapsible) -->
+                {% if run.code_snapshot %}
+                <details class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                    <summary class="px-4 py-3 border-b border-code-border bg-code-bg cursor-pointer hover:bg-code-bg/80 transition-colors">
+                        <span class="text-sm font-medium text-code-text">Code Snapshot (at time of execution)</span>
+                    </summary>
+                    <div class="p-4 overflow-x-auto max-h-96 overflow-y-auto">
+                        <pre class="text-code-text font-mono text-sm whitespace-pre-wrap">{{ run.code_snapshot }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+
+            <!-- Right Column: Metadata -->
+            <div class="space-y-6">
+                <!-- Run Info -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Run Info</h3>
+                    <dl class="space-y-4">
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Script</dt>
+                            <dd class="text-code-text mt-1">
+                                <a href="{% url 'cpanel:script_detail' pk=run.script.pk %}" class="text-code-accent hover:underline">
+                                    {{ run.script.name }}
+                                </a>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Status</dt>
+                            <dd class="mt-1">
+                                {% if run.status == 'success' %}
+                                <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Success</span>
+                                {% elif run.status == 'failed' %}
+                                <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Failed</span>
+                                {% elif run.status == 'timeout' %}
+                                <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Timeout</span>
+                                {% elif run.status == 'running' %}
+                                <span class="px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Running</span>
+                                {% elif run.status == 'pending' %}
+                                <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Pending</span>
+                                {% elif run.status == 'cancelled' %}
+                                <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Cancelled</span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        {% if run.exit_code is not None %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Exit Code</dt>
+                            <dd class="text-code-text mt-1 font-mono">{{ run.exit_code }}</dd>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Duration</dt>
+                            <dd class="text-code-text mt-1">
+                                {% if run.duration_display %}{{ run.duration_display }}{% else %}-{% endif %}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Triggered By</dt>
+                            <dd class="text-code-text mt-1">
+                                {% if run.triggered_by %}{{ run.triggered_by.email }}{% else %}System{% endif %}
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <!-- Timing -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Timing</h3>
+                    <dl class="space-y-4">
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Created</dt>
+                            <dd class="text-code-text mt-1">{{ run.created_at|date:"M d, Y H:i:s" }}</dd>
+                        </div>
+                        {% if run.started_at %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Started</dt>
+                            <dd class="text-code-text mt-1">{{ run.started_at|date:"M d, Y H:i:s" }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if run.ended_at %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Ended</dt>
+                            <dd class="text-code-text mt-1">{{ run.ended_at|date:"M d, Y H:i:s" }}</dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+                </div>
+
+                <!-- Task Info (if applicable) -->
+                {% if run.task_id %}
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Task Info</h3>
+                    <dl>
+                        <dt class="text-xs text-code-muted uppercase tracking-wider">Task ID</dt>
+                        <dd class="text-code-text mt-1 font-mono text-sm break-all">{{ run.task_id }}</dd>
+                    </dl>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

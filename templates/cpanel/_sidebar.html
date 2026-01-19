@@ -1,0 +1,40 @@
+<!-- Sidebar Navigation Component -->
+<aside class="w-64 bg-code-surface border-r border-code-border min-h-[calc(100vh-4rem)] flex-shrink-0">
+    <nav class="p-4 space-y-2">
+        <!-- Dashboard -->
+        <a href="{% url 'cpanel:dashboard' %}"
+           class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            <span>Dashboard</span>
+        </a>
+
+        <!-- Scripts -->
+        <a href="{% url 'cpanel:script_list' %}"
+           class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors {% if 'script' in request.resolver_match.url_name %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+            </svg>
+            <span>Scripts</span>
+        </a>
+
+        <!-- Runs -->
+        <a href="{% url 'cpanel:run_list' %}"
+           class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors {% if 'run' in request.resolver_match.url_name %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            <span>Runs</span>
+        </a>
+
+        <!-- Environments -->
+        <a href="{% url 'cpanel:environment_list' %}"
+           class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors {% if 'environment' in request.resolver_match.url_name %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+            <span>Environments</span>
+        </a>
+    </nav>
+</aside>
