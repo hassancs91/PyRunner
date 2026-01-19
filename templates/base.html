@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PyRunner{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'code-bg': '#0d1117',
+                        'code-surface': '#161b22',
+                        'code-border': '#30363d',
+                        'code-text': '#c9d1d9',
+                        'code-muted': '#8b949e',
+                        'code-accent': '#58a6ff',
+                        'code-green': '#3fb950',
+                        'code-yellow': '#d29922',
+                        'code-red': '#f85149',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #161b22; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        .font-mono { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #58a6ff 0%, #3fb950 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .glow-accent { box-shadow: 0 0 20px rgba(88, 166, 255, 0.3); }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-code-bg text-code-text min-h-screen flex flex-col">
+    <header class="border-b border-code-border bg-code-surface/50 backdrop-blur-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <a href="/" class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-code-accent/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold gradient-text">PyRunner</span>
+                </a>
+
+                <nav class="flex items-center space-x-4">
+                    {% if user.is_authenticated %}
+                        <span class="text-code-muted text-sm hidden sm:inline">{{ user.email }}</span>
+                        <form method="post" action="{% url 'auth:logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="text-code-muted hover:text-code-text transition-colors text-sm">
+                                Logout
+                            </button>
+                        </form>
+                    {% endif %}
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        {% for message in messages %}
+        <div class="mb-2 p-4 rounded-lg border {% if message.tags == 'error' %}bg-code-red/10 border-code-red/30 text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border-code-green/30 text-code-green{% else %}bg-code-accent/10 border-code-accent/30 text-code-accent{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="border-t border-code-border py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-code-muted text-sm">
+            <p>PyRunner - Self-hosted Python automation</p>
+        </div>
+    </footer>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

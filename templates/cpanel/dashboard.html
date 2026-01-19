@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - PyRunner{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="text-center">
+        <div class="w-16 h-16 bg-code-green/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-8 h-8 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+
+        <h1 class="text-3xl font-bold text-code-text mb-4">Welcome to PyRunner</h1>
+        <p class="text-code-muted text-lg mb-8">You're logged in as <span class="text-code-accent">{{ user.email }}</span></p>
+
+        <div class="bg-code-surface border border-code-border rounded-xl p-8 max-w-md mx-auto">
+            <h2 class="text-xl font-semibold text-code-text mb-4">Dashboard</h2>
+            <p class="text-code-muted mb-6">The control panel is under construction. Scripts, runs, and environments will appear here.</p>
+
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div class="p-4 bg-code-bg rounded-lg border border-code-border">
+                    <div class="text-2xl font-bold text-code-accent">0</div>
+                    <div class="text-xs text-code-muted">Scripts</div>
+                </div>
+                <div class="p-4 bg-code-bg rounded-lg border border-code-border">
+                    <div class="text-2xl font-bold text-code-green">0</div>
+                    <div class="text-xs text-code-muted">Runs</div>
+                </div>
+                <div class="p-4 bg-code-bg rounded-lg border border-code-border">
+                    <div class="text-2xl font-bold text-code-yellow">0</div>
+                    <div class="text-xs text-code-muted">Envs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
