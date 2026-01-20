@@ -16,7 +16,7 @@ from core.models import Run, Script, ScriptSchedule, GlobalSettings, PackageOper
 logger = logging.getLogger(__name__)
 
 
-def execute_run_task(run_id: str) -> dict:
+def execute_run_task(run_id: str, webhook_data: dict | None = None) -> dict:
     """
     Execute a script run asynchronously.
 
@@ -25,6 +25,7 @@ def execute_run_task(run_id: str) -> dict:
 
     Args:
         run_id: The UUID of the Run record (as string)
+        webhook_data: Optional webhook data to inject as environment variables
 
     Returns:
         dict: Execution result summary for logging/monitoring
@@ -50,7 +51,7 @@ def execute_run_task(run_id: str) -> dict:
             "error": f"Invalid UUID format: {e}",
         }
 
-    execute_run(run)
+    execute_run(run, webhook_data=webhook_data)
     run.refresh_from_db()
 
     logger.info(f"Task completed for Run {run_id} with status {run.status}")
@@ -63,7 +64,7 @@ def execute_run_task(run_id: str) -> dict:
     }
 
 
-def queue_script_run(run: Run) -> str:
+def queue_script_run(run: Run, webhook_data: dict | None = None) -> str:
     """
     Queue a Run for async execution.
 
@@ -72,6 +73,7 @@ def queue_script_run(run: Run) -> str:
 
     Args:
         run: The Run model instance to execute
+        webhook_data: Optional webhook data to inject as environment variables
 
     Returns:
         str: The django-q2 task ID
@@ -87,6 +89,7 @@ def queue_script_run(run: Run) -> str:
     task_id = async_task(
         "core.tasks.execute_run_task",
         str(run.id),
+        webhook_data,
         task_name=f"run-{run.id}",
         timeout=run.script.timeout_seconds + 60,
     )

@@ -236,4 +236,169 @@ Deliverables
 ✅ Output masking to prevent accidental secret exposure
 
 
+Phase 5: Webhooks ✅ (Completed)
+Goal
+Enable external triggers via webhooks so external services can run scripts.
+Features
+Webhook Triggers
+
+Webhook as a run mode option
+Auto-generate unique webhook URL per script
+Accept GET and POST requests
+Return JSON response with run ID and status
+Pass request body to script as environment variable (JSON string)
+Pass query params to script as environment variables
+Regenerate webhook token (invalidates old URL)
+Copy webhook URL button
+
+Webhook Response
+
+Immediate response (don't wait for script to finish)
+Response payload:
+
+status: "queued"
+run_id: UUID of created run
+script: script name
+
+
+Optional: synchronous mode (wait for result, with timeout) - Future
+
+Webhook Security
+
+Unique token per script (64 chars, URL-safe)
+Token in URL path (not query param)
+Only enabled scripts can be triggered
+Rate limiting per token (optional, future)
+IP whitelist (optional, future)
+
+Use Cases
+
+GitHub webhooks (on push, run deploy script)
+Stripe webhooks (on payment, run fulfillment)
+Zapier/Make integration
+Cron services (external cron triggers PyRunner)
+Manual curl/Postman triggers for testing
+
+Deliverables
+
+✅ webhook_token field added to Script model (64 chars, unique, nullable)
+✅ Migration 0005_add_webhook_token.py
+✅ Script.generate_webhook_token(), create_webhook_token(), regenerate_webhook_token(), clear_webhook_token() methods
+✅ Script.has_webhook property
+✅ webhook_trigger_view (public endpoint, GET/POST handler)
+✅ webhook_enable_view, webhook_disable_view, webhook_regenerate_view (authenticated)
+✅ Public webhook URL route: /webhook/<token>/
+✅ Executor updated to inject WEBHOOK_METHOD, WEBHOOK_QUERY, WEBHOOK_BODY, WEBHOOK_BODY_JSON, WEBHOOK_CONTENT_TYPE
+✅ tasks.py updated to pass webhook_data through queue
+✅ Script detail page webhook card with:
+  - Enable/disable webhook toggle
+  - Webhook URL display with copy button
+  - Example curl command
+  - Regenerate URL button
+
+
 TO Implement:
+
+Phase 6: Notifications
+Goal
+Alert users when scripts succeed or fail via email and webhooks.
+Features
+Notification Settings (Global)
+
+Email backend selection
+
+Disabled
+SMTP
+Resend API
+
+
+SMTP configuration
+
+Host, port
+Username, password
+TLS/SSL toggle
+From email address
+
+
+Resend configuration
+
+API key
+From email address
+
+
+Default notification email
+Test email button
+
+Per-Script Notifications
+
+Notify on: never, failure, success, both
+Override email (optional, uses global default)
+Webhook notification URL
+Webhook notification toggle
+
+Email Notifications
+
+Send on script completion based on settings
+Email content:
+
+Script name
+Run status (success/failed/timeout)
+Duration
+Error excerpt (if failed)
+Link to run details
+
+
+HTML and plain text versions
+
+Webhook Notifications
+
+POST JSON payload to configured URL
+Payload contents:
+
+Event type: "run_completed"
+Script: id, name
+Run: id, status, exit_code, duration
+Timestamps: started_at, ended_at
+Error: stderr excerpt (if failed)
+
+
+Timeout: 10 seconds
+Fail silently (don't break script execution)
+
+UI Changes
+
+Notification settings page
+
+Backend selection tabs
+SMTP form fields
+Resend form fields
+Default email input
+Test email button
+
+
+Script form — Notification section
+
+Notify on dropdown
+Override email input
+Webhook URL input
+
+
+Script detail — Notification settings display
+
+Checklist
+
+ Create NotificationSettings model
+ Add notification fields to Script model
+ Run migrations
+ Create notifications.py service
+ Create email templates
+ Create notification settings view
+ Update script form with notification fields
+ Update tasks.py to call notifications
+ Add test email functionality
+ Configure Django email backend dynamically
+ Test SMTP email notifications
+ Test Resend email notifications
+ Test webhook notifications
+ Test per-script notification overrides
+ Test notification triggers (success/failure/both)

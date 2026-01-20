@@ -2,6 +2,7 @@
 Script model for user-created Python scripts.
 """
 
+import secrets
 import uuid
 
 from django.conf import settings
@@ -39,6 +40,16 @@ class Script(models.Model):
     is_enabled = models.BooleanField(
         default=True,
         help_text="Whether this script can be executed",
+    )
+
+    # Webhook
+    webhook_token = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Unique token for webhook URL (auto-generated)",
     )
 
     # Metadata
@@ -93,3 +104,28 @@ class Script(models.Model):
         if len(self.code.split("\n")) > max_lines:
             preview += "\n..."
         return preview
+
+    @staticmethod
+    def generate_webhook_token() -> str:
+        """Generate a secure random webhook token (64 chars, URL-safe)."""
+        return secrets.token_urlsafe(48)  # 48 bytes = 64 chars in base64
+
+    def create_webhook_token(self) -> str:
+        """Create and save a new webhook token for this script."""
+        self.webhook_token = self.generate_webhook_token()
+        self.save(update_fields=["webhook_token", "updated_at"])
+        return self.webhook_token
+
+    def regenerate_webhook_token(self) -> str:
+        """Regenerate the webhook token, invalidating the old one."""
+        return self.create_webhook_token()
+
+    def clear_webhook_token(self) -> None:
+        """Remove the webhook token, disabling webhook access."""
+        self.webhook_token = None
+        self.save(update_fields=["webhook_token", "updated_at"])
+
+    @property
+    def has_webhook(self) -> bool:
+        """Check if this script has a webhook token configured."""
+        return bool(self.webhook_token)

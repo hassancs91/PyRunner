@@ -19,9 +19,13 @@ from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import redirect
 
+from core.views.webhooks import webhook_trigger_view
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("auth/", include("core.urls.auth")),
     path("cpanel/", include("core.urls.cpanel")),
+    # Public webhook endpoint (no auth required)
+    path("webhook/<str:token>/", webhook_trigger_view, name="webhook_trigger"),
     path("", lambda request: redirect("auth:login")),
 ]

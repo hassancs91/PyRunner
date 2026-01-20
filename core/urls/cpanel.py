@@ -12,6 +12,9 @@ from core.views.scripts import (
     script_toggle_view,
     schedule_toggle_view,
     schedule_history_view,
+    webhook_enable_view,
+    webhook_disable_view,
+    webhook_regenerate_view,
 )
 from core.views.runs import run_list_view, run_detail_view
 from core.views.environments import (
@@ -51,6 +54,10 @@ urlpatterns = [
     path("scripts/<uuid:pk>/toggle/", script_toggle_view, name="script_toggle"),
     path("scripts/<uuid:pk>/schedule/toggle/", schedule_toggle_view, name="schedule_toggle"),
     path("scripts/<uuid:pk>/schedule/history/", schedule_history_view, name="schedule_history"),
+    # Webhooks
+    path("scripts/<uuid:pk>/webhook/enable/", webhook_enable_view, name="webhook_enable"),
+    path("scripts/<uuid:pk>/webhook/disable/", webhook_disable_view, name="webhook_disable"),
+    path("scripts/<uuid:pk>/webhook/regenerate/", webhook_regenerate_view, name="webhook_regenerate"),
 
     # Runs
     path("runs/", run_list_view, name="run_list"),

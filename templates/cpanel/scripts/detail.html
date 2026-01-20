@@ -174,6 +174,75 @@
                         </a>
                     </div>
                 </div>
+
+                <!-- Webhook Card -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-code-text">Webhook</h3>
+                        {% if script.has_webhook %}
+                        <span class="text-xs px-2 py-1 rounded bg-code-green/20 text-code-green">Enabled</span>
+                        {% else %}
+                        <span class="text-xs px-2 py-1 rounded bg-code-muted/20 text-code-muted">Disabled</span>
+                        {% endif %}
+                    </div>
+
+                    {% if script.has_webhook %}
+                    <div class="space-y-4">
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Webhook URL</dt>
+                            <div class="flex items-center space-x-2">
+                                <input type="text"
+                                       id="webhook-url"
+                                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'webhook_trigger' token=script.webhook_token %}"
+                                       readonly
+                                       class="flex-1 px-3 py-2 bg-code-bg border border-code-border rounded text-code-text text-xs font-mono">
+                                <button type="button"
+                                        onclick="copyWebhookUrl()"
+                                        class="px-3 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-xs rounded transition-colors"
+                                        title="Copy URL">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Example curl</dt>
+                            <pre class="p-3 bg-code-bg rounded text-xs font-mono text-code-muted overflow-x-auto">curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"key": "value"}' \
+  "{{ request.scheme }}://{{ request.get_host }}{% url 'webhook_trigger' token=script.webhook_token %}"</pre>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-2">
+                            <form method="post" action="{% url 'cpanel:webhook_regenerate' pk=script.pk %}"
+                                  onsubmit="return confirm('Regenerate webhook URL? The old URL will stop working.');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-xs text-code-yellow hover:underline">
+                                    Regenerate URL
+                                </button>
+                            </form>
+                            <span class="text-code-muted">|</span>
+                            <form method="post" action="{% url 'cpanel:webhook_disable' pk=script.pk %}"
+                                  onsubmit="return confirm('Disable webhook? The URL will stop working.');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-xs text-code-red hover:underline">
+                                    Disable
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-code-muted text-sm mb-4">Enable webhooks to trigger this script via HTTP requests from external services.</p>
+                    <form method="post" action="{% url 'cpanel:webhook_enable' pk=script.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-sm rounded transition-colors">
+                            Enable Webhook
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
@@ -238,4 +307,25 @@
         </div>
     </div>
 </div>
+
+<script>
+function copyWebhookUrl() {
+    const urlInput = document.getElementById('webhook-url');
+    if (urlInput) {
+        navigator.clipboard.writeText(urlInput.value).then(() => {
+            // Show brief feedback
+            const btn = event.currentTarget;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+            }, 1500);
+        }).catch(err => {
+            // Fallback for older browsers
+            urlInput.select();
+            document.execCommand('copy');
+        });
+    }
+}
+</script>
 {% endblock %}

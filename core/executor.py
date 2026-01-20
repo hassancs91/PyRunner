@@ -5,6 +5,7 @@ This module handles the execution of Python scripts in isolated environments.
 It is designed to be called from django-q2 async tasks.
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -50,12 +51,16 @@ def _get_secrets_env() -> dict:
     return secrets_env
 
 
-def _build_script_environment() -> dict:
+def _build_script_environment(webhook_data: dict | None = None) -> dict:
     """
     Build the environment dict for script execution.
 
-    Combines system environment with secrets.
+    Combines system environment with secrets and webhook data.
     Secrets override any same-named system variables.
+    Webhook data is added with WEBHOOK_ prefix.
+
+    Args:
+        webhook_data: Optional webhook data from HTTP request
 
     Returns:
         Environment dict to pass to subprocess
@@ -66,6 +71,18 @@ def _build_script_environment() -> dict:
     # Add secrets (overriding any existing vars with same name)
     secrets = _get_secrets_env()
     env.update(secrets)
+
+    # Add webhook data if present
+    if webhook_data:
+        env["WEBHOOK_METHOD"] = webhook_data.get("method", "")
+        env["WEBHOOK_QUERY"] = json.dumps(webhook_data.get("query", {}))
+        env["WEBHOOK_CONTENT_TYPE"] = webhook_data.get("content_type", "")
+
+        if "body" in webhook_data:
+            env["WEBHOOK_BODY"] = webhook_data["body"]
+
+        if "body_json" in webhook_data:
+            env["WEBHOOK_BODY_JSON"] = json.dumps(webhook_data["body_json"])
 
     return env
 
@@ -164,7 +181,7 @@ def _validate_environment(run: Run) -> str:
     return python_path
 
 
-def execute_run(run: Run) -> None:
+def execute_run(run: Run, webhook_data: dict | None = None) -> None:
     """
     Execute a script run and update the Run record with results.
 
@@ -178,6 +195,7 @@ def execute_run(run: Run) -> None:
 
     Args:
         run: The Run model instance to execute
+        webhook_data: Optional webhook data to inject as environment variables
 
     Note:
         This function always saves the Run state, even on errors.
@@ -241,8 +259,8 @@ def execute_run(run: Run) -> None:
             # Build subprocess arguments
             cmd = [python_path, script_file_path]
 
-            # Build environment with secrets injected
-            script_env = _build_script_environment()
+            # Build environment with secrets and webhook data injected
+            script_env = _build_script_environment(webhook_data)
             secrets = _get_secrets_env()
 
             # Subprocess kwargs

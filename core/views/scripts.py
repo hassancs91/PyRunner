@@ -236,3 +236,45 @@ def schedule_history_view(request: HttpRequest, pk) -> HttpResponse:
         "schedule": schedule,
         "history": history,
     })
+
+
+@login_required
+@require_POST
+def webhook_enable_view(request: HttpRequest, pk) -> HttpResponse:
+    """Enable webhook for a script (creates token if not exists)."""
+    script = get_object_or_404(Script, pk=pk)
+
+    if not script.webhook_token:
+        script.create_webhook_token()
+        messages.success(request, f'Webhook enabled for "{script.name}".')
+    else:
+        messages.info(request, "Webhook is already enabled.")
+
+    return redirect("cpanel:script_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def webhook_disable_view(request: HttpRequest, pk) -> HttpResponse:
+    """Disable webhook for a script (removes token)."""
+    script = get_object_or_404(Script, pk=pk)
+
+    if script.webhook_token:
+        script.clear_webhook_token()
+        messages.success(request, f'Webhook disabled for "{script.name}".')
+    else:
+        messages.info(request, "Webhook is already disabled.")
+
+    return redirect("cpanel:script_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def webhook_regenerate_view(request: HttpRequest, pk) -> HttpResponse:
+    """Regenerate webhook token (invalidates old URL)."""
+    script = get_object_or_404(Script, pk=pk)
+
+    script.regenerate_webhook_token()
+    messages.success(request, f'Webhook URL regenerated for "{script.name}". The old URL is now invalid.')
+
+    return redirect("cpanel:script_detail", pk=pk)
