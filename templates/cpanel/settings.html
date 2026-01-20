@@ -9,42 +9,235 @@
     <div class="flex-1 p-8">
         <h1 class="text-2xl font-bold text-code-text mb-8">Settings</h1>
 
-        <!-- Global Pause Card -->
-        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl">
-            <h3 class="text-lg font-semibold text-code-text mb-4">Schedule Control</h3>
+        <!-- Tabs -->
+        <div class="mb-6 border-b border-code-border">
+            <nav class="flex space-x-8">
+                <button type="button"
+                        onclick="showTab('schedules')"
+                        id="tab-schedules"
+                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-code-accent text-code-accent">
+                    Schedule Control
+                </button>
+                <button type="button"
+                        onclick="showTab('notifications')"
+                        id="tab-notifications"
+                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
+                    Email Notifications
+                </button>
+            </nav>
+        </div>
 
-            <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg">
-                <div>
-                    <p class="text-code-text font-medium">Global Schedule Pause</p>
-                    <p class="text-sm text-code-muted">
-                        {% if settings.schedules_paused %}
-                        All schedules are currently paused.
-                        {% if settings.schedules_paused_at %}
-                        Paused {{ settings.schedules_paused_at|timesince }} ago.
-                        {% endif %}
-                        {% else %}
-                        All schedules are running normally.
-                        {% endif %}
-                    </p>
+        <!-- Schedule Control Tab -->
+        <div id="panel-schedules" class="tab-panel">
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl">
+                <h3 class="text-lg font-semibold text-code-text mb-4">Schedule Control</h3>
+
+                <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg">
+                    <div>
+                        <p class="text-code-text font-medium">Global Schedule Pause</p>
+                        <p class="text-sm text-code-muted">
+                            {% if settings.schedules_paused %}
+                            All schedules are currently paused.
+                            {% if settings.schedules_paused_at %}
+                            Paused {{ settings.schedules_paused_at|timesince }} ago.
+                            {% endif %}
+                            {% else %}
+                            All schedules are running normally.
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <form method="post" action="{% url 'cpanel:toggle_global_pause' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="px-4 py-2 rounded-lg font-medium transition-colors {% if settings.schedules_paused %}bg-code-green hover:bg-code-green/90 text-white{% else %}bg-code-yellow hover:bg-code-yellow/90 text-black{% endif %}">
+                            {% if settings.schedules_paused %}Resume All{% else %}Pause All{% endif %}
+                        </button>
+                    </form>
                 </div>
 
-                <form method="post" action="{% url 'cpanel:toggle_global_pause' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="px-4 py-2 rounded-lg font-medium transition-colors {% if settings.schedules_paused %}bg-code-green hover:bg-code-green/90 text-white{% else %}bg-code-yellow hover:bg-code-yellow/90 text-black{% endif %}">
-                        {% if settings.schedules_paused %}Resume All{% else %}Pause All{% endif %}
-                    </button>
-                </form>
+                <p class="mt-4 text-xs text-code-muted">
+                    {% if settings.schedules_paused %}
+                    Pausing schedules prevents any scheduled scripts from running automatically.
+                    Scripts can still be run manually.
+                    {% else %}
+                    When paused, all scheduled scripts will stop running until resumed.
+                    {% endif %}
+                </p>
             </div>
+        </div>
 
-            <p class="mt-4 text-xs text-code-muted">
-                {% if settings.schedules_paused %}
-                Pausing schedules prevents any scheduled scripts from running automatically.
-                Scripts can still be run manually.
-                {% else %}
-                When paused, all scheduled scripts will stop running until resumed.
-                {% endif %}
-            </p>
+        <!-- Notifications Tab -->
+        <div id="panel-notifications" class="tab-panel hidden">
+            <form method="post" action="{% url 'cpanel:notification_settings' %}">
+                {% csrf_token %}
+
+                <!-- Email Backend Selection -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mb-6">
+                    <h3 class="text-lg font-semibold text-code-text mb-4">Email Backend</h3>
+
+                    <div class="grid grid-cols-3 gap-4">
+                        {% for radio in notification_form.email_backend %}
+                        <label class="relative flex items-center justify-center p-4 border border-code-border rounded-lg cursor-pointer hover:border-code-accent transition-colors {% if radio.data.selected %}border-code-accent bg-code-accent/10{% endif %}">
+                            <input type="radio" name="email_backend" value="{{ radio.data.value }}"
+                                   {% if radio.data.selected %}checked{% endif %}
+                                   class="sr-only peer"
+                                   onchange="toggleEmailBackend(this.value)">
+                            <span class="text-code-text font-medium">{{ radio.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- SMTP Configuration -->
+                <div id="smtp-config" class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mb-6 {% if settings.email_backend != 'smtp' %}hidden{% endif %}">
+                    <h3 class="text-lg font-semibold text-code-text mb-4">SMTP Configuration</h3>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.smtp_host.label }}</label>
+                            {{ notification_form.smtp_host }}
+                            {% if notification_form.smtp_host.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ notification_form.smtp_host.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.smtp_port.label }}</label>
+                            {{ notification_form.smtp_port }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.smtp_username.label }}</label>
+                            {{ notification_form.smtp_username }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.smtp_password.label }}</label>
+                            {{ notification_form.smtp_password }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.smtp_from_email.label }}</label>
+                            {{ notification_form.smtp_from_email }}
+                            {% if notification_form.smtp_from_email.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ notification_form.smtp_from_email.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center pt-8">
+                            {{ notification_form.smtp_use_tls }}
+                            <label class="ml-2 text-sm text-code-text">{{ notification_form.smtp_use_tls.label }}</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resend Configuration -->
+                <div id="resend-config" class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mb-6 {% if settings.email_backend != 'resend' %}hidden{% endif %}">
+                    <h3 class="text-lg font-semibold text-code-text mb-4">Resend Configuration</h3>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.resend_api_key.label }}</label>
+                            {{ notification_form.resend_api_key }}
+                            <p class="mt-1 text-xs text-code-muted">Leave blank to keep current API key</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.resend_from_email.label }}</label>
+                            {{ notification_form.resend_from_email }}
+                            {% if notification_form.resend_from_email.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ notification_form.resend_from_email.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Default Notification Email -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mb-6">
+                    <h3 class="text-lg font-semibold text-code-text mb-4">Default Notification Email</h3>
+                    <div>
+                        <label class="block text-sm font-medium text-code-text mb-2">{{ notification_form.default_notification_email.label }}</label>
+                        {{ notification_form.default_notification_email }}
+                        <p class="mt-1 text-xs text-code-muted">{{ notification_form.default_notification_email.help_text }}</p>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center space-x-4">
+                    <button type="submit" class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Save Settings
+                    </button>
+                    <button type="button"
+                            onclick="sendTestEmail()"
+                            id="test-email-btn"
+                            class="px-6 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Send Test Email
+                    </button>
+                </div>
+            </form>
+
+            <!-- Test Email Result -->
+            <div id="test-email-result" class="hidden mt-4 p-4 rounded-lg max-w-2xl"></div>
         </div>
     </div>
 </div>
+
+<script>
+function showTab(tabName) {
+    // Hide all panels
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    // Reset all tabs
+    document.querySelectorAll('.tab-btn').forEach(t => {
+        t.classList.remove('border-code-accent', 'text-code-accent');
+        t.classList.add('border-transparent', 'text-code-muted');
+    });
+    // Show selected panel
+    document.getElementById('panel-' + tabName).classList.remove('hidden');
+    // Highlight selected tab
+    const tab = document.getElementById('tab-' + tabName);
+    tab.classList.remove('border-transparent', 'text-code-muted');
+    tab.classList.add('border-code-accent', 'text-code-accent');
+}
+
+function toggleEmailBackend(backend) {
+    document.getElementById('smtp-config').classList.toggle('hidden', backend !== 'smtp');
+    document.getElementById('resend-config').classList.toggle('hidden', backend !== 'resend');
+}
+
+function sendTestEmail() {
+    const btn = document.getElementById('test-email-btn');
+    const resultDiv = document.getElementById('test-email-result');
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    resultDiv.classList.add('hidden');
+
+    fetch('{% url "cpanel:test_email" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultDiv.classList.remove('hidden');
+        if (data.success) {
+            resultDiv.className = 'mt-4 p-4 rounded-lg max-w-2xl bg-code-green/10 border border-code-green text-code-green';
+            resultDiv.textContent = data.message || 'Test email sent successfully!';
+        } else {
+            resultDiv.className = 'mt-4 p-4 rounded-lg max-w-2xl bg-code-red/10 border border-code-red text-code-red';
+            resultDiv.textContent = 'Error: ' + (data.error || 'Unknown error');
+        }
+    })
+    .catch(error => {
+        resultDiv.classList.remove('hidden');
+        resultDiv.className = 'mt-4 p-4 rounded-lg max-w-2xl bg-code-red/10 border border-code-red text-code-red';
+        resultDiv.textContent = 'Error: ' + error.message;
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Send Test Email';
+    });
+}
+
+// Check URL hash for tab navigation
+if (window.location.hash === '#notifications') {
+    showTab('notifications');
+}
+</script>
 {% endblock %}

@@ -31,6 +31,7 @@ def execute_run_task(run_id: str, webhook_data: dict | None = None) -> dict:
         dict: Execution result summary for logging/monitoring
     """
     from core.executor import execute_run  # Import here to avoid circular imports
+    from core.services.notification_service import NotificationService
 
     try:
         run = Run.objects.select_related("script", "script__environment").get(
@@ -53,6 +54,14 @@ def execute_run_task(run_id: str, webhook_data: dict | None = None) -> dict:
 
     execute_run(run, webhook_data=webhook_data)
     run.refresh_from_db()
+
+    # Send notifications after run completion
+    try:
+        notification_results = NotificationService.send_notification(run)
+        if notification_results.get("email_sent") or notification_results.get("webhook_sent"):
+            logger.info(f"Notifications sent for run {run_id}: {notification_results}")
+    except Exception as e:
+        logger.error(f"Failed to send notifications for run {run_id}: {e}")
 
     logger.info(f"Task completed for Run {run_id} with status {run.status}")
 

@@ -243,6 +243,55 @@
                     </form>
                     {% endif %}
                 </div>
+
+                <!-- Notifications Card -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-code-text">Notifications</h3>
+                        {% if script.notify_on != 'never' %}
+                        <span class="text-xs px-2 py-1 rounded bg-code-accent/20 text-code-accent">
+                            {{ script.get_notify_on_display }}
+                        </span>
+                        {% else %}
+                        <span class="text-xs px-2 py-1 rounded bg-code-muted/20 text-code-muted">Disabled</span>
+                        {% endif %}
+                    </div>
+
+                    {% if script.notify_on != 'never' %}
+                    <dl class="space-y-4">
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Notify On</dt>
+                            <dd class="text-code-text mt-1">{{ script.get_notify_on_display }}</dd>
+                        </div>
+
+                        {% if script.notify_email %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Email Override</dt>
+                            <dd class="text-code-text mt-1">{{ script.notify_email }}</dd>
+                        </div>
+                        {% else %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Email</dt>
+                            <dd class="text-code-muted mt-1 text-sm">Using global default</dd>
+                        </div>
+                        {% endif %}
+
+                        {% if script.notify_webhook_enabled and script.notify_webhook_url %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Webhook</dt>
+                            <dd class="text-code-text mt-1 text-sm break-all">{{ script.notify_webhook_url }}</dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+                    {% else %}
+                    <p class="text-code-muted text-sm">
+                        Notifications are disabled for this script.
+                        <a href="{% url 'cpanel:script_edit' pk=script.pk %}" class="text-code-accent hover:underline">
+                            Edit settings
+                        </a>
+                    </p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 

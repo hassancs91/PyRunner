@@ -52,6 +52,33 @@ class Script(models.Model):
         help_text="Unique token for webhook URL (auto-generated)",
     )
 
+    # Notification settings
+    class NotifyOn(models.TextChoices):
+        NEVER = "never", "Never"
+        FAILURE = "failure", "On Failure"
+        SUCCESS = "success", "On Success"
+        BOTH = "both", "On Success and Failure"
+
+    notify_on = models.CharField(
+        max_length=20,
+        choices=NotifyOn.choices,
+        default=NotifyOn.NEVER,
+        help_text="When to send notifications for this script",
+    )
+    notify_email = models.EmailField(
+        blank=True,
+        help_text="Override email for this script (uses global default if empty)",
+    )
+    notify_webhook_url = models.URLField(
+        blank=True,
+        max_length=500,
+        help_text="URL to POST notification webhooks to",
+    )
+    notify_webhook_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable webhook notifications for this script",
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

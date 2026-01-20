@@ -1,0 +1,18 @@
+PyRunner Script Notification
+============================
+
+Script: {{ script.name }}
+Status: {{ status|upper }}
+Duration: {{ duration }}
+Run ID: {{ run.id }}
+Trigger: {{ run.trigger_type|title }}
+{% if run.exit_code is not None %}Exit Code: {{ run.exit_code }}{% endif %}
+
+{% if error_excerpt %}
+Error Output:
+-------------
+{{ error_excerpt }}
+{% endif %}
+
+---
+This notification was sent by PyRunner

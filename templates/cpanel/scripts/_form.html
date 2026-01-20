@@ -148,4 +148,59 @@
     }
     </script>
     {% endif %}
+
+    <!-- Notification Configuration Section -->
+    <div class="mt-8 pt-6 border-t border-code-border">
+        <h3 class="text-lg font-semibold text-code-text mb-4">Notification Settings</h3>
+
+        <div class="space-y-6">
+            <!-- Notify On -->
+            <div>
+                <label for="id_notify_on" class="block text-sm font-medium text-code-text mb-2">
+                    {{ form.notify_on.label }}
+                </label>
+                {{ form.notify_on }}
+                {% if form.notify_on.errors %}
+                <p class="mt-1 text-sm text-code-red">{{ form.notify_on.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Override Email -->
+            <div>
+                <label for="id_notify_email" class="block text-sm font-medium text-code-text mb-2">
+                    {{ form.notify_email.label }}
+                </label>
+                {{ form.notify_email }}
+                {% if form.notify_email.help_text %}
+                <p class="mt-1 text-xs text-code-muted">{{ form.notify_email.help_text }}</p>
+                {% endif %}
+                {% if form.notify_email.errors %}
+                <p class="mt-1 text-sm text-code-red">{{ form.notify_email.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Webhook Configuration -->
+            <div class="p-4 bg-code-bg rounded-lg space-y-4">
+                <div class="flex items-center space-x-3">
+                    {{ form.notify_webhook_enabled }}
+                    <label for="id_notify_webhook_enabled" class="text-sm font-medium text-code-text">
+                        {{ form.notify_webhook_enabled.label }}
+                    </label>
+                </div>
+
+                <div>
+                    <label for="id_notify_webhook_url" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.notify_webhook_url.label }}
+                    </label>
+                    {{ form.notify_webhook_url }}
+                    {% if form.notify_webhook_url.help_text %}
+                    <p class="mt-1 text-xs text-code-muted">{{ form.notify_webhook_url.help_text }}</p>
+                    {% endif %}
+                    {% if form.notify_webhook_url.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.notify_webhook_url.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

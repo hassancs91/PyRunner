@@ -31,7 +31,12 @@ from core.views.environments import (
     export_requirements_view,
     package_operation_status_view,
 )
-from core.views.settings import settings_view, toggle_global_pause_view
+from core.views.settings import (
+    settings_view,
+    toggle_global_pause_view,
+    notification_settings_view,
+    test_email_view,
+)
 from core.views.secrets import (
     secret_list_view,
     secret_create_view,
@@ -88,4 +93,6 @@ urlpatterns = [
     # Settings
     path("settings/", settings_view, name="settings"),
     path("settings/toggle-pause/", toggle_global_pause_view, name="toggle_global_pause"),
+    path("settings/notifications/", notification_settings_view, name="notification_settings"),
+    path("settings/test-email/", test_email_view, name="test_email"),
 ]

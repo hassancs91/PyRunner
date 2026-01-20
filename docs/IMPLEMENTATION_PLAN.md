@@ -297,9 +297,7 @@ Deliverables
   - Regenerate URL button
 
 
-TO Implement:
-
-Phase 6: Notifications
+Phase 6: Notifications ✅ (Completed)
 Goal
 Alert users when scripts succeed or fail via email and webhooks.
 Features
@@ -385,20 +383,20 @@ Webhook URL input
 
 Script detail — Notification settings display
 
-Checklist
+Deliverables
 
- Create NotificationSettings model
- Add notification fields to Script model
- Run migrations
- Create notifications.py service
- Create email templates
- Create notification settings view
- Update script form with notification fields
- Update tasks.py to call notifications
- Add test email functionality
- Configure Django email backend dynamically
- Test SMTP email notifications
- Test Resend email notifications
- Test webhook notifications
- Test per-script notification overrides
- Test notification triggers (success/failure/both)
+✅ Email backend fields added to GlobalSettings model (email_backend, smtp_*, resend_*, default_notification_email)
+✅ Notification fields added to Script model (notify_on, notify_email, notify_webhook_url, notify_webhook_enabled)
+✅ Migration 0006_notification_settings.py
+✅ NotificationService (core/services/notification_service.py) with email and webhook sending
+✅ NotificationSettingsForm for global settings
+✅ ScriptForm updated with notification fields
+✅ Settings view with notification settings and test email endpoint
+✅ Settings template with tabbed interface (Schedule Control, Email Notifications)
+✅ Email templates (run_completed.html, run_completed.txt, test_email.html)
+✅ Script form template with notification section
+✅ Script detail template with notifications card
+✅ Task integration in execute_run_task() to send notifications after run completion
+
+
+TO Implement:

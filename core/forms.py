@@ -45,7 +45,18 @@ class ScriptForm(forms.ModelForm):
 
     class Meta:
         model = Script
-        fields = ["name", "description", "code", "environment", "timeout_seconds", "is_enabled"]
+        fields = [
+            "name",
+            "description",
+            "code",
+            "environment",
+            "timeout_seconds",
+            "is_enabled",
+            "notify_on",
+            "notify_email",
+            "notify_webhook_url",
+            "notify_webhook_enabled",
+        ]
         widgets = {
             "name": forms.TextInput(
                 attrs={
@@ -84,6 +95,28 @@ class ScriptForm(forms.ModelForm):
                     "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
                 }
             ),
+            "notify_on": forms.Select(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                }
+            ),
+            "notify_email": forms.EmailInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "Override default email (optional)",
+                }
+            ),
+            "notify_webhook_url": forms.URLInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "https://your-service.com/webhook",
+                }
+            ),
+            "notify_webhook_enabled": forms.CheckboxInput(
+                attrs={
+                    "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                }
+            ),
         }
         labels = {
             "name": "Script Name",
@@ -92,9 +125,15 @@ class ScriptForm(forms.ModelForm):
             "environment": "Environment",
             "timeout_seconds": "Timeout (seconds)",
             "is_enabled": "Enabled",
+            "notify_on": "Notify On",
+            "notify_email": "Notification Email",
+            "notify_webhook_url": "Webhook URL",
+            "notify_webhook_enabled": "Enable Webhook",
         }
         help_texts = {
             "timeout_seconds": "Maximum execution time (1-3600 seconds)",
+            "notify_email": "Leave empty to use global default",
+            "notify_webhook_url": "URL to POST notifications to when script completes",
         }
 
     def __init__(self, *args, **kwargs):
@@ -559,3 +598,193 @@ class SecretEditForm(forms.Form):
             )
 
         return value
+
+
+class NotificationSettingsForm(forms.Form):
+    """Form for global notification settings."""
+
+    from core.models import GlobalSettings
+
+    EMAIL_BACKEND_CHOICES = [
+        (GlobalSettings.EmailBackend.DISABLED, "Disabled"),
+        (GlobalSettings.EmailBackend.SMTP, "SMTP"),
+        (GlobalSettings.EmailBackend.RESEND, "Resend API"),
+    ]
+
+    email_backend = forms.ChoiceField(
+        choices=EMAIL_BACKEND_CHOICES,
+        initial=GlobalSettings.EmailBackend.DISABLED,
+        widget=forms.RadioSelect(
+            attrs={
+                "class": "sr-only peer",
+            }
+        ),
+        label="Email Backend",
+    )
+
+    # SMTP Configuration
+    smtp_host = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "smtp.example.com",
+            }
+        ),
+        label="SMTP Host",
+    )
+
+    smtp_port = forms.IntegerField(
+        required=False,
+        initial=587,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 1,
+                "max": 65535,
+            }
+        ),
+        label="SMTP Port",
+    )
+
+    smtp_username = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "username@example.com",
+            }
+        ),
+        label="SMTP Username",
+    )
+
+    smtp_password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="SMTP Password",
+    )
+
+    smtp_use_tls = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Use TLS",
+    )
+
+    smtp_from_email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "noreply@example.com",
+            }
+        ),
+        label="From Email",
+    )
+
+    # Resend Configuration
+    resend_api_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Resend API Key",
+    )
+
+    resend_from_email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "noreply@yourdomain.com",
+            }
+        ),
+        label="From Email",
+    )
+
+    # Default notification email
+    default_notification_email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "notifications@example.com",
+            }
+        ),
+        label="Default Notification Email",
+        help_text="All script notifications will be sent here unless overridden per-script.",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["email_backend"].initial = instance.email_backend
+            self.fields["smtp_host"].initial = instance.smtp_host
+            self.fields["smtp_port"].initial = instance.smtp_port
+            self.fields["smtp_username"].initial = instance.smtp_username
+            self.fields["smtp_use_tls"].initial = instance.smtp_use_tls
+            self.fields["smtp_from_email"].initial = instance.smtp_from_email
+            self.fields["resend_from_email"].initial = instance.resend_from_email
+            self.fields["default_notification_email"].initial = instance.default_notification_email
+
+    def clean(self):
+        """Validate configuration based on selected backend."""
+        cleaned_data = super().clean()
+        backend = cleaned_data.get("email_backend")
+
+        from core.models import GlobalSettings
+
+        if backend == GlobalSettings.EmailBackend.SMTP:
+            if not cleaned_data.get("smtp_host"):
+                self.add_error("smtp_host", "SMTP host is required for SMTP backend.")
+            if not cleaned_data.get("smtp_from_email"):
+                self.add_error("smtp_from_email", "From email is required for SMTP backend.")
+
+        elif backend == GlobalSettings.EmailBackend.RESEND:
+            if not cleaned_data.get("resend_from_email"):
+                self.add_error("resend_from_email", "From email is required for Resend backend.")
+
+        return cleaned_data
+
+    def save(self, instance):
+        """Save the notification settings to the GlobalSettings instance."""
+        from core.services import EncryptionService
+
+        instance.email_backend = self.cleaned_data["email_backend"]
+        instance.smtp_host = self.cleaned_data.get("smtp_host") or ""
+        instance.smtp_port = self.cleaned_data.get("smtp_port") or 587
+        instance.smtp_username = self.cleaned_data.get("smtp_username") or ""
+        instance.smtp_use_tls = self.cleaned_data.get("smtp_use_tls", True)
+        instance.smtp_from_email = self.cleaned_data.get("smtp_from_email") or ""
+        instance.resend_from_email = self.cleaned_data.get("resend_from_email") or ""
+        instance.default_notification_email = self.cleaned_data.get("default_notification_email") or ""
+
+        # Encrypt and save SMTP password if provided
+        smtp_password = self.cleaned_data.get("smtp_password")
+        if smtp_password:
+            instance.smtp_password_encrypted = EncryptionService.encrypt(smtp_password)
+
+        # Encrypt and save Resend API key if provided
+        resend_api_key = self.cleaned_data.get("resend_api_key")
+        if resend_api_key:
+            instance.resend_api_key_encrypted = EncryptionService.encrypt(resend_api_key)
+
+        instance.save()
+        return instance

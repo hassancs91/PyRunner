@@ -12,6 +12,12 @@ class GlobalSettings(models.Model):
     Uses get_solo pattern - always ID=1.
     """
 
+    class EmailBackend(models.TextChoices):
+        DISABLED = "disabled", "Disabled"
+        SMTP = "smtp", "SMTP"
+        RESEND = "resend", "Resend API"
+
+    # Schedule settings
     schedules_paused = models.BooleanField(
         default=False,
         help_text="Global pause for all scheduled script executions",
@@ -32,6 +38,58 @@ class GlobalSettings(models.Model):
     )
 
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Email notification settings
+    email_backend = models.CharField(
+        max_length=20,
+        choices=EmailBackend.choices,
+        default=EmailBackend.DISABLED,
+        help_text="Email backend for notifications",
+    )
+
+    # SMTP configuration
+    smtp_host = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="SMTP server hostname",
+    )
+    smtp_port = models.PositiveIntegerField(
+        default=587,
+        help_text="SMTP server port",
+    )
+    smtp_username = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="SMTP username",
+    )
+    smtp_password_encrypted = models.TextField(
+        blank=True,
+        help_text="SMTP password (encrypted)",
+    )
+    smtp_use_tls = models.BooleanField(
+        default=True,
+        help_text="Use TLS for SMTP connection",
+    )
+    smtp_from_email = models.EmailField(
+        blank=True,
+        help_text="From email address for SMTP",
+    )
+
+    # Resend configuration
+    resend_api_key_encrypted = models.TextField(
+        blank=True,
+        help_text="Resend API key (encrypted)",
+    )
+    resend_from_email = models.EmailField(
+        blank=True,
+        help_text="From email address for Resend",
+    )
+
+    # Default notification email
+    default_notification_email = models.EmailField(
+        blank=True,
+        help_text="Default email address for all notifications",
+    )
 
     class Meta:
         db_table = "global_settings"
