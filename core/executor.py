@@ -15,12 +15,81 @@ from pathlib import Path
 from django.conf import settings
 from django.utils import timezone
 
-from core.models import Run
+from core.models import Run, Secret
+from core.services import EncryptionService
 
 logger = logging.getLogger(__name__)
 
 # Maximum output size (1MB) to prevent database bloat
 MAX_OUTPUT_BYTES = 1_000_000
+
+
+def _get_secrets_env() -> dict:
+    """
+    Get all secrets as environment variables.
+
+    Returns:
+        Dict of {key: decrypted_value} for all secrets
+    """
+    secrets_env = {}
+
+    # Only try to get secrets if encryption is configured
+    if not EncryptionService.is_configured():
+        logger.debug("Encryption not configured - secrets will not be injected")
+        return secrets_env
+
+    try:
+        for secret in Secret.objects.all():
+            try:
+                secrets_env[secret.key] = secret.get_decrypted_value()
+            except Exception as e:
+                logger.error(f"Failed to decrypt secret {secret.key}: {e}")
+    except Exception as e:
+        logger.error(f"Failed to load secrets: {e}")
+
+    return secrets_env
+
+
+def _build_script_environment() -> dict:
+    """
+    Build the environment dict for script execution.
+
+    Combines system environment with secrets.
+    Secrets override any same-named system variables.
+
+    Returns:
+        Environment dict to pass to subprocess
+    """
+    # Start with system environment
+    env = os.environ.copy()
+
+    # Add secrets (overriding any existing vars with same name)
+    secrets = _get_secrets_env()
+    env.update(secrets)
+
+    return env
+
+
+def _mask_secrets_in_output(output: str, secrets: dict) -> str:
+    """
+    Mask secret values in output to prevent accidental exposure.
+
+    Args:
+        output: The script output
+        secrets: Dict of {key: value} secrets
+
+    Returns:
+        Output with secret values replaced with [KEY:MASKED]
+    """
+    if not output or not secrets:
+        return output
+
+    masked = output
+    for key, value in secrets.items():
+        if value and len(value) >= 4:  # Only mask non-trivial values
+            masked = masked.replace(value, f"[{key}:MASKED]")
+
+    return masked
 
 
 class ExecutorError(Exception):
@@ -172,6 +241,10 @@ def execute_run(run: Run) -> None:
             # Build subprocess arguments
             cmd = [python_path, script_file_path]
 
+            # Build environment with secrets injected
+            script_env = _build_script_environment()
+            secrets = _get_secrets_env()
+
             # Subprocess kwargs
             kwargs = {
                 "capture_output": True,
@@ -180,6 +253,7 @@ def execute_run(run: Run) -> None:
                 "text": True,
                 "encoding": "utf-8",
                 "errors": "replace",
+                "env": script_env,
             }
 
             # Windows-specific: prevent console window popup
@@ -188,9 +262,9 @@ def execute_run(run: Run) -> None:
 
             result = subprocess.run(cmd, **kwargs)
 
-            # Process results
-            run.stdout = _truncate_output(result.stdout)
-            run.stderr = _truncate_output(result.stderr)
+            # Process results - mask secrets in output
+            run.stdout = _truncate_output(_mask_secrets_in_output(result.stdout, secrets))
+            run.stderr = _truncate_output(_mask_secrets_in_output(result.stderr, secrets))
             run.exit_code = result.returncode
             run.status = (
                 Run.Status.SUCCESS if result.returncode == 0 else Run.Status.FAILED
@@ -199,8 +273,10 @@ def execute_run(run: Run) -> None:
         except subprocess.TimeoutExpired as e:
             # Handle timeout - process is automatically killed
             run.status = Run.Status.TIMEOUT
-            run.stdout = _truncate_output(e.stdout or "") if e.stdout else ""
-            run.stderr = _truncate_output(e.stderr or "") if e.stderr else ""
+            stdout_raw = e.stdout or "" if e.stdout else ""
+            stderr_raw = e.stderr or "" if e.stderr else ""
+            run.stdout = _truncate_output(_mask_secrets_in_output(stdout_raw, secrets))
+            run.stderr = _truncate_output(_mask_secrets_in_output(stderr_raw, secrets))
             if run.stderr:
                 run.stderr += "\n\n[TIMEOUT: Script exceeded maximum execution time]"
             else:

@@ -172,4 +172,68 @@ Deliverables
 ✅ Python version auto-discovery (py launcher, PATH)
 
 
+Phase 4: Secrets Management ✅ (Completed)
+Goal
+Secure storage for API keys and credentials, injected into scripts at runtime.
+Features
+Secret Storage
+
+Add secret (key-value pair)
+
+Key: uppercase, underscores allowed (e.g., API_KEY)
+Value: any string, encrypted at rest
+Optional description
+
+
+Edit secret
+
+Can update value
+Can update description
+Key is immutable after creation
+
+
+Delete secret
+
+Confirmation required
+Warning about scripts that may use it
+
+
+View secrets list
+
+Key name
+Masked value preview (e.g., "sk-...abc")
+Description
+Created/updated dates
+
+
+
+Secret Injection
+
+All secrets injected as environment variables
+Available to all scripts automatically
+Scripts access via os.environ['KEY_NAME']
+No configuration needed per-script
+
+Security
+
+Encryption at rest using Fernet (symmetric)
+Encryption key stored in environment variable
+Never log or display full secret values
+Mask secrets in script output
+
+Deliverables
+
+✅ Secret model (key, encrypted_value, description, timestamps)
+✅ EncryptionService (Fernet encryption/decryption utilities)
+✅ Run migrations (0004_secret.py)
+✅ ENCRYPTION_KEY in settings.py
+✅ .env.example file
+✅ SecretCreateForm, SecretEditForm
+✅ Secret CRUD views (list, create, edit, delete)
+✅ Secrets templates (list.html, create.html, edit.html)
+✅ Sidebar navigation with Secrets link
+✅ Executor updated to inject secrets as environment variables
+✅ Output masking to prevent accidental secret exposure
+
+
 TO Implement:

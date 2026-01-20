@@ -3,3 +3,5 @@ django-q2>=1.6.0
 django-tailwind>=4.4.0
 gunicorn>=21.0.0
 resend>=0.7.0
+cryptography>=42.0.0
+python-dotenv>=1.0.0

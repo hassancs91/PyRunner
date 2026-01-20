@@ -29,6 +29,12 @@ from core.views.environments import (
     package_operation_status_view,
 )
 from core.views.settings import settings_view, toggle_global_pause_view
+from core.views.secrets import (
+    secret_list_view,
+    secret_create_view,
+    secret_edit_view,
+    secret_delete_view,
+)
 
 app_name = "cpanel"
 
@@ -65,6 +71,12 @@ urlpatterns = [
     path("environments/<uuid:pk>/packages/export/", export_requirements_view, name="export_requirements"),
     # AJAX endpoint
     path("api/package-operation/<uuid:operation_id>/status/", package_operation_status_view, name="package_operation_status"),
+
+    # Secrets
+    path("secrets/", secret_list_view, name="secret_list"),
+    path("secrets/create/", secret_create_view, name="secret_create"),
+    path("secrets/<uuid:pk>/edit/", secret_edit_view, name="secret_edit"),
+    path("secrets/<uuid:pk>/delete/", secret_delete_view, name="secret_delete"),
 
     # Settings
     path("settings/", settings_view, name="settings"),

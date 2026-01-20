@@ -1,6 +1,7 @@
 """
 Forms for the core app.
 """
+import re
 from zoneinfo import available_timezones
 
 from django import forms
@@ -8,6 +9,10 @@ from django.utils.text import slugify
 
 from core.models import Script, Environment, ScriptSchedule
 from core.services import EnvironmentService
+
+
+# Regex pattern for secret key validation (uppercase, numbers, underscores, must start with letter)
+SECRET_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
 # Common timezone choices (sorted, common ones first)
@@ -417,3 +422,140 @@ class BulkInstallForm(forms.Form):
                 raise forms.ValidationError(f"Invalid package specification: {line}")
 
         return cleaned_data
+
+
+class SecretCreateForm(forms.Form):
+    """Form for creating a new secret."""
+
+    key = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent uppercase",
+                "placeholder": "API_KEY",
+                "autocomplete": "off",
+            }
+        ),
+        label="Key Name",
+        help_text="Uppercase letters, numbers, and underscores only. Must start with a letter.",
+    )
+
+    value = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "rows": 3,
+                "placeholder": "sk-your-secret-value-here",
+                "autocomplete": "off",
+            }
+        ),
+        label="Secret Value",
+        help_text="The secret value (will be encrypted at rest)",
+    )
+
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "rows": 2,
+                "placeholder": "What is this secret used for?",
+            }
+        ),
+        label="Description",
+        help_text="Optional description to help remember what this secret is for",
+    )
+
+    def clean_key(self):
+        """Validate and normalize the key."""
+        key = self.cleaned_data.get("key", "").strip().upper()
+
+        if not key:
+            raise forms.ValidationError("Key name is required.")
+
+        if not SECRET_KEY_PATTERN.match(key):
+            raise forms.ValidationError(
+                "Key must start with a letter and contain only uppercase letters, numbers, and underscores."
+            )
+
+        # Check for reserved environment variable names
+        reserved = {
+            "PATH",
+            "HOME",
+            "USER",
+            "SHELL",
+            "PWD",
+            "PYTHONPATH",
+            "VIRTUAL_ENV",
+            "PYTHONHOME",
+            "PYTHONDONTWRITEBYTECODE",
+            "PYTHONUNBUFFERED",
+        }
+        if key in reserved:
+            raise forms.ValidationError(
+                f"'{key}' is a reserved environment variable name."
+            )
+
+        # Check if key already exists
+        from core.models import Secret
+
+        if Secret.objects.filter(key=key).exists():
+            raise forms.ValidationError(f"A secret with key '{key}' already exists.")
+
+        return key
+
+    def clean_value(self):
+        """Validate the secret value."""
+        value = self.cleaned_data.get("value", "")
+
+        if not value:
+            raise forms.ValidationError("Secret value is required.")
+
+        # Reasonable max length for secrets
+        if len(value) > 10000:
+            raise forms.ValidationError(
+                "Secret value is too long (max 10,000 characters)."
+            )
+
+        return value
+
+
+class SecretEditForm(forms.Form):
+    """Form for editing an existing secret (value and description only)."""
+
+    value = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "rows": 3,
+                "placeholder": "Leave blank to keep current value",
+                "autocomplete": "off",
+            }
+        ),
+        label="New Secret Value",
+        help_text="Leave blank to keep the current value",
+    )
+
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "rows": 2,
+                "placeholder": "What is this secret used for?",
+            }
+        ),
+        label="Description",
+    )
+
+    def clean_value(self):
+        """Validate the secret value if provided."""
+        value = self.cleaned_data.get("value", "")
+
+        if value and len(value) > 10000:
+            raise forms.ValidationError(
+                "Secret value is too long (max 10,000 characters)."
+            )
+
+        return value

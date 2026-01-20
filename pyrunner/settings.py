@@ -13,8 +13,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -165,7 +170,7 @@ USE_RESEND = os.environ.get("USE_RESEND", "False").lower() == "true"
 Q_CLUSTER = {
     "name": "PyRunner",
     "workers": int(os.environ.get("Q_WORKERS", 2)),
-    "timeout": 600,  # 10 minutes max task timeout
+    "timeout": 600 if os.name != "nt" else 0,  # SIGALRM not available on Windows
     "retry": 660,  # Retry after 11 minutes
     "queue_limit": 20,
     "bulk": 5,
@@ -183,3 +188,8 @@ SCRIPTS_WORKDIR = DATA_DIR / "workdir"
 DATA_DIR.mkdir(exist_ok=True)
 ENVIRONMENTS_ROOT.mkdir(exist_ok=True)
 SCRIPTS_WORKDIR.mkdir(exist_ok=True)
+
+
+# Secrets Encryption
+# Generate a key with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")

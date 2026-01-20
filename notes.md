@@ -3,6 +3,7 @@ add secrets
 add examples - sharing - import - export
 backup
 chnage timezon
+add a way to view stucked tasks in django and force clear
 
 ### Step 8: Default Environment
 - [x] setup_default_env command
