@@ -132,6 +132,48 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Schedule Info Card -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-code-text">Schedule</h3>
+                        {% if schedule.run_mode != 'manual' %}
+                        <form method="post" action="{% url 'cpanel:schedule_toggle' pk=script.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="text-xs px-2 py-1 rounded {% if schedule.is_active %}bg-code-green/20 text-code-green{% else %}bg-code-yellow/20 text-code-yellow{% endif %}">
+                                {% if schedule.is_active %}Active{% else %}Paused{% endif %}
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+
+                    <dl class="space-y-4">
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Mode</dt>
+                            <dd class="text-code-text mt-1">{{ schedule.schedule_display }}</dd>
+                        </div>
+
+                        {% if schedule.next_run %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Next Run</dt>
+                            <dd class="text-code-text mt-1">{{ schedule.next_run|date:"M d, Y H:i" }} UTC</dd>
+                        </div>
+                        {% endif %}
+
+                        {% if schedule.last_scheduled_run %}
+                        <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Last Scheduled Run</dt>
+                            <dd class="text-code-text mt-1">{{ schedule.last_scheduled_run|date:"M d, Y H:i" }} UTC</dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+
+                    <div class="mt-4 pt-4 border-t border-code-border">
+                        <a href="{% url 'cpanel:schedule_history' pk=script.pk %}" class="text-xs text-code-accent hover:underline">
+                            View schedule history
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
 

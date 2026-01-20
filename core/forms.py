@@ -1,8 +1,38 @@
 """
 Forms for the core app.
 """
+from zoneinfo import available_timezones
+
 from django import forms
-from core.models import Script, Environment
+from django.utils.text import slugify
+
+from core.models import Script, Environment, ScriptSchedule
+from core.services import EnvironmentService
+
+
+# Common timezone choices (sorted, common ones first)
+COMMON_TIMEZONES = [
+    "UTC",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Asia/Tokyo",
+    "Asia/Shanghai",
+    "Asia/Singapore",
+    "Australia/Sydney",
+]
+
+
+def get_timezone_choices():
+    """Generate timezone choices with common ones first."""
+    all_tz = sorted(available_timezones())
+    common = [(tz, tz) for tz in COMMON_TIMEZONES if tz in all_tz]
+    others = [(tz, tz) for tz in all_tz if tz not in COMMON_TIMEZONES]
+    return [("", "---")] + common + [("---", "─" * 20)] + others
 
 
 class ScriptForm(forms.ModelForm):
@@ -78,3 +108,312 @@ class ScriptForm(forms.ModelForm):
         if timeout is not None and (timeout < 1 or timeout > 3600):
             raise forms.ValidationError("Timeout must be between 1 and 3600 seconds.")
         return timeout
+
+
+class ScheduleForm(forms.ModelForm):
+    """Form for configuring script schedules."""
+
+    # Custom field for daily times (comma-separated input)
+    daily_times_input = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50",
+                "placeholder": "09:00, 18:00",
+            }
+        ),
+        label="Run Times",
+        help_text="Comma-separated times in HH:MM format (24-hour)",
+    )
+
+    timezone = forms.ChoiceField(
+        choices=get_timezone_choices,
+        initial="UTC",
+        widget=forms.Select(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50",
+            }
+        ),
+    )
+
+    class Meta:
+        model = ScriptSchedule
+        fields = ["run_mode", "interval_minutes", "timezone", "is_active"]
+        widgets = {
+            "run_mode": forms.RadioSelect(
+                attrs={
+                    "class": "sr-only peer",
+                }
+            ),
+            "interval_minutes": forms.Select(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50",
+                }
+            ),
+            "is_active": forms.CheckboxInput(
+                attrs={
+                    "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                }
+            ),
+        }
+        labels = {
+            "run_mode": "Run Mode",
+            "interval_minutes": "Interval",
+            "is_active": "Schedule Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Populate daily_times_input from instance
+        if self.instance and self.instance.pk and self.instance.daily_times:
+            self.fields["daily_times_input"].initial = ", ".join(
+                self.instance.daily_times
+            )
+
+    def clean_daily_times_input(self):
+        """Parse and validate daily times input."""
+        value = self.cleaned_data.get("daily_times_input", "").strip()
+        if not value:
+            return []
+
+        times = []
+        for time_str in value.split(","):
+            time_str = time_str.strip()
+            if not time_str:
+                continue
+
+            # Validate HH:MM format
+            try:
+                parts = time_str.split(":")
+                if len(parts) != 2:
+                    raise ValueError
+                hour, minute = int(parts[0]), int(parts[1])
+                if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                    raise ValueError
+                times.append(f"{hour:02d}:{minute:02d}")
+            except ValueError:
+                raise forms.ValidationError(
+                    f"Invalid time format: '{time_str}'. Use HH:MM (e.g., 09:00)"
+                )
+
+        return times
+
+    def clean(self):
+        cleaned_data = super().clean()
+        run_mode = cleaned_data.get("run_mode")
+
+        if run_mode == ScriptSchedule.RunMode.INTERVAL:
+            if not cleaned_data.get("interval_minutes"):
+                self.add_error(
+                    "interval_minutes", "Interval is required for interval mode."
+                )
+
+        elif run_mode == ScriptSchedule.RunMode.DAILY:
+            daily_times = cleaned_data.get("daily_times_input", [])
+            if not daily_times:
+                self.add_error(
+                    "daily_times_input",
+                    "At least one time is required for daily mode.",
+                )
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        # Set daily_times from parsed input
+        instance.daily_times = self.cleaned_data.get("daily_times_input", [])
+
+        if commit:
+            instance.save()
+
+        return instance
+
+
+class EnvironmentCreateForm(forms.ModelForm):
+    """Form for creating a new environment."""
+
+    python_path = forms.ChoiceField(
+        choices=[],
+        widget=forms.Select(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+            }
+        ),
+        label="Python Version",
+        help_text="Select Python installation to use for this environment",
+    )
+
+    class Meta:
+        model = Environment
+        fields = ["name", "description"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "My Environment",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "rows": 2,
+                    "placeholder": "Environment description (optional)",
+                }
+            ),
+        }
+        labels = {
+            "name": "Environment Name",
+            "description": "Description",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Populate python_path choices from discovered Python installations
+        pythons = EnvironmentService.discover_python_versions()
+        choices = [(p["path"], p["display"]) for p in pythons]
+        if not choices:
+            choices = [("", "No Python installations found")]
+        self.fields["python_path"].choices = choices
+
+    def clean_name(self):
+        """Validate name and check for path uniqueness."""
+        name = self.cleaned_data.get("name", "").strip()
+        if not name:
+            raise forms.ValidationError("Environment name is required.")
+
+        # Generate path from slugified name
+        base_path = slugify(name)
+        if not base_path:
+            base_path = "environment"
+
+        # Ensure path is unique
+        path = base_path
+        counter = 1
+        while Environment.objects.filter(path=path).exists():
+            path = f"{base_path}-{counter}"
+            counter += 1
+
+        # Store generated path for use in view
+        self._generated_path = path
+        return name
+
+    def get_generated_path(self) -> str:
+        """Return the generated path after validation."""
+        return getattr(self, "_generated_path", slugify(self.cleaned_data.get("name", "env")))
+
+
+class EnvironmentEditForm(forms.ModelForm):
+    """Form for editing environment details (name/description only)."""
+
+    class Meta:
+        model = Environment
+        fields = ["name", "description"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "My Environment",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "rows": 2,
+                    "placeholder": "Environment description (optional)",
+                }
+            ),
+        }
+        labels = {
+            "name": "Environment Name",
+            "description": "Description",
+        }
+
+
+class PackageInstallForm(forms.Form):
+    """Form for installing a single package."""
+
+    package_spec = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "requests==2.31.0",
+            }
+        ),
+        label="Package",
+        help_text="Package name with optional version (e.g., requests, django>=4.0)",
+    )
+
+    def clean_package_spec(self):
+        spec = self.cleaned_data.get("package_spec", "").strip()
+        if not spec:
+            raise forms.ValidationError("Package specification is required.")
+        if not EnvironmentService.validate_package_spec(spec):
+            raise forms.ValidationError(
+                "Invalid package specification. Use format: package or package==version"
+            )
+        return spec
+
+
+class BulkInstallForm(forms.Form):
+    """Form for bulk package installation from requirements."""
+
+    requirements = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-sm placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "rows": 10,
+                "placeholder": "requests==2.31.0\ndjango>=4.0\nnumpy",
+            }
+        ),
+        label="Requirements",
+        help_text="Paste requirements.txt content (one package per line)",
+        required=False,
+    )
+
+    requirements_file = forms.FileField(
+        required=False,
+        widget=forms.FileInput(
+            attrs={
+                "class": "block w-full text-sm text-code-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-code-accent/90 cursor-pointer",
+                "accept": ".txt",
+            }
+        ),
+        label="Or upload requirements.txt",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        text = cleaned_data.get("requirements", "").strip()
+        file = cleaned_data.get("requirements_file")
+
+        if not text and not file:
+            raise forms.ValidationError(
+                "Provide requirements text or upload a file."
+            )
+
+        # If file provided, read its content
+        if file:
+            try:
+                content = file.read().decode("utf-8")
+                cleaned_data["requirements"] = content
+            except UnicodeDecodeError:
+                raise forms.ValidationError(
+                    "Could not read file. Ensure it's a valid text file."
+                )
+
+        # Validate each line
+        requirements_text = cleaned_data.get("requirements", "")
+        for line in requirements_text.splitlines():
+            line = line.strip()
+            # Skip empty lines and comments
+            if not line or line.startswith("#") or line.startswith("-"):
+                continue
+            # Extract package spec (first word before any whitespace)
+            pkg_spec = line.split()[0] if line.split() else ""
+            if pkg_spec and not EnvironmentService.validate_package_spec(pkg_spec):
+                raise forms.ValidationError(f"Invalid package specification: {line}")
+
+        return cleaned_data

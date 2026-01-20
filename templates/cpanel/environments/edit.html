@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ environment.name }} - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:environment_list' %}" class="hover:text-code-accent">Environments</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:environment_detail' pk=environment.pk %}" class="hover:text-code-accent">{{ environment.name }}</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Edit</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">Edit Environment</h1>
+            <p class="text-code-muted">Update environment name and description</p>
+        </div>
+
+        <!-- Form -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Name -->
+                <div class="mb-6">
+                    <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.name.label }}
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Description -->
+                <div class="mb-6">
+                    <label for="id_description" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.description.label }}
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.description.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Read-only Info -->
+                <div class="mb-6 p-4 bg-code-bg border border-code-border rounded-lg">
+                    <h3 class="text-sm font-medium text-code-text mb-3">Environment Details (Read-only)</h3>
+                    <dl class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <dt class="text-code-muted">Python Version:</dt>
+                            <dd class="text-code-text font-mono">{{ environment.python_version }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-code-muted">Path:</dt>
+                            <dd class="text-code-text font-mono">{{ environment.path }}</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt class="text-code-muted">Scripts:</dt>
+                            <dd class="text-code-text">{{ environment.script_count }}</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-code-border">
+                    <a href="{% url 'cpanel:environment_detail' pk=environment.pk %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

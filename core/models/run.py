@@ -24,6 +24,11 @@ class Run(models.Model):
         TIMEOUT = "timeout", "Timeout"
         CANCELLED = "cancelled", "Cancelled"
 
+    class TriggerType(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        SCHEDULED = "scheduled", "Scheduled"
+        API = "api", "API"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     script = models.ForeignKey(
         Script,
@@ -87,6 +92,14 @@ class Run(models.Model):
         blank=True,
         db_index=True,
         help_text="django-q2 task ID for tracking async execution",
+    )
+
+    # How this run was triggered
+    trigger_type = models.CharField(
+        max_length=20,
+        choices=TriggerType.choices,
+        default=TriggerType.MANUAL,
+        help_text="How this run was triggered",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

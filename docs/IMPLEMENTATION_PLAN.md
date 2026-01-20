@@ -1,305 +1,175 @@
-# PyRunner Implementation Plan
+PyRunner — Full Implementation Plan
 
-## Project Overview
-Self-hosted Python script automation platform for solo developers, indie hackers, and small teams.
+Name: PyRunner
+Description: Self-hosted Python script automation platform
+Target Users: Solo developers, indie hackers, small teams
+Core Value: Upload a script, schedule it, monitor it — nothing else to configure
+License: Open source (MIT)
+Deployment: Single Docker container
 
-**Tech Stack:**
-- Backend: Django 6
-- Task Queue: django-q2 (ORM broker, no Redis)
-- Database: SQLite (default), Postgres (optional)
-- Frontend: Django templates + Tailwind CSS
-- Auth: Magic link only
-- Deployment: Single Docker container
+Phase 1: Core MVP ✅ (Completed)
+Scope
 
----
+Project setup (Django, django-q2, Tailwind)
+User auth (magic link only)
+Environment model + default env creation
+Script model (paste code only)
+Manual run mode only
+Basic executor (subprocess, capture output)
+Run model + history
+Cpanel dashboard (list scripts, run, view logs)
 
-## Phase 1 Scope
+Deliverables
 
-1. Project setup (Django, django-q2, Tailwind)
-2. User auth (magic link only)
-3. Environment model + default env creation
-4. Script model (paste code only)
-5. Manual run mode only
-6. Basic executor (subprocess, capture output)
-7. Run model + history
-8. Cpanel dashboard (list scripts, run, view logs)
+ Django project structure
+ Custom User model with email auth
+ MagicToken model for passwordless login
+ Environment model with venv support
+ Script model (name, description, code)
+ Run model (status, stdout, stderr, timestamps)
+ Script executor with subprocess
+ django-q2 async task execution
+ Basic dashboard UI
+ Script CRUD views
+ Run history views
+ Tailwind styling
 
----
 
-## Project Structure
+Phase 2: Scheduling ✅ (Completed)
+Goal
+Enable automated script execution on time-based schedules.
+Features
+Run Modes
 
-```
-PyRunner/
-├── manage.py
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-├── pyrunner/                    # Django project config
-│   ├── __init__.py
-│   ├── settings.py
-│   ├── urls.py
-│   └── wsgi.py
-├── core/                        # Main app
-│   ├── models/                  # Modular models
-│   │   ├── __init__.py
-│   │   ├── user.py
-│   │   ├── environment.py
-│   │   ├── script.py
-│   │   └── run.py
-│   ├── views/
-│   │   ├── __init__.py
-│   │   ├── auth.py
-│   │   ├── dashboard.py
-│   │   ├── scripts.py
-│   │   ├── runs.py
-│   │   └── environments.py
-│   ├── urls/
-│   │   ├── __init__.py
-│   │   ├── auth.py
-│   │   └── cpanel.py
-│   ├── forms.py
-│   ├── tasks.py                 # django-q2 tasks
-│   ├── executor.py              # Script execution
-│   └── management/commands/
-│       └── setup_default_env.py
-├── templates/
-│   ├── base.html
-│   ├── auth/
-│   │   ├── login.html
-│   │   ├── verify.html
-│   │   └── magic_link_sent.html
-│   └── cpanel/
-│       ├── dashboard.html
-│       ├── script_create.html
-│       ├── script_detail.html
-│       ├── script_edit.html
-│       ├── run_detail.html
-│       └── run_list.html
-├── theme/                       # Tailwind (auto-generated)
-├── static/css/
-├── data/                        # Runtime data (Docker volume)
-│   ├── db.sqlite3
-│   └── environments/
-└── scripts/
-    └── entrypoint.sh
-```
+Manual — Run on-demand from dashboard (existing)
+Interval — Run every X minutes
 
----
+Minimum interval: 5 minutes
+Configurable: 5, 10, 15, 30, 60 minutes, etc.
 
-## Implementation Steps
 
-### Step 1: Project Setup
-- [x] Create requirements.txt
-- [x] Install dependencies
-- [x] Create Django project
-- [x] Create core app
-- [x] Configure settings.py
-- [x] Create data directories
+Daily — Run at specific time(s)
 
-### Step 2: Models (Modular)
-- [x] core/models/user.py (User, MagicToken)
-- [x] core/models/environment.py
-- [x] core/models/script.py
-- [x] core/models/run.py
-- [x] core/models/__init__.py (exports)
-- [x] Run migrations
+Support multiple times per day
+Timezone selection
+Examples: "09:00 UTC", "09:00, 18:00 America/New_York"
 
-### Step 3: Magic Link Auth
-- [x] core/views/auth.py
-- [x] core/urls/auth.py
-- [x] Auth templates
-- [x] Email configuration (Resend API + console backend)
 
-### Step 4: Script Executor
-- [x] core/executor.py
-- [x] Subprocess execution
-- [x] Timeout handling
-- [x] Output capture
 
-### Step 5: django-q2 Integration
-- [x] core/tasks.py
-- [x] Q_CLUSTER configuration
-- [x] Async task execution
+Schedule Management
 
-### Step 6: Tailwind Setup
-- [x] django-tailwind init
-- [x] Configure content paths
-- [x] Build CSS
+Enable/disable schedule without deleting
+View next scheduled run time
+View last run time
+Pause all schedules (global toggle)
+Schedule history (when schedule was changed)
 
-### Step 7: Views & Templates
-- [x] Dashboard view (placeholder)
-- [x] Script CRUD views
-- [x] Run views
-- [x] Environment views
-- [x] All templates
+django-q2 Integration
 
-### Step 8: Default Environment
-- [x] setup_default_env command
-- [ ] Auto-create on first run
+Create Schedule objects for each scheduled script
+Link Schedule ID to Script model
+Handle schedule updates (delete old, create new)
+Reschedule daily tasks after each run
 
-### Step 9: Docker Deployment
-- [ ] Dockerfile
-- [ ] docker-compose.yml
-- [ ] entrypoint.sh
-- [ ] .env.example
+Deliverables
 
----
+✅ ScriptSchedule model (run_mode, interval_minutes, daily_times, timezone, is_active)
+✅ ScheduleHistory model (change tracking for audit)
+✅ GlobalSettings model (global pause functionality)
+✅ Run.trigger_type field (manual/scheduled/api)
+✅ ScheduleService for django-q2 integration
+✅ ScheduleForm with validation
+✅ Script edit view with schedule configuration
+✅ Schedule toggle view
+✅ Schedule history view
+✅ Global settings view with pause/resume
+✅ Updated templates (detail page schedule card, edit form, sidebar)
 
-## URL Structure
 
-```
-/                              -> Redirect to /cpanel/
-/auth/login/                   -> Magic link request
-/auth/verify/<token>/          -> Verify & login
-/auth/logout/                  -> Logout
-/cpanel/                       -> Dashboard
-/cpanel/scripts/               -> Script list
-/cpanel/scripts/create/        -> Create script
-/cpanel/scripts/<uuid>/        -> Script detail
-/cpanel/scripts/<uuid>/edit/   -> Edit script
-/cpanel/scripts/<uuid>/run/    -> Run script (POST)
-/cpanel/scripts/<uuid>/toggle/ -> Enable/disable (POST)
-/cpanel/runs/                  -> All runs
-/cpanel/runs/<uuid>/           -> Run detail
-/cpanel/environments/          -> Environment list
-/cpanel/environments/<uuid>/   -> Environment detail
-```
+Phase 3: Environments & Packages ✅ (Completed)
+Goal
+Allow users to manage Python environments and install packages via UI.
+Features
+Environment Management
 
----
+Create new environments
 
-## Models Reference
+Name and description
+Python version selection (from available on system)
+Auto-create venv in designated folder
 
-### User
-```python
-class User(AbstractUser):
-    email = EmailField(unique=True)  # USERNAME_FIELD
-    is_verified = BooleanField(default=False)
-```
 
-### MagicToken
-```python
-class MagicToken(Model):
-    token = CharField(max_length=64, unique=True)
-    user = ForeignKey(User)
-    email = EmailField()
-    created_at = DateTimeField(auto_now_add=True)
-    expires_at = DateTimeField()
-    used_at = DateTimeField(null=True)
-    ip_address = GenericIPAddressField(null=True)
-```
+Edit environment details
+Delete environment
 
-### Environment
-```python
-class Environment(Model):
-    id = UUIDField(primary_key=True)
-    name = CharField(max_length=100)
-    description = TextField(blank=True)
-    path = CharField(max_length=255, unique=True)
-    python_version = CharField(max_length=20)
-    requirements = TextField(blank=True)
-    is_default = BooleanField(default=False)
-    is_active = BooleanField(default=True)
-    created_at = DateTimeField(auto_now_add=True)
-    updated_at = DateTimeField(auto_now=True)
-    created_by = ForeignKey(User, null=True)
-```
+Only if no scripts assigned
+Confirmation required
+Removes venv folder
 
-### Script
-```python
-class Script(Model):
-    id = UUIDField(primary_key=True)
-    name = CharField(max_length=200)
-    description = TextField(blank=True)
-    code = TextField()
-    environment = ForeignKey(Environment, on_delete=PROTECT)
-    timeout_seconds = PositiveIntegerField(default=300)
-    is_enabled = BooleanField(default=True)
-    created_at = DateTimeField(auto_now_add=True)
-    updated_at = DateTimeField(auto_now=True)
-    created_by = ForeignKey(User, null=True)
-```
 
-### Run
-```python
-class Run(Model):
-    class Status(TextChoices):
-        PENDING = 'pending'
-        RUNNING = 'running'
-        SUCCESS = 'success'
-        FAILED = 'failed'
-        TIMEOUT = 'timeout'
-        CANCELLED = 'cancelled'
+Set default environment
+View environment details
 
-    id = UUIDField(primary_key=True)
-    script = ForeignKey(Script, on_delete=CASCADE)
-    status = CharField(choices=Status.choices, default=PENDING)
-    exit_code = IntegerField(null=True)
-    stdout = TextField(blank=True)
-    stderr = TextField(blank=True)
-    started_at = DateTimeField(null=True)
-    ended_at = DateTimeField(null=True)
-    code_snapshot = TextField(blank=True)
-    triggered_by = ForeignKey(User, null=True)
-    task_id = CharField(max_length=100, blank=True)
-    created_at = DateTimeField(auto_now_add=True)
-```
+Creation date
+Python version
+Assigned scripts count
+Disk usage
 
----
 
-## Settings Configuration
 
-```python
-# Key settings for pyrunner/settings.py
+Package Management
 
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django_q',
-    'tailwind',
-    'theme',
-    'core',
-]
+View installed packages list
 
-AUTH_USER_MODEL = 'core.User'
-LOGIN_URL = 'auth:login'
-LOGIN_REDIRECT_URL = 'cpanel:dashboard'
+Package name and version
+Sortable, searchable
 
-# django-q2
-Q_CLUSTER = {
-    'name': 'PyRunner',
-    'workers': 2,
-    'timeout': 600,
-    'orm': 'default',
-}
 
-# PyRunner paths
-from pathlib import Path
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / 'data'
-ENVIRONMENTS_ROOT = DATA_DIR / 'environments'
-SCRIPTS_WORKDIR = DATA_DIR / 'workdir'
-```
+Install package
 
----
+Text input for package name
+Support version pinning (e.g., "requests==2.31.0")
+Show installation progress/output
+Success/error feedback
 
-## Future Phases
 
-### Phase 2
-- Run modes: Interval, Daily, Cron
-- Webhook triggers
-- Package management UI
+Uninstall package
 
-### Phase 3
-- Secrets management
-- Email notifications
-- Webhook notifications
+Confirmation required
+Show uninstall output
 
-### Phase 4
-- Settings UI
-- Backup/restore
-- Multi-user management
+
+Bulk install from requirements.txt
+
+Paste or upload requirements
+Install all at once
+
+
+Export requirements.txt
+
+Download current packages as file
+
+
+
+Script-Environment Assignment
+
+Select environment when creating script
+Change environment on existing script
+Show environment name in script list
+Warning when changing environment (may affect script)
+
+Deliverables
+
+✅ PackageOperation model (operation tracking for async pip operations)
+✅ EnvironmentService (venv creation, pip operations, Python discovery)
+✅ EnvironmentCreateForm, EnvironmentEditForm, PackageInstallForm, BulkInstallForm
+✅ Environment CRUD views (create, edit, delete, set default)
+✅ Package management views (list, install, uninstall, bulk install, export)
+✅ execute_package_operation async task for django-q2
+✅ Environment templates (create, edit, packages)
+✅ Updated environment list/detail templates with action buttons
+✅ Disk usage display
+✅ Python version auto-discovery (py launcher, PATH)
+
+
+TO Implement:

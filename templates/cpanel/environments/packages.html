@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Packages - {{ environment.name }} - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:environment_list' %}" class="hover:text-code-accent">Environments</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:environment_detail' pk=environment.pk %}" class="hover:text-code-accent">{{ environment.name }}</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Packages</span>
+            </nav>
+
+            <div class="flex items-start justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-code-text">Package Management</h1>
+                    <p class="text-code-muted">{{ environment.name }} &middot; {{ package_count }} packages installed</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <a href="{% url 'cpanel:export_requirements' pk=environment.pk %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors inline-flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Export requirements.txt
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column: Package List -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Search and Sort -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-4">
+                    <form method="get" class="flex items-center space-x-4">
+                        <div class="flex-1">
+                            <input type="text" name="search" value="{{ search }}"
+                                   placeholder="Search packages..."
+                                   class="w-full px-4 py-2 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                        </div>
+                        <select name="sort"
+                                onchange="this.form.submit()"
+                                class="px-4 py-2 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                            <option value="name" {% if sort_by == "name" %}selected{% endif %}>Sort by Name</option>
+                            <option value="version" {% if sort_by == "version" %}selected{% endif %}>Sort by Version</option>
+                        </select>
+                        <button type="submit"
+                                class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white rounded-lg transition-colors">
+                            Search
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Package Table -->
+                <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                    {% if packages %}
+                    <table class="w-full">
+                        <thead class="bg-code-bg border-b border-code-border">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Package</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Version</th>
+                                <th class="px-6 py-3 text-right text-xs font-semibold text-code-muted uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-code-border">
+                            {% for package in packages %}
+                            <tr class="hover:bg-code-bg/50 transition-colors">
+                                <td class="px-6 py-4">
+                                    <span class="text-code-text font-mono">{{ package.name }}</span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="text-code-muted font-mono text-sm">{{ package.version }}</span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <form method="post" action="{% url 'cpanel:package_uninstall' pk=environment.pk %}"
+                                          onsubmit="return confirm('Uninstall {{ package.name }}?');"
+                                          class="inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="package_name" value="{{ package.name }}">
+                                        <button type="submit"
+                                                class="text-code-red hover:text-code-red/80 text-sm transition-colors">
+                                            Uninstall
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="p-8 text-center">
+                        <svg class="w-12 h-12 text-code-muted mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                        <p class="text-code-muted">
+                            {% if search %}
+                            No packages found matching "{{ search }}"
+                            {% else %}
+                            No packages installed yet
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Right Column: Install Forms and Operations -->
+            <div class="space-y-6">
+                <!-- Install Single Package -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Install Package</h3>
+                    <form method="post" action="{% url 'cpanel:package_install' pk=environment.pk %}">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            {{ install_form.package_spec }}
+                        </div>
+                        <p class="text-xs text-code-muted mb-4">
+                            Examples: requests, django>=4.0, numpy==1.24.0
+                        </p>
+                        <button type="submit"
+                                class="w-full px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                            Install
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Bulk Install -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Bulk Install</h3>
+                    <form method="post" action="{% url 'cpanel:bulk_install' pk=environment.pk %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label class="block text-xs text-code-muted mb-2">Paste requirements.txt content:</label>
+                            {{ bulk_form.requirements }}
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs text-code-muted mb-2">Or upload file:</label>
+                            {{ bulk_form.requirements_file }}
+                        </div>
+                        <button type="submit"
+                                class="w-full px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                            Install from Requirements
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Recent Operations -->
+                {% if operations %}
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Recent Operations</h3>
+                    <div class="space-y-3">
+                        {% for op in operations %}
+                        <div class="p-3 bg-code-bg rounded-lg" data-operation-id="{{ op.id }}">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-medium text-code-text">
+                                    {{ op.get_operation_display }}
+                                </span>
+                                {% if op.status == "pending" %}
+                                <span class="px-2 py-0.5 text-xs rounded bg-code-yellow/20 text-code-yellow">Pending</span>
+                                {% elif op.status == "running" %}
+                                <span class="px-2 py-0.5 text-xs rounded bg-code-accent/20 text-code-accent">Running</span>
+                                {% elif op.status == "success" %}
+                                <span class="px-2 py-0.5 text-xs rounded bg-code-green/20 text-code-green">Success</span>
+                                {% elif op.status == "failed" %}
+                                <span class="px-2 py-0.5 text-xs rounded bg-code-red/20 text-code-red">Failed</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-xs text-code-muted font-mono truncate" title="{{ op.package_spec }}">
+                                {% if op.operation == "bulk_install" %}
+                                {{ op.package_spec|linebreaksbr|truncatewords:10 }}
+                                {% else %}
+                                {{ op.package_spec }}
+                                {% endif %}
+                            </p>
+                            {% if op.error %}
+                            <p class="text-xs text-code-red mt-1 truncate" title="{{ op.error }}">
+                                {{ op.error|truncatechars:50 }}
+                            </p>
+                            {% endif %}
+                            <p class="text-xs text-code-muted mt-1">
+                                {{ op.created_at|timesince }} ago
+                                {% if op.duration %}
+                                &middot; {{ op.duration_display }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if has_running_operation %}
+<script>
+// Poll for operation status updates
+(function() {
+    function refreshPage() {
+        location.reload();
+    }
+    // Refresh every 3 seconds while operations are running
+    setTimeout(refreshPage, 3000);
+})();
+</script>
+{% endif %}
+{% endblock %}

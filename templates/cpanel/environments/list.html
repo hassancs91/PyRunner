@@ -8,9 +8,18 @@
 
     <div class="flex-1 p-8">
         <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-2xl font-bold text-code-text">Environments</h1>
-            <p class="text-code-muted">Python virtual environments for running scripts</p>
+        <div class="flex items-start justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-code-text">Environments</h1>
+                <p class="text-code-muted">Python virtual environments for running scripts</p>
+            </div>
+            <a href="{% url 'cpanel:environment_create' %}"
+               class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Environment
+            </a>
         </div>
 
         <!-- Environments Grid -->
@@ -62,9 +71,19 @@
                 </svg>
             </div>
             <h3 class="text-lg font-semibold text-code-text mb-2">No environments yet</h3>
-            <p class="text-code-muted mb-4">Run the setup command to create the default environment.</p>
-            <div class="bg-code-bg border border-code-border rounded-lg p-4 max-w-md mx-auto">
-                <code class="text-code-accent text-sm font-mono">python manage.py setup_default_env</code>
+            <p class="text-code-muted mb-6">Create a new environment to get started, or run the setup command.</p>
+            <div class="flex flex-col items-center space-y-4">
+                <a href="{% url 'cpanel:environment_create' %}"
+                   class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    Create Environment
+                </a>
+                <span class="text-code-muted text-sm">or</span>
+                <div class="bg-code-bg border border-code-border rounded-lg p-4 max-w-md">
+                    <code class="text-code-accent text-sm font-mono">python manage.py setup_default_env</code>
+                </div>
             </div>
         </div>
         {% endif %}

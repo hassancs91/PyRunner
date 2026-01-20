@@ -2,13 +2,16 @@
 Core models for PyRunner.
 
 This module exports all models for easy importing:
-    from core.models import User, MagicToken, Environment, Script, Run
+    from core.models import User, MagicToken, Environment, Script, Run, ScriptSchedule, ScheduleHistory, GlobalSettings, PackageOperation
 """
 
 from .user import User, MagicToken
 from .environment import Environment
 from .script import Script
 from .run import Run
+from .schedule import ScriptSchedule, ScheduleHistory
+from .settings import GlobalSettings
+from .package import PackageOperation
 
 __all__ = [
     "User",
@@ -16,4 +19,8 @@ __all__ = [
     "Environment",
     "Script",
     "Run",
+    "ScriptSchedule",
+    "ScheduleHistory",
+    "GlobalSettings",
+    "PackageOperation",
 ]

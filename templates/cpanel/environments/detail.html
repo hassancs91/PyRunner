@@ -34,6 +34,19 @@
                     <p class="text-code-muted mt-1">{{ environment.description }}</p>
                     {% endif %}
                 </div>
+                <div class="flex items-center space-x-3">
+                    <a href="{% url 'cpanel:environment_packages' pk=environment.pk %}"
+                       class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                        Manage Packages
+                    </a>
+                    <a href="{% url 'cpanel:environment_edit' pk=environment.pk %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Edit
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -109,6 +122,10 @@
                             <dd class="text-code-text mt-1">{{ environment.script_count }}</dd>
                         </div>
                         <div>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider">Disk Usage</dt>
+                            <dd class="text-code-text mt-1">{{ disk_usage }}</dd>
+                        </div>
+                        <div>
                             <dt class="text-xs text-code-muted uppercase tracking-wider">Created</dt>
                             <dd class="text-code-text mt-1">{{ environment.created_at|date:"M d, Y H:i" }}</dd>
                         </div>
@@ -152,11 +169,50 @@
                     </div>
                 </div>
 
+                <!-- Actions -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <h3 class="text-sm font-semibold text-code-text mb-4">Actions</h3>
+                    <div class="space-y-3">
+                        {% if not environment.is_default %}
+                        <form method="post" action="{% url 'cpanel:environment_set_default' pk=environment.pk %}">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="w-full px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors text-sm">
+                                Set as Default
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        {% if environment.can_delete %}
+                        <form method="post" action="{% url 'cpanel:environment_delete' pk=environment.pk %}"
+                              onsubmit="return confirm('Are you sure you want to delete this environment? This will remove the virtual environment folder and cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="w-full px-4 py-2 bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded-lg transition-colors text-sm">
+                                Delete Environment
+                            </button>
+                        </form>
+                        {% else %}
+                        <div class="p-3 bg-code-bg rounded-lg">
+                            <p class="text-xs text-code-muted">
+                                {% if environment.is_default %}
+                                Cannot delete the default environment.
+                                {% else %}
+                                Cannot delete: {{ environment.script_count }} script(s) are using this environment.
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <!-- Requirements -->
                 {% if environment.requirements %}
                 <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                    <div class="px-4 py-3 border-b border-code-border bg-code-bg">
+                    <div class="px-4 py-3 border-b border-code-border bg-code-bg flex items-center justify-between">
                         <span class="text-sm font-medium text-code-text">Requirements</span>
+                        <a href="{% url 'cpanel:environment_packages' pk=environment.pk %}"
+                           class="text-xs text-code-accent hover:underline">Manage</a>
                     </div>
                     <div class="p-4 max-h-64 overflow-y-auto">
                         <pre class="text-code-text font-mono text-xs whitespace-pre-wrap">{{ environment.requirements }}</pre>

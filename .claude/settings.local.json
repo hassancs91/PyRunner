@@ -8,7 +8,8 @@
       "Bash(d:/repos/PyRunner/venv/Scripts/python.exe:*)",
       "Bash(findstr:*)",
       "Bash(python manage.py tailwind:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(python:*)"
     ]
   }
 }

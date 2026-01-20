@@ -71,4 +71,81 @@
         <p class="text-sm text-code-red">{{ form.is_enabled.errors.0 }}</p>
         {% endif %}
     </div>
+
+    {% if schedule_form %}
+    <!-- Schedule Configuration Section -->
+    <div class="mt-8 pt-6 border-t border-code-border">
+        <h3 class="text-lg font-semibold text-code-text mb-4">Schedule Configuration</h3>
+
+        <!-- Run Mode Selection -->
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-code-text mb-3">Run Mode</label>
+            <div class="grid grid-cols-3 gap-4">
+                {% for radio in schedule_form.run_mode %}
+                <label class="relative flex items-center justify-center p-4 border border-code-border rounded-lg cursor-pointer hover:border-code-accent transition-colors {% if radio.data.selected %}border-code-accent bg-code-accent/10{% endif %}">
+                    <input type="radio" name="run_mode" value="{{ radio.data.value }}" {% if radio.data.selected %}checked{% endif %} class="sr-only peer" onchange="toggleScheduleOptions(this.value)">
+                    <span class="text-code-text font-medium">{{ radio.choice_label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% if schedule_form.run_mode.errors %}
+            <p class="mt-1 text-sm text-code-red">{{ schedule_form.run_mode.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Interval Options (shown when interval mode selected) -->
+        <div id="interval-options" class="mb-6 {% if schedule_form.instance.run_mode != 'interval' %}hidden{% endif %}">
+            <label for="id_interval_minutes" class="block text-sm font-medium text-code-text mb-2">
+                {{ schedule_form.interval_minutes.label }}
+            </label>
+            {{ schedule_form.interval_minutes }}
+            {% if schedule_form.interval_minutes.errors %}
+            <p class="mt-1 text-sm text-code-red">{{ schedule_form.interval_minutes.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Daily Options (shown when daily mode selected) -->
+        <div id="daily-options" class="mb-6 {% if schedule_form.instance.run_mode != 'daily' %}hidden{% endif %}">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_daily_times_input" class="block text-sm font-medium text-code-text mb-2">
+                        {{ schedule_form.daily_times_input.label }}
+                    </label>
+                    {{ schedule_form.daily_times_input }}
+                    <p class="mt-1 text-xs text-code-muted">{{ schedule_form.daily_times_input.help_text }}</p>
+                    {% if schedule_form.daily_times_input.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.daily_times_input.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="id_timezone" class="block text-sm font-medium text-code-text mb-2">
+                        Timezone
+                    </label>
+                    {{ schedule_form.timezone }}
+                    {% if schedule_form.timezone.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.timezone.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule Active Toggle -->
+        <div class="flex items-center space-x-3">
+            {{ schedule_form.is_active }}
+            <label for="id_is_active" class="text-sm font-medium text-code-text">
+                {{ schedule_form.is_active.label }}
+            </label>
+            {% if schedule_form.is_active.errors %}
+            <p class="text-sm text-code-red">{{ schedule_form.is_active.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    function toggleScheduleOptions(mode) {
+        document.getElementById('interval-options').classList.toggle('hidden', mode !== 'interval');
+        document.getElementById('daily-options').classList.toggle('hidden', mode !== 'daily');
+    }
+    </script>
+    {% endif %}
 </div>

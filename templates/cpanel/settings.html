@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <h1 class="text-2xl font-bold text-code-text mb-8">Settings</h1>
+
+        <!-- Global Pause Card -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl">
+            <h3 class="text-lg font-semibold text-code-text mb-4">Schedule Control</h3>
+
+            <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg">
+                <div>
+                    <p class="text-code-text font-medium">Global Schedule Pause</p>
+                    <p class="text-sm text-code-muted">
+                        {% if settings.schedules_paused %}
+                        All schedules are currently paused.
+                        {% if settings.schedules_paused_at %}
+                        Paused {{ settings.schedules_paused_at|timesince }} ago.
+                        {% endif %}
+                        {% else %}
+                        All schedules are running normally.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <form method="post" action="{% url 'cpanel:toggle_global_pause' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 rounded-lg font-medium transition-colors {% if settings.schedules_paused %}bg-code-green hover:bg-code-green/90 text-white{% else %}bg-code-yellow hover:bg-code-yellow/90 text-black{% endif %}">
+                        {% if settings.schedules_paused %}Resume All{% else %}Pause All{% endif %}
+                    </button>
+                </form>
+            </div>
+
+            <p class="mt-4 text-xs text-code-muted">
+                {% if settings.schedules_paused %}
+                Pausing schedules prevents any scheduled scripts from running automatically.
+                Scripts can still be run manually.
+                {% else %}
+                When paused, all scheduled scripts will stop running until resumed.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

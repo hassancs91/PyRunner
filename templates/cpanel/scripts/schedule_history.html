@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule History - {{ script.name }} - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:script_list' %}" class="hover:text-code-accent">Scripts</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="hover:text-code-accent">{{ script.name }}</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Schedule History</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">Schedule History</h1>
+            <p class="text-code-muted">Changes to {{ script.name }}'s schedule configuration</p>
+        </div>
+
+        {% if history %}
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-code-bg border-b border-code-border">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Change Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Details</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Changed By</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">When</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-code-border">
+                    {% for entry in history %}
+                    <tr class="hover:bg-code-bg/50 transition-colors">
+                        <td class="px-6 py-4">
+                            {% if entry.change_type == 'created' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Created</span>
+                            {% elif entry.change_type == 'updated' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-accent/20 text-code-accent">Updated</span>
+                            {% elif entry.change_type == 'enabled' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Enabled</span>
+                            {% elif entry.change_type == 'disabled' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Disabled</span>
+                            {% elif entry.change_type == 'deleted' %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Deleted</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-text text-sm">
+                            {% if entry.new_config %}
+                                {% if entry.new_config.run_mode %}
+                                    Mode: {{ entry.new_config.run_mode }}
+                                {% endif %}
+                                {% if entry.new_config.interval_minutes %}
+                                    | Interval: {{ entry.new_config.interval_minutes }} min
+                                {% endif %}
+                                {% if entry.new_config.daily_times %}
+                                    | Times: {{ entry.new_config.daily_times|join:", " }}
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted">
+                            {% if entry.changed_by %}{{ entry.changed_by.email }}{% else %}System{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted text-sm">
+                            {{ entry.created_at|date:"M d, Y H:i" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-8 text-center">
+            <p class="text-code-muted">No schedule history yet.</p>
+        </div>
+        {% endif %}
+
+        <div class="mt-6">
+            <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="text-code-accent hover:underline">
+                &larr; Back to script
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
