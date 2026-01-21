@@ -287,3 +287,26 @@ def cleanup_old_runs_task() -> dict:
     except Exception as e:
         logger.exception("Cleanup task failed")
         return {"success": False, "error": str(e)}
+
+
+def worker_heartbeat_task() -> dict:
+    """
+    Heartbeat task that runs periodically to indicate workers are alive.
+    Updates the worker_heartbeat_at timestamp in GlobalSettings.
+
+    This task is scheduled to run every minute when qcluster starts.
+    It allows the system to detect when workers have stopped.
+
+    Returns:
+        dict: Result with timestamp of heartbeat
+    """
+    try:
+        settings = GlobalSettings.get_settings()
+        settings.worker_heartbeat_at = timezone.now()
+        settings.save(update_fields=["worker_heartbeat_at"])
+
+        logger.debug("Worker heartbeat updated")
+        return {"success": True, "heartbeat_at": str(settings.worker_heartbeat_at)}
+    except Exception as e:
+        logger.exception("Worker heartbeat failed")
+        return {"success": False, "error": str(e)}

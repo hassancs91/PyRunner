@@ -5,6 +5,7 @@ backup
 chnage timezon
 add a way to view stucked tasks in django and force clear
 auto update
+check bugs in terminal
 
 ### Step 8: Default Environment
 - [x] setup_default_env command

@@ -14,6 +14,7 @@ from core.models import GlobalSettings
 from core.services.schedule_service import ScheduleService
 from core.services.notification_service import NotificationService
 from core.services.retention_service import RetentionService
+from core.services.system_info_service import SystemInfoService
 from core.forms import (
     NotificationSettingsForm,
     GeneralSettingsForm,
@@ -179,6 +180,23 @@ def cleanup_preview_view(request: HttpRequest) -> JsonResponse:
         })
     except Exception as e:
         logger.exception("Failed to get cleanup preview")
+        return JsonResponse({
+            "success": False,
+            "error": str(e),
+        })
+
+
+@login_required
+def system_info_view(request: HttpRequest) -> JsonResponse:
+    """Get system information via AJAX."""
+    try:
+        info = SystemInfoService.get_all_info()
+        return JsonResponse({
+            "success": True,
+            "data": info,
+        })
+    except Exception as e:
+        logger.exception("Failed to get system info")
         return JsonResponse({
             "success": False,
             "error": str(e),

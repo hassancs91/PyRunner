@@ -192,3 +192,29 @@ class ScheduleService:
 
         logger.info(f"Resumed all schedules - created {count} django-q2 schedules")
         return count
+
+    @classmethod
+    def ensure_heartbeat_schedule(cls) -> bool:
+        """
+        Ensure the worker heartbeat schedule exists.
+        Creates the schedule if it doesn't exist.
+
+        Returns:
+            bool: True if schedule was created, False if it already exists
+        """
+        HEARTBEAT_SCHEDULE_NAME = "pyrunner-worker-heartbeat"
+        HEARTBEAT_TASK_FUNC = "core.tasks.worker_heartbeat_task"
+
+        if QSchedule.objects.filter(name=HEARTBEAT_SCHEDULE_NAME).exists():
+            return False
+
+        QSchedule.objects.create(
+            name=HEARTBEAT_SCHEDULE_NAME,
+            func=HEARTBEAT_TASK_FUNC,
+            schedule_type=QSchedule.MINUTES,
+            minutes=1,  # Run every minute
+            repeats=-1,  # Run forever
+            next_run=timezone.now(),
+        )
+        logger.info("Created worker heartbeat schedule")
+        return True

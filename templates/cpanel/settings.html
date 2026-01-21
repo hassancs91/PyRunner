@@ -36,6 +36,12 @@
                         class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
                     Log Retention
                 </button>
+                <button type="button"
+                        onclick="showTab('system')"
+                        id="tab-system"
+                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
+                    System Info
+                </button>
             </nav>
         </div>
 
@@ -293,6 +299,25 @@
                 </div>
             </div>
         </div>
+
+        <!-- System Info Tab -->
+        <div id="panel-system" class="tab-panel hidden">
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-code-text">System Information</h3>
+                    <button type="button"
+                            onclick="loadSystemInfo()"
+                            id="refresh-system-btn"
+                            class="px-3 py-1 text-sm bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Refresh
+                    </button>
+                </div>
+
+                <div id="system-info-content" class="space-y-4">
+                    <p class="text-sm text-code-muted">Loading system information...</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -311,6 +336,10 @@ function showTab(tabName) {
     const tab = document.getElementById('tab-' + tabName);
     tab.classList.remove('border-transparent', 'text-code-muted');
     tab.classList.add('border-code-accent', 'text-code-accent');
+    // Load system info when tab is selected
+    if (tabName === 'system') {
+        loadSystemInfo();
+    }
 }
 
 function toggleEmailBackend(backend) {
@@ -409,6 +438,90 @@ function confirmCleanup() {
     }
 }
 
+function loadSystemInfo() {
+    const contentDiv = document.getElementById('system-info-content');
+    const btn = document.getElementById('refresh-system-btn');
+
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    contentDiv.innerHTML = '<p class="text-sm text-code-muted">Loading system information...</p>';
+
+    fetch('{% url "cpanel:system_info" %}', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const info = data.data;
+            const worker = info.worker_status;
+            const workerStatusClass = worker.status === 'running' ? 'text-code-green'
+                : worker.status === 'stopped' ? 'text-code-red'
+                : 'text-code-yellow';
+            const workerStatusText = worker.status_text;
+
+            let html = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-4 bg-code-bg rounded-lg">
+                        <p class="text-xs text-code-muted mb-1">PyRunner Version</p>
+                        <p class="text-code-text font-mono">${info.version}</p>
+                    </div>
+                    <div class="p-4 bg-code-bg rounded-lg">
+                        <p class="text-xs text-code-muted mb-1">Python Version</p>
+                        <p class="text-code-text font-mono">${info.python_version}</p>
+                    </div>
+                    <div class="p-4 bg-code-bg rounded-lg">
+                        <p class="text-xs text-code-muted mb-1">Uptime</p>
+                        <p class="text-code-text font-mono">${info.uptime}</p>
+                    </div>
+                    <div class="p-4 bg-code-bg rounded-lg">
+                        <p class="text-xs text-code-muted mb-1">Database Size</p>
+                        <p class="text-code-text font-mono">${info.database_size_display}</p>
+                    </div>
+                    <div class="p-4 bg-code-bg rounded-lg col-span-2">
+                        <p class="text-xs text-code-muted mb-1">Environments Disk Usage</p>
+                        <p class="text-code-text font-mono">${info.environments_size_display}</p>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-6 border-t border-code-border">
+                    <h4 class="text-sm font-semibold text-code-text mb-3">Task Queue Status</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-4 bg-code-bg rounded-lg">
+                            <p class="text-xs text-code-muted mb-1">Worker Status</p>
+                            <p class="${workerStatusClass} font-semibold">${workerStatusText}</p>
+                        </div>
+                        <div class="p-4 bg-code-bg rounded-lg">
+                            <p class="text-xs text-code-muted mb-1">Configured Workers</p>
+                            <p class="text-code-text font-mono">${worker.configured_workers}</p>
+                        </div>
+                        <div class="p-4 bg-code-bg rounded-lg">
+                            <p class="text-xs text-code-muted mb-1">Queued Tasks</p>
+                            <p class="text-code-text font-mono">${worker.queued_tasks}</p>
+                        </div>
+                        <div class="p-4 bg-code-bg rounded-lg">
+                            <p class="text-xs text-code-muted mb-1">Tasks (Last Hour)</p>
+                            <p class="text-code-text font-mono">${worker.recent_tasks}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            contentDiv.innerHTML = html;
+        } else {
+            contentDiv.innerHTML = `<p class="text-sm text-code-red">Error: ${data.error}</p>`;
+        }
+    })
+    .catch(error => {
+        contentDiv.innerHTML = `<p class="text-sm text-code-red">Error: ${error.message}</p>`;
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Refresh';
+    });
+}
+
 // Check URL hash for tab navigation
 const hash = window.location.hash;
 if (hash === '#notifications') {
@@ -417,6 +530,8 @@ if (hash === '#notifications') {
     showTab('schedules');
 } else if (hash === '#retention') {
     showTab('retention');
+} else if (hash === '#system') {
+    showTab('system');
 } else {
     showTab('general');
 }

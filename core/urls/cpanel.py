@@ -40,6 +40,7 @@ from core.views.settings import (
     retention_settings_view,
     manual_cleanup_view,
     cleanup_preview_view,
+    system_info_view,
 )
 from core.views.secrets import (
     secret_list_view,
@@ -103,4 +104,5 @@ urlpatterns = [
     path("settings/retention/", retention_settings_view, name="retention_settings"),
     path("settings/cleanup/", manual_cleanup_view, name="manual_cleanup"),
     path("settings/cleanup-preview/", cleanup_preview_view, name="cleanup_preview"),
+    path("settings/system-info/", system_info_view, name="system_info"),
 ]

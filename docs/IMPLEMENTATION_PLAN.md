@@ -435,13 +435,30 @@ Deliverables
 ✅ Preview functionality showing cleanup statistics before deletion
 
 
-To Implement now:
-Phase 8:
+Phase 8: System Information ✅ (Completed)
+Goal
+Display system metrics and application health information in the Settings page.
+Features
 System Information
 
-Version display
-Uptime
-Database size
-Environments disk usage
-Python version
-django-q worker status
+Version display (PyRunner version from version.py)
+Uptime (time since app startup)
+Database size (SQLite file size)
+Environments disk usage (total size of virtual environments)
+Python version (interpreter version)
+django-q worker status (queue health and task metrics)
+
+Deliverables
+
+✅ pyrunner/version.py with __version__ constant
+✅ APP_START_TIME capture in core/apps.py for uptime tracking
+✅ SystemInfoService (core/services/system_info_service.py) with all metrics gathering
+✅ system_info_view AJAX endpoint in core/views/settings.py
+✅ URL route settings/system-info/ in core/urls/cpanel.py
+✅ Settings template with 5 tabs (General, Schedule Control, Email Notifications, Log Retention, System Info)
+✅ JavaScript loadSystemInfo() function with auto-refresh on tab selection
+✅ Worker heartbeat mechanism for reliable status detection:
+  - worker_heartbeat_at field in GlobalSettings
+  - post_execute signal handler updates heartbeat on task completion
+  - Scheduled heartbeat task runs every minute
+  - Migration 0008_worker_heartbeat.py

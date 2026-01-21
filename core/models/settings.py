@@ -147,6 +147,13 @@ class GlobalSettings(models.Model):
         help_text="When the last cleanup was performed",
     )
 
+    # Worker heartbeat for status detection
+    worker_heartbeat_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last heartbeat from django-q workers",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"
