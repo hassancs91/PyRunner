@@ -79,6 +79,18 @@ class Script(models.Model):
         help_text="Enable webhook notifications for this script",
     )
 
+    # Retention overrides (null = use global settings)
+    retention_days_override = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Override global retention days for this script",
+    )
+    retention_count_override = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Override global retention count for this script",
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

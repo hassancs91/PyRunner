@@ -788,3 +788,160 @@ class NotificationSettingsForm(forms.Form):
 
         instance.save()
         return instance
+
+
+class GeneralSettingsForm(forms.Form):
+    """Form for general instance settings."""
+
+    from core.models import GlobalSettings
+
+    DATE_FORMAT_CHOICES = [
+        (GlobalSettings.DateFormat.ISO, "YYYY-MM-DD (ISO)"),
+        (GlobalSettings.DateFormat.US, "MM/DD/YYYY (US)"),
+        (GlobalSettings.DateFormat.EU, "DD/MM/YYYY (EU)"),
+        (GlobalSettings.DateFormat.DOT, "DD.MM.YYYY"),
+    ]
+
+    TIME_FORMAT_CHOICES = [
+        (GlobalSettings.TimeFormat.H24, "24-hour (14:30)"),
+        (GlobalSettings.TimeFormat.H12, "12-hour (2:30 PM)"),
+    ]
+
+    instance_name = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "PyRunner",
+            }
+        ),
+        label="Instance Name",
+        help_text="Displayed in the header and email notifications",
+    )
+
+    timezone = forms.ChoiceField(
+        choices=get_timezone_choices,
+        initial="UTC",
+        widget=forms.Select(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+            }
+        ),
+        label="Timezone",
+        help_text="Default timezone for displaying dates and times",
+    )
+
+    date_format = forms.ChoiceField(
+        choices=DATE_FORMAT_CHOICES,
+        widget=forms.Select(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+            }
+        ),
+        label="Date Format",
+    )
+
+    time_format = forms.ChoiceField(
+        choices=TIME_FORMAT_CHOICES,
+        widget=forms.Select(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+            }
+        ),
+        label="Time Format",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["instance_name"].initial = instance.instance_name
+            self.fields["timezone"].initial = instance.timezone
+            self.fields["date_format"].initial = instance.date_format
+            self.fields["time_format"].initial = instance.time_format
+
+    def save(self, instance):
+        """Save the general settings to the GlobalSettings instance."""
+        instance.instance_name = self.cleaned_data.get("instance_name") or "PyRunner"
+        instance.timezone = self.cleaned_data.get("timezone") or "UTC"
+        instance.date_format = self.cleaned_data.get("date_format")
+        instance.time_format = self.cleaned_data.get("time_format")
+        instance.save(update_fields=[
+            "instance_name", "timezone", "date_format", "time_format", "updated_at"
+        ])
+        return instance
+
+
+class LogRetentionForm(forms.Form):
+    """Form for log retention settings."""
+
+    retention_days = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 0,
+            }
+        ),
+        label="Retention Days",
+        help_text="Delete runs older than this many days (0 = keep forever)",
+    )
+
+    retention_count = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 0,
+            }
+        ),
+        label="Retention Count",
+        help_text="Keep only the last N runs per script (0 = unlimited)",
+    )
+
+    auto_cleanup_enabled = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Auto Cleanup",
+        help_text="Automatically clean up old runs daily at 2 AM",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["retention_days"].initial = instance.retention_days
+            self.fields["retention_count"].initial = instance.retention_count
+            self.fields["auto_cleanup_enabled"].initial = instance.auto_cleanup_enabled
+
+    def save(self, instance):
+        """Save the retention settings to the GlobalSettings instance."""
+        from core.services import RetentionService
+
+        instance.retention_days = self.cleaned_data.get("retention_days") or 0
+        instance.retention_count = self.cleaned_data.get("retention_count") or 0
+
+        # Handle auto cleanup schedule
+        new_auto_cleanup = self.cleaned_data.get("auto_cleanup_enabled", False)
+        old_auto_cleanup = instance.auto_cleanup_enabled
+
+        instance.auto_cleanup_enabled = new_auto_cleanup
+        instance.save(update_fields=[
+            "retention_days", "retention_count", "auto_cleanup_enabled", "updated_at"
+        ])
+
+        # Manage the django-q2 schedule
+        if new_auto_cleanup and not old_auto_cleanup:
+            RetentionService.enable_auto_cleanup()
+        elif not new_auto_cleanup and old_auto_cleanup:
+            RetentionService.disable_auto_cleanup()
+
+        return instance

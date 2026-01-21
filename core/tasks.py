@@ -262,3 +262,28 @@ def execute_package_operation(operation_id: str) -> dict:
         "operation_id": operation_id,
         "status": operation.status,
     }
+
+
+def cleanup_old_runs_task() -> dict:
+    """
+    Clean up old runs based on retention settings.
+    Called by django-q2 scheduler or manually.
+
+    Returns:
+        dict: Cleanup result summary with count of deleted runs
+    """
+    from core.services.retention_service import RetentionService
+
+    try:
+        deleted_count = RetentionService.cleanup_all_runs()
+
+        # Update last_cleanup_at timestamp
+        settings = GlobalSettings.get_settings()
+        settings.last_cleanup_at = timezone.now()
+        settings.save(update_fields=["last_cleanup_at"])
+
+        logger.info(f"Cleanup task completed: {deleted_count} runs deleted")
+        return {"success": True, "deleted_count": deleted_count}
+    except Exception as e:
+        logger.exception("Cleanup task failed")
+        return {"success": False, "error": str(e)}

@@ -399,4 +399,49 @@ Deliverables
 ✅ Task integration in execute_run_task() to send notifications after run completion
 
 
-TO Implement:
+Phase 7: General Settings & Log Retention ✅ (Completed)
+Goal
+Enable instance customization and automatic cleanup of old run logs.
+Features
+General Settings
+
+Instance name (shown in header/emails)
+Timezone selection
+Date/time format preferences (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, DD.MM.YYYY)
+Time format preferences (12h, 24h)
+
+Log Retention
+
+Global retention policy
+
+Keep runs for X days (0 = forever)
+Keep last X runs per script (0 = unlimited)
+
+Per-script retention override
+Auto-cleanup scheduled task (daily at 2 AM)
+Manual cleanup button with preview
+
+Deliverables
+
+✅ GlobalSettings model fields (instance_name, timezone, date_format, time_format, retention_days, retention_count, auto_cleanup_enabled, last_cleanup_at)
+✅ Script model fields (retention_days_override, retention_count_override)
+✅ Migration 0007_phase7_settings.py
+✅ RetentionService (core/services/retention_service.py) with cleanup logic and schedule management
+✅ GeneralSettingsForm, LogRetentionForm in forms.py
+✅ Settings views (general_settings_view, retention_settings_view, manual_cleanup_view, cleanup_preview_view)
+✅ URL routes for new settings endpoints
+✅ Settings template with 4 tabs (General, Schedule Control, Email Notifications, Log Retention)
+✅ cleanup_old_runs_task in tasks.py
+✅ Preview functionality showing cleanup statistics before deletion
+
+
+To Implement now:
+Phase 8:
+System Information
+
+Version display
+Uptime
+Database size
+Environments disk usage
+Python version
+django-q worker status

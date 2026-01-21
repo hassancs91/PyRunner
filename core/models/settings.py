@@ -91,6 +91,62 @@ class GlobalSettings(models.Model):
         help_text="Default email address for all notifications",
     )
 
+    # General Settings
+    instance_name = models.CharField(
+        max_length=100,
+        default="PyRunner",
+        blank=True,
+        help_text="Instance name displayed in header and emails",
+    )
+    timezone = models.CharField(
+        max_length=50,
+        default="UTC",
+        help_text="Default timezone for the instance",
+    )
+
+    class DateFormat(models.TextChoices):
+        ISO = "YYYY-MM-DD", "YYYY-MM-DD (ISO)"
+        US = "MM/DD/YYYY", "MM/DD/YYYY (US)"
+        EU = "DD/MM/YYYY", "DD/MM/YYYY (EU)"
+        DOT = "DD.MM.YYYY", "DD.MM.YYYY"
+
+    date_format = models.CharField(
+        max_length=20,
+        choices=DateFormat.choices,
+        default=DateFormat.ISO,
+        help_text="Date display format",
+    )
+
+    class TimeFormat(models.TextChoices):
+        H24 = "24h", "24-hour"
+        H12 = "12h", "12-hour"
+
+    time_format = models.CharField(
+        max_length=10,
+        choices=TimeFormat.choices,
+        default=TimeFormat.H24,
+        help_text="Time display format",
+    )
+
+    # Log Retention Settings
+    retention_days = models.PositiveIntegerField(
+        default=0,
+        help_text="Delete runs older than X days (0 = keep forever)",
+    )
+    retention_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Keep last X runs per script (0 = unlimited)",
+    )
+    auto_cleanup_enabled = models.BooleanField(
+        default=False,
+        help_text="Automatically clean up old runs daily",
+    )
+    last_cleanup_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the last cleanup was performed",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"

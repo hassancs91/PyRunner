@@ -36,6 +36,10 @@ from core.views.settings import (
     toggle_global_pause_view,
     notification_settings_view,
     test_email_view,
+    general_settings_view,
+    retention_settings_view,
+    manual_cleanup_view,
+    cleanup_preview_view,
 )
 from core.views.secrets import (
     secret_list_view,
@@ -95,4 +99,8 @@ urlpatterns = [
     path("settings/toggle-pause/", toggle_global_pause_view, name="toggle_global_pause"),
     path("settings/notifications/", notification_settings_view, name="notification_settings"),
     path("settings/test-email/", test_email_view, name="test_email"),
+    path("settings/general/", general_settings_view, name="general_settings"),
+    path("settings/retention/", retention_settings_view, name="retention_settings"),
+    path("settings/cleanup/", manual_cleanup_view, name="manual_cleanup"),
+    path("settings/cleanup-preview/", cleanup_preview_view, name="cleanup_preview"),
 ]
