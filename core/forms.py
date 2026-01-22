@@ -945,3 +945,83 @@ class LogRetentionForm(forms.Form):
             RetentionService.disable_auto_cleanup()
 
         return instance
+
+
+class BackupCreateForm(forms.Form):
+    """Form for configuring backup creation."""
+
+    include_runs = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Include run history",
+        help_text="Include execution history (stdout/stderr)",
+    )
+
+    max_runs = forms.IntegerField(
+        initial=1000,
+        min_value=0,
+        max_value=10000,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-2 bg-code-bg text-code-text border border-code-border rounded-lg focus:ring-2 focus:ring-code-accent focus:border-transparent",
+                "placeholder": "1000",
+            }
+        ),
+        label="Maximum runs to include",
+        help_text="Limit run history to most recent N runs (0 = all runs)",
+    )
+
+    include_package_operations = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Include package operations",
+        help_text="Include pip installation history",
+    )
+
+
+class BackupRestoreForm(forms.Form):
+    """Form for restoring from backup."""
+
+    backup_file = forms.FileField(
+        widget=forms.FileInput(
+            attrs={
+                "class": "block w-full text-sm text-code-text file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-opacity-90",
+                "accept": ".json",
+            }
+        ),
+        label="Backup file",
+        help_text="JSON backup file (.json)",
+    )
+
+    restore_runs = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Restore run history",
+        help_text="Import execution history from backup",
+    )
+
+    confirm_delete = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-red-500 bg-code-bg border-code-border rounded focus:ring-red-500 focus:ring-2",
+            }
+        ),
+        label="I understand all existing data will be deleted",
+        help_text="This action cannot be undone without the automatic backup",
+    )

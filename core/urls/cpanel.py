@@ -48,6 +48,12 @@ from core.views.secrets import (
     secret_edit_view,
     secret_delete_view,
 )
+from core.views.backup import (
+    backup_create_view,
+    backup_upload_view,
+    backup_preview_view,
+    backup_restore_view,
+)
 
 app_name = "cpanel"
 
@@ -105,4 +111,10 @@ urlpatterns = [
     path("settings/cleanup/", manual_cleanup_view, name="manual_cleanup"),
     path("settings/cleanup-preview/", cleanup_preview_view, name="cleanup_preview"),
     path("settings/system-info/", system_info_view, name="system_info"),
+
+    # Backup & Restore
+    path("settings/backup/create/", backup_create_view, name="backup_create"),
+    path("settings/backup/upload/", backup_upload_view, name="backup_upload"),
+    path("settings/backup/preview/", backup_preview_view, name="backup_preview"),
+    path("settings/backup/restore/", backup_restore_view, name="backup_restore"),
 ]

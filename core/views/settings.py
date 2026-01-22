@@ -19,6 +19,8 @@ from core.forms import (
     NotificationSettingsForm,
     GeneralSettingsForm,
     LogRetentionForm,
+    BackupCreateForm,
+    BackupRestoreForm,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,8 @@ def settings_view(request: HttpRequest) -> HttpResponse:
     notification_form = NotificationSettingsForm(instance=settings)
     general_form = GeneralSettingsForm(instance=settings)
     retention_form = LogRetentionForm(instance=settings)
+    backup_create_form = BackupCreateForm()
+    backup_restore_form = BackupRestoreForm()
     return render(
         request,
         "cpanel/settings.html",
@@ -39,6 +43,8 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             "notification_form": notification_form,
             "general_form": general_form,
             "retention_form": retention_form,
+            "backup_create_form": backup_create_form,
+            "backup_restore_form": backup_restore_form,
         },
     )
 

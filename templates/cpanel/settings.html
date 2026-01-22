@@ -42,6 +42,12 @@
                         class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
                     System Info
                 </button>
+                <button type="button"
+                        onclick="showTab('backup')"
+                        id="tab-backup"
+                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
+                    Backup & Restore
+                </button>
             </nav>
         </div>
 
@@ -318,6 +324,144 @@
                 </div>
             </div>
         </div>
+
+        <!-- Backup & Restore Tab -->
+        <div id="panel-backup" class="tab-panel hidden">
+            <!-- Create Backup Section -->
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mb-6">
+                <h3 class="text-lg font-semibold text-code-text mb-4">📦 Create Backup</h3>
+                <p class="text-sm text-code-muted mb-4">
+                    Export a complete backup of your PyRunner instance including scripts, secrets, settings, and execution history.
+                </p>
+
+                <form method="post" action="{% url 'cpanel:backup_create' %}" id="backup-create-form">
+                    {% csrf_token %}
+                    <div class="space-y-4 mb-6">
+                        <div class="flex items-center">
+                            {{ backup_create_form.include_runs }}
+                            <label for="id_include_runs" class="ml-3 text-sm text-code-text">
+                                {{ backup_create_form.include_runs.label }}
+                            </label>
+                        </div>
+
+                        <div class="ml-8">
+                            <label for="id_max_runs" class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_create_form.max_runs.label }}
+                            </label>
+                            {{ backup_create_form.max_runs }}
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_create_form.max_runs.help_text }}</p>
+                        </div>
+
+                        <div class="flex items-center">
+                            {{ backup_create_form.include_package_operations }}
+                            <label for="id_include_package_operations" class="ml-3 text-sm text-code-text">
+                                {{ backup_create_form.include_package_operations.label }}
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+                        <p class="text-sm text-yellow-300">
+                            ⚠ <strong>Important:</strong> Backup contains encrypted secrets. Keep your ENCRYPTION_KEY secure!
+                            The backup can only be restored with the same encryption key.
+                        </p>
+                    </div>
+
+                    <button type="submit" class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Download Backup
+                    </button>
+                </form>
+            </div>
+
+            <!-- Restore Backup Section -->
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+                <h3 class="text-lg font-semibold text-code-text mb-4">📥 Restore Backup</h3>
+                <p class="text-sm text-code-muted mb-4">
+                    Upload a backup file to restore your PyRunner instance.
+                </p>
+
+                <form id="backup-restore-form" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label for="id_backup_file" class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_restore_form.backup_file.label }}
+                            </label>
+                            <input type="file"
+                                   id="id_backup_file"
+                                   name="backup_file"
+                                   accept=".json"
+                                   class="block w-full text-sm text-code-text file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-opacity-90"
+                                   onchange="handleBackupUpload(event)">
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_restore_form.backup_file.help_text }}</p>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg mb-4">
+                        <p class="text-sm text-red-300 mb-2">
+                            <strong>⚠ WARNING:</strong> This will delete all existing data and replace it with the backup!
+                        </p>
+                        <ul class="text-xs text-red-300/80 ml-4 space-y-1">
+                            <li>• ENCRYPTION_KEY must match the backup</li>
+                            <li>• Current data will be backed up automatically first</li>
+                            <li>• Virtual environments must be recreated after restore</li>
+                        </ul>
+                    </div>
+
+                    <div id="upload-status" class="hidden mb-4"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Preview Modal -->
+<div id="restore-preview-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50" style="display: none;">
+    <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl w-full mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-code-text">Backup Preview</h3>
+            <button type="button" onclick="closeRestoreModal()" class="text-code-muted hover:text-code-text">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="preview-content" class="mb-6">
+            <!-- Preview content will be inserted here -->
+        </div>
+
+        <form method="post" action="{% url 'cpanel:backup_restore' %}" id="confirm-restore-form">
+            {% csrf_token %}
+            <div class="space-y-4 mb-6">
+                <div class="flex items-center">
+                    <input type="checkbox" name="restore_runs" id="id_restore_runs_modal" checked
+                           class="w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2">
+                    <label for="id_restore_runs_modal" class="ml-3 text-sm text-code-text">
+                        Restore run history
+                    </label>
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" name="confirm_delete" id="id_confirm_delete" required
+                           class="w-5 h-5 text-red-500 bg-code-bg border-code-border rounded focus:ring-red-500 focus:ring-2">
+                    <label for="id_confirm_delete" class="ml-3 text-sm text-code-text">
+                        <strong>I understand all existing data will be deleted</strong>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="closeRestoreModal()"
+                        class="flex-1 px-6 py-2 bg-code-bg border border-code-border hover:border-code-accent text-code-text font-semibold rounded-lg transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="flex-1 px-6 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors">
+                    Confirm Restore
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -522,6 +666,123 @@ function loadSystemInfo() {
     });
 }
 
+// Backup & Restore functions
+function handleBackupUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const statusDiv = document.getElementById('upload-status');
+    statusDiv.classList.remove('hidden');
+    statusDiv.innerHTML = '<p class="text-sm text-code-muted">Validating backup file...</p>';
+
+    const formData = new FormData();
+    formData.append('backup_file', file);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch('{% url "cpanel:backup_upload" %}', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusDiv.innerHTML = '<p class="text-sm text-code-green">✓ Backup validated successfully!</p>';
+            showRestorePreview(data.preview, data.warnings);
+        } else {
+            let errorHtml = '<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">';
+            errorHtml += '<p class="text-sm text-red-300 font-semibold mb-2">Validation failed:</p>';
+            errorHtml += '<p class="text-sm text-red-300">' + (data.error || 'Unknown error') + '</p>';
+            if (data.errors && data.errors.length > 0) {
+                errorHtml += '<ul class="text-xs text-red-300/80 mt-2 ml-4 space-y-1">';
+                data.errors.forEach(err => {
+                    errorHtml += '<li>• ' + err + '</li>';
+                });
+                errorHtml += '</ul>';
+            }
+            errorHtml += '</div>';
+            statusDiv.innerHTML = errorHtml;
+        }
+    })
+    .catch(error => {
+        statusDiv.innerHTML = '<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg"><p class="text-sm text-red-300">Upload error: ' + error.message + '</p></div>';
+    });
+}
+
+function showRestorePreview(preview, warnings) {
+    const modal = document.getElementById('restore-preview-modal');
+    const content = document.getElementById('preview-content');
+
+    let html = '<div class="space-y-4">';
+    html += '<div class="p-4 bg-code-bg rounded-lg">';
+    html += '<p class="text-sm text-code-muted">Source Instance</p>';
+    html += '<p class="text-code-text font-semibold">' + preview.instance_name + '</p>';
+    html += '</div>';
+
+    html += '<div class="p-4 bg-code-bg rounded-lg">';
+    html += '<p class="text-sm text-code-muted">Created</p>';
+    html += '<p class="text-code-text">' + preview.created_at + '</p>';
+    if (preview.created_by_email) {
+        html += '<p class="text-xs text-code-muted mt-1">By: ' + preview.created_by_email + '</p>';
+    }
+    html += '</div>';
+
+    html += '<div class="p-4 bg-code-bg rounded-lg">';
+    html += '<p class="text-sm text-code-muted mb-2">This backup contains:</p>';
+    html += '<div class="grid grid-cols-2 gap-2 text-sm text-code-text">';
+    html += '<div>• Scripts: <strong>' + preview.counts.scripts + '</strong></div>';
+    html += '<div>• Environments: <strong>' + preview.counts.environments + '</strong></div>';
+    html += '<div>• Secrets: <strong>' + preview.counts.secrets + '</strong></div>';
+    html += '<div>• Runs: <strong>' + preview.counts.runs + '</strong></div>';
+    html += '<div>• Schedules: <strong>' + preview.counts.schedules + '</strong></div>';
+    html += '<div>• Users: <strong>' + preview.counts.users + '</strong></div>';
+    html += '</div>';
+    html += '</div>';
+
+    if (warnings && warnings.length > 0) {
+        html += '<div class="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">';
+        html += '<p class="text-sm text-yellow-300 font-semibold mb-2">⚠ Warnings:</p>';
+        html += '<ul class="text-xs text-yellow-300/80 ml-4 space-y-1">';
+        warnings.forEach(warning => {
+            html += '<li>• ' + warning + '</li>';
+        });
+        html += '</ul>';
+        html += '</div>';
+    }
+
+    html += '<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">';
+    html += '<p class="text-sm text-red-300 font-semibold mb-2">CRITICAL WARNINGS:</p>';
+    html += '<ul class="text-xs text-red-300/80 ml-4 space-y-1">';
+    html += '<li>• All existing data will be DELETED</li>';
+    html += '<li>• Current state will be backed up automatically</li>';
+    html += '<li>• You will need to recreate virtual environments after restore</li>';
+    html += '</ul>';
+    html += '</div>';
+
+    html += '</div>';
+
+    content.innerHTML = html;
+    modal.style.display = 'flex';
+}
+
+function closeRestoreModal() {
+    const modal = document.getElementById('restore-preview-modal');
+    modal.style.display = 'none';
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeRestoreModal();
+    }
+});
+
+// Close modal on background click
+document.getElementById('restore-preview-modal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeRestoreModal();
+    }
+});
+
 // Check URL hash for tab navigation
 const hash = window.location.hash;
 if (hash === '#notifications') {
@@ -532,6 +793,8 @@ if (hash === '#notifications') {
     showTab('retention');
 } else if (hash === '#system') {
     showTab('system');
+} else if (hash === '#backup') {
+    showTab('backup');
 } else {
     showTab('general');
 }

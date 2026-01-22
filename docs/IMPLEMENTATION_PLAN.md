@@ -462,3 +462,164 @@ Deliverables
   - post_execute signal handler updates heartbeat on task completion
   - Scheduled heartbeat task runs every minute
   - Migration 0008_worker_heartbeat.py
+
+
+Phase 9: Dashboard Improvements ✅ (Completed)
+Goal
+Enhance the dashboard with statistics, widgets, and system health indicators.
+Features
+Statistics Cards
+
+Total scripts
+Active scripts (enabled)
+Runs today
+Runs this week
+Success rate (%)
+Queue size
+
+
+Recent failures widget (last 5)
+Upcoming scheduled runs widget
+Quick actions (run, enable/disable) on recent scripts
+System health indicator (worker status)
+System alerts (workers stopped, schedules paused)
+
+Deliverables
+
+✅ DashboardService (core/services/dashboard_service.py) with statistics and widget data methods
+✅ Updated dashboard view with new context data
+✅ Updated dashboard template with:
+  - System health alerts (workers stopped, schedules paused banners)
+  - System health indicator in header (worker status dot)
+  - 6 statistics cards in 2 rows (Total Scripts, Active Scripts, Success Rate, Runs Today, Runs This Week, Queue Size)
+  - Recent Failures widget with empty state
+  - Upcoming Scheduled Runs widget with empty state
+  - Quick actions (Run, Enable/Disable) on recent scripts
+  - Enhanced Quick Actions section with Environments and Settings links
+
+
+Phase 10: Backup & Restore ✅ (Completed)
+Goal
+Enable users to easily backup and restore their PyRunner instance data.
+Features
+Backup Creation
+
+Export complete instance data to JSON file
+Configurable options:
+
+Include run history (default: 1000 most recent)
+Include package operations
+Run count limit (0 = all)
+
+
+JSON format with versioning (v1.0.0)
+Encrypted data stays encrypted (requires matching ENCRYPTION_KEY)
+SHA256 hash of ENCRYPTION_KEY for validation
+One-click download with timestamp in filename
+
+Backup Restore
+
+Upload JSON backup file
+Validation before restore:
+
+Structure validation
+ENCRYPTION_KEY hash verification
+Foreign key reference validation
+
+
+Preview modal with confirmation:
+
+Shows backup metadata (source, date, created by)
+Displays counts (X scripts, Y runs, etc.)
+Warnings about data deletion
+Explicit confirmation checkbox
+
+
+Full replace mode:
+
+Delete all existing data
+Import from backup
+Regenerate django-q2 schedules
+Wrapped in database transaction (atomic)
+
+
+Automatic backup before restore (safety net)
+Clear success/error messages
+
+Safety Features
+
+Multiple confirmation steps (upload → preview → confirm)
+Transaction safety (rollback on any error)
+Automatic backup of current state before restore
+ENCRYPTION_KEY validation (fail early if mismatch)
+File size limits (100MB max)
+Foreign key integrity checks
+Clear error messages with actionable guidance
+
+Backup Contents
+
+Always included:
+
+GlobalSettings (singleton configuration)
+Environments (metadata only, not venv files)
+Users (basic info, no passwords)
+Scripts (with webhook tokens preserved)
+ScriptSchedules (q_schedule_ids regenerated on restore)
+ScheduleHistory (audit trail)
+Secrets (encrypted values preserved)
+
+
+Optional (configurable):
+
+Runs (execution history, default 1000 most recent)
+PackageOperations (pip operation history)
+
+
+
+Deliverables
+
+✅ BackupService (core/services/backup_service.py)
+
+create_backup() - Export all data to JSON structure
+validate_backup() - Validate structure and ENCRYPTION_KEY
+validate_encryption_key() - Verify hash match
+get_backup_preview() - Preview summary for confirmation
+restore_backup() - Import data with transaction safety
+Export/import methods for each model
+Schedule regeneration using ScheduleService
+
+
+✅ Backup views (core/views/backup.py)
+
+backup_create_view() - Create and download backup file
+backup_upload_view() - AJAX endpoint for file upload
+backup_preview_view() - AJAX endpoint for preview
+backup_restore_view() - Execute restore with validation
+
+
+✅ Backup forms (core/forms.py)
+
+BackupCreateForm - Options for backup creation
+BackupRestoreForm - Upload and confirmation
+
+
+✅ URL routes (core/urls/cpanel.py)
+
+/cpanel/settings/backup/create/
+/cpanel/settings/backup/upload/
+/cpanel/settings/backup/preview/
+/cpanel/settings/backup/restore/
+
+
+✅ UI Implementation (templates/cpanel/settings.html)
+
+"Backup & Restore" tab in Settings page
+Create Backup section with options form
+Restore Backup section with file upload
+Preview modal with detailed summary and confirmation
+JavaScript for AJAX upload and preview handling
+Success/error feedback with clear messaging
+
+
+
+
