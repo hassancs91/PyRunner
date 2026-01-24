@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Data Stores - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-code-text">Data Stores</h1>
+                <p class="text-code-muted">Simple key-value storage for scripts backed by the local database</p>
+            </div>
+            <a href="{% url 'cpanel:datastore_create' %}"
+               class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                New Data Store
+            </a>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-code-red/10 border border-code-red/30 text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border border-code-green/30 text-code-green{% else %}bg-code-accent/10 border border-code-accent/30 text-code-accent{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Data Stores Table -->
+        {% if datastores %}
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-code-bg border-b border-code-border">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Entries</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Updated</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold text-code-muted uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-code-border">
+                    {% for store in datastores %}
+                    <tr class="hover:bg-code-bg/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="{% url 'cpanel:datastore_detail' pk=store.pk %}" class="font-mono text-code-accent hover:underline">
+                                {{ store.name }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 text-code-text text-sm max-w-xs truncate">
+                            {{ store.description|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted text-sm">
+                            {{ store.entry_count }}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted text-sm">
+                            {{ store.updated_at|timesince }} ago
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end space-x-2">
+                                <a href="{% url 'cpanel:datastore_detail' pk=store.pk %}"
+                                   class="px-3 py-1.5 text-sm bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                    View
+                                </a>
+                                <form method="post" action="{% url 'cpanel:datastore_delete' pk=store.pk %}"
+                                      onsubmit="return confirm('Are you sure you want to delete the data store &quot;{{ store.name }}&quot;? All entries will be permanently deleted.');"
+                                      class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="px-3 py-1.5 text-sm bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded transition-colors">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Usage Info -->
+        <div class="mt-6 p-4 bg-code-bg border border-code-border rounded-lg">
+            <h3 class="text-sm font-medium text-code-text mb-2">Using Data Stores in Scripts</h3>
+            <p class="text-sm text-code-muted mb-2">
+                Data stores provide simple key-value storage that persists between script runs.
+            </p>
+            <code class="block p-3 bg-code-surface rounded text-sm font-mono text-code-text whitespace-pre">from pyrunner_datastore import DataStore
+
+store = DataStore("{{ datastores.0.name|default:'my_store' }}")
+store["key"] = {"any": "json value"}
+value = store.get("key", default=None)</code>
+        </div>
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-code-text mb-2">No data stores yet</h3>
+            <p class="text-code-muted mb-6">Create a data store to enable simple persistent storage for your scripts.</p>
+            <a href="{% url 'cpanel:datastore_create' %}"
+               class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Data Store
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

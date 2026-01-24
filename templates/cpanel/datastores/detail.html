@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}{{ datastore.name }} - Data Stores - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:datastore_list' %}" class="hover:text-code-accent">Data Stores</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">{{ datastore.name }}</span>
+            </nav>
+            <div class="flex items-start justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-code-text font-mono">{{ datastore.name }}</h1>
+                    <p class="text-code-muted">{{ datastore.description|default:"No description" }}</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <a href="{% url 'cpanel:datastore_entry_create' pk=datastore.pk %}"
+                       class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        Add Entry
+                    </a>
+                    <a href="{% url 'cpanel:datastore_edit' pk=datastore.pk %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Edit
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-code-red/10 border border-code-red/30 text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border border-code-green/30 text-code-green{% else %}bg-code-accent/10 border border-code-accent/30 text-code-accent{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-code-surface border border-code-border rounded-lg p-4">
+                <p class="text-sm text-code-muted">Total Entries</p>
+                <p class="text-2xl font-bold text-code-text">{{ entries.count }}</p>
+            </div>
+            <div class="bg-code-surface border border-code-border rounded-lg p-4">
+                <p class="text-sm text-code-muted">Created</p>
+                <p class="text-lg text-code-text">{{ datastore.created_at|date:"M d, Y" }}</p>
+            </div>
+            <div class="bg-code-surface border border-code-border rounded-lg p-4">
+                <p class="text-sm text-code-muted">Last Updated</p>
+                <p class="text-lg text-code-text">{{ datastore.updated_at|timesince }} ago</p>
+            </div>
+        </div>
+
+        <!-- Entries Table -->
+        {% if entries %}
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+            <div class="bg-code-bg border-b border-code-border px-6 py-3 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-code-text">Entries</h2>
+                {% if entries.count > 0 %}
+                <form method="post" action="{% url 'cpanel:datastore_clear' pk=datastore.pk %}"
+                      onsubmit="return confirm('Are you sure you want to delete all {{ entries.count }} entries? This cannot be undone.');"
+                      class="inline">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="px-3 py-1 text-sm bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded transition-colors">
+                        Clear All
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            <table class="w-full">
+                <thead class="bg-code-bg border-b border-code-border">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-1/4">Key</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Value</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-32">Updated</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold text-code-muted uppercase tracking-wider w-40">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-code-border">
+                    {% for entry in entries %}
+                    <tr class="hover:bg-code-bg/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <span class="font-mono text-code-accent">{{ entry.key }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <code class="text-sm text-code-text bg-code-bg px-2 py-1 rounded font-mono break-all">{{ entry.get_display_value }}</code>
+                        </td>
+                        <td class="px-6 py-4 text-code-muted text-sm">
+                            {{ entry.updated_at|timesince }} ago
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end space-x-2">
+                                <a href="{% url 'cpanel:datastore_entry_edit' pk=datastore.pk entry_pk=entry.pk %}"
+                                   class="px-3 py-1.5 text-sm bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                    Edit
+                                </a>
+                                <form method="post" action="{% url 'cpanel:datastore_entry_delete' pk=datastore.pk entry_pk=entry.pk %}"
+                                      onsubmit="return confirm('Delete entry &quot;{{ entry.key }}&quot;?');"
+                                      class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="px-3 py-1.5 text-sm bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded transition-colors">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-code-text mb-2">No entries yet</h3>
+            <p class="text-code-muted mb-6">Add entries manually or let your scripts populate this data store.</p>
+            <a href="{% url 'cpanel:datastore_entry_create' pk=datastore.pk %}"
+               class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Add Entry
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Usage Info -->
+        <div class="mt-6 p-4 bg-code-bg border border-code-border rounded-lg">
+            <h3 class="text-sm font-medium text-code-text mb-2">Using this Data Store in Scripts</h3>
+            <code class="block p-3 bg-code-surface rounded text-sm font-mono text-code-text whitespace-pre">from pyrunner_datastore import DataStore
+
+store = DataStore("{{ datastore.name }}")
+
+# Set values
+store["my_key"] = {"any": "json value"}
+
+# Get values
+value = store["my_key"]
+value = store.get("my_key", default=None)
+
+# Check if key exists
+if "my_key" in store:
+    print(store["my_key"])
+
+# Delete a key
+del store["my_key"]
+
+# List all keys
+for key in store.keys():
+    print(key, store[key])</code>
+        </div>
+    </div>
+</div>
+{% endblock %}

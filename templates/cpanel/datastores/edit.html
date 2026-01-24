@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ datastore.name }} - Data Stores - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:datastore_list' %}" class="hover:text-code-accent">Data Stores</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:datastore_detail' pk=datastore.pk %}" class="hover:text-code-accent">{{ datastore.name }}</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Edit</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">Edit Data Store</h1>
+            <p class="text-code-muted">Update the data store name and description</p>
+        </div>
+
+        <!-- Form -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Store Name -->
+                <div class="mb-6">
+                    <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.name.label }}
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.name.help_text }}</p>
+                    {% endif %}
+                    {% if form.name.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Description -->
+                <div class="mb-6">
+                    <label for="id_description" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.description.label }}
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.description.help_text }}</p>
+                    {% endif %}
+                    {% if form.description.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.description.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Warning -->
+                <div class="mb-6 p-4 bg-code-yellow/10 border border-code-yellow/30 rounded-lg">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-5 h-5 text-code-yellow mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <div class="text-sm text-code-yellow">
+                            <p class="font-medium">Changing the name?</p>
+                            <p class="mt-1">If you change the name, scripts using the old name will fail. Update your scripts to use the new name.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-code-border">
+                    <a href="{% url 'cpanel:datastore_detail' pk=datastore.pk %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

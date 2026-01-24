@@ -59,6 +59,17 @@ from core.views.tags import (
     tag_edit_view,
     tag_delete_view,
 )
+from core.views.datastores import (
+    datastore_list_view,
+    datastore_create_view,
+    datastore_detail_view,
+    datastore_edit_view,
+    datastore_delete_view,
+    datastore_clear_view,
+    datastore_entry_create_view,
+    datastore_entry_edit_view,
+    datastore_entry_delete_view,
+)
 from core.views.backup import (
     backup_create_view,
     backup_upload_view,
@@ -128,6 +139,17 @@ urlpatterns = [
     path("tags/create/", tag_create_view, name="tag_create"),
     path("tags/<uuid:pk>/edit/", tag_edit_view, name="tag_edit"),
     path("tags/<uuid:pk>/delete/", tag_delete_view, name="tag_delete"),
+
+    # Data Stores
+    path("datastores/", datastore_list_view, name="datastore_list"),
+    path("datastores/create/", datastore_create_view, name="datastore_create"),
+    path("datastores/<uuid:pk>/", datastore_detail_view, name="datastore_detail"),
+    path("datastores/<uuid:pk>/edit/", datastore_edit_view, name="datastore_edit"),
+    path("datastores/<uuid:pk>/delete/", datastore_delete_view, name="datastore_delete"),
+    path("datastores/<uuid:pk>/clear/", datastore_clear_view, name="datastore_clear"),
+    path("datastores/<uuid:pk>/entries/create/", datastore_entry_create_view, name="datastore_entry_create"),
+    path("datastores/<uuid:pk>/entries/<uuid:entry_pk>/edit/", datastore_entry_edit_view, name="datastore_entry_edit"),
+    path("datastores/<uuid:pk>/entries/<uuid:entry_pk>/delete/", datastore_entry_delete_view, name="datastore_entry_delete"),
 
     # Settings
     path("settings/", settings_view, name="settings"),

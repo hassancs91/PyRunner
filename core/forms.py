@@ -7,7 +7,7 @@ from zoneinfo import available_timezones
 from django import forms
 from django.utils.text import slugify
 
-from core.models import Script, Environment, ScriptSchedule, Tag
+from core.models import Script, Environment, ScriptSchedule, Tag, DataStore, DataStoreEntry
 from core.services import EnvironmentService
 
 
@@ -1188,6 +1188,129 @@ class BackupRestoreForm(forms.Form):
         label="I understand all existing data will be deleted",
         help_text="This action cannot be undone without the automatic backup",
     )
+
+
+# =============================================================================
+# Data Store Forms
+# =============================================================================
+
+
+class DataStoreForm(forms.ModelForm):
+    """Form for creating and editing data stores."""
+
+    class Meta:
+        model = DataStore
+        fields = ["name", "description"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "my_data_store",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "rows": 2,
+                    "placeholder": "What is this data store used for?",
+                }
+            ),
+        }
+        labels = {
+            "name": "Store Name",
+            "description": "Description",
+        }
+        help_texts = {
+            "name": "Used in scripts as: DataStore(\"name\")",
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data.get("name", "").strip()
+        if not name:
+            raise forms.ValidationError("Store name is required.")
+        # Check for valid identifier-like name
+        if not name.replace("_", "").replace("-", "").isalnum():
+            raise forms.ValidationError(
+                "Name can only contain letters, numbers, underscores, and hyphens."
+            )
+        # Check uniqueness (excluding current instance for edits)
+        qs = DataStore.objects.filter(name__iexact=name)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A data store with this name already exists.")
+        return name
+
+
+class DataStoreEntryForm(forms.Form):
+    """Form for creating and editing data store entries."""
+
+    key = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "my_key",
+            }
+        ),
+        label="Key",
+        help_text="Unique identifier for this entry",
+    )
+
+    value = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-sm placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "rows": 6,
+                "placeholder": '{"example": "value"}\nor just a string\nor a number like 42',
+            }
+        ),
+        label="Value (JSON)",
+        help_text="JSON value: string, number, boolean, array, or object",
+    )
+
+    def __init__(self, *args, datastore=None, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.datastore = datastore
+        self.instance = instance
+
+        # Pre-populate for editing
+        if instance:
+            self.fields["key"].initial = instance.key
+            self.fields["value"].initial = instance.value_json
+
+    def clean_key(self):
+        key = self.cleaned_data.get("key", "").strip()
+        if not key:
+            raise forms.ValidationError("Key is required.")
+        if len(key) > 255:
+            raise forms.ValidationError("Key cannot exceed 255 characters.")
+
+        # Check uniqueness within the data store
+        if self.datastore:
+            qs = DataStoreEntry.objects.filter(datastore=self.datastore, key=key)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    f"Key '{key}' already exists in this data store."
+                )
+        return key
+
+    def clean_value(self):
+        import json
+
+        value = self.cleaned_data.get("value", "").strip()
+        if not value:
+            raise forms.ValidationError("Value is required.")
+
+        try:
+            # Validate it's valid JSON
+            json.loads(value)
+        except json.JSONDecodeError as e:
+            raise forms.ValidationError(f"Invalid JSON: {e}")
+
+        return value
 
 
 # =============================================================================

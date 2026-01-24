@@ -55,7 +55,7 @@ def _build_script_environment(webhook_data: dict | None = None) -> dict:
     """
     Build the environment dict for script execution.
 
-    Combines system environment with secrets and webhook data.
+    Combines system environment with secrets, webhook data, and DataStore access.
     Secrets override any same-named system variables.
     Webhook data is added with WEBHOOK_ prefix.
 
@@ -83,6 +83,18 @@ def _build_script_environment(webhook_data: dict | None = None) -> dict:
 
         if "body_json" in webhook_data:
             env["WEBHOOK_BODY_JSON"] = json.dumps(webhook_data["body_json"])
+
+    # Add DataStore support
+    # Set the database path for the pyrunner_datastore module
+    env["PYRUNNER_DB_PATH"] = str(settings.DATABASES["default"]["NAME"])
+
+    # Add script_helpers to PYTHONPATH so scripts can import pyrunner_datastore
+    helpers_path = str(Path(settings.BASE_DIR) / "core" / "script_helpers")
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    if existing_pythonpath:
+        env["PYTHONPATH"] = f"{helpers_path}{os.pathsep}{existing_pythonpath}"
+    else:
+        env["PYTHONPATH"] = helpers_path
 
     return env
 

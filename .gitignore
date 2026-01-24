@@ -30,3 +30,6 @@ Desktop.ini
 data/environments/
 data/db.sqlite3
 nul
+
+# Separate landing site project (has its own repo)
+landing/

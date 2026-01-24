@@ -55,6 +55,15 @@
             <span>Tags</span>
         </a>
 
+        <!-- Data Stores -->
+        <a href="{% url 'cpanel:datastore_list' %}"
+           class="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors {% if 'datastore' in request.resolver_match.url_name %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+            </svg>
+            <span>Data Stores</span>
+        </a>
+
         <!-- Divider -->
         <div class="my-4 border-t border-code-border"></div>
 

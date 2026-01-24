@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Entry - {{ datastore.name }} - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:datastore_list' %}" class="hover:text-code-accent">Data Stores</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:datastore_detail' pk=datastore.pk %}" class="hover:text-code-accent">{{ datastore.name }}</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Edit Entry</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">Edit Entry</h1>
+            <p class="text-code-muted">Editing <span class="font-mono text-code-accent">{{ entry.key }}</span> in <span class="font-mono text-code-accent">{{ datastore.name }}</span></p>
+        </div>
+
+        <!-- Form -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Key -->
+                <div class="mb-6">
+                    <label for="id_key" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.key.label }}
+                    </label>
+                    {{ form.key }}
+                    {% if form.key.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.key.help_text }}</p>
+                    {% endif %}
+                    {% if form.key.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.key.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Value -->
+                <div class="mb-6">
+                    <label for="id_value" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.value.label }}
+                    </label>
+                    {{ form.value }}
+                    {% if form.value.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.value.help_text }}</p>
+                    {% endif %}
+                    {% if form.value.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.value.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- JSON Examples -->
+                <div class="mb-6 p-4 bg-code-bg border border-code-border rounded-lg">
+                    <h4 class="text-sm font-medium text-code-text mb-2">Valid JSON Examples</h4>
+                    <div class="grid grid-cols-2 gap-4 text-sm font-mono">
+                        <div>
+                            <p class="text-code-muted mb-1">String:</p>
+                            <code class="text-code-accent">"hello world"</code>
+                        </div>
+                        <div>
+                            <p class="text-code-muted mb-1">Number:</p>
+                            <code class="text-code-accent">42</code> or <code class="text-code-accent">3.14</code>
+                        </div>
+                        <div>
+                            <p class="text-code-muted mb-1">Boolean:</p>
+                            <code class="text-code-accent">true</code> or <code class="text-code-accent">false</code>
+                        </div>
+                        <div>
+                            <p class="text-code-muted mb-1">Null:</p>
+                            <code class="text-code-accent">null</code>
+                        </div>
+                        <div>
+                            <p class="text-code-muted mb-1">Array:</p>
+                            <code class="text-code-accent">[1, 2, 3]</code>
+                        </div>
+                        <div>
+                            <p class="text-code-muted mb-1">Object:</p>
+                            <code class="text-code-accent">{"key": "value"}</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-code-border">
+                    <a href="{% url 'cpanel:datastore_detail' pk=datastore.pk %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
