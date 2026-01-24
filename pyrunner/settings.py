@@ -83,6 +83,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.pyrunner_version",
             ],
         },
     },
@@ -179,16 +180,53 @@ USE_RESEND = os.environ.get("USE_RESEND", "False").lower() == "true"
 
 
 # django-q2 Configuration
-Q_CLUSTER = {
-    "name": "PyRunner",
-    "workers": int(os.environ.get("Q_WORKERS", 2)),
-    "timeout": 600 if os.name != "nt" else 0,  # SIGALRM not available on Windows
-    "retry": 660,  # Retry after 11 minutes
-    "queue_limit": 20,
-    "bulk": 5,
-    "orm": "default",  # Use SQLite via ORM broker
-    "catch_up": False,  # Don't run missed scheduled tasks
-}
+def _get_q_cluster_config():
+    """
+    Get Q_CLUSTER configuration from database with environment fallbacks.
+
+    This is called at module load time. Database values take precedence
+    over environment variables when available.
+    """
+    # Default values (from env vars or hardcoded defaults)
+    config = {
+        "name": "PyRunner",
+        "workers": int(os.environ.get("Q_WORKERS", 2)),
+        "timeout": 600 if os.name != "nt" else 0,
+        "retry": 660,
+        "queue_limit": 20,
+        "bulk": 5,
+        "orm": "default",
+        "catch_up": False,
+    }
+
+    # Try to load from database
+    try:
+        from django.db import connection
+        from django.db.utils import OperationalError, ProgrammingError
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT q_workers, q_timeout, q_retry, q_queue_limit "
+                "FROM global_settings WHERE id = 1"
+            )
+            row = cursor.fetchone()
+            if row:
+                config["workers"] = row[0] or config["workers"]
+                # On Windows, force timeout to 0 regardless of DB value
+                if os.name == "nt":
+                    config["timeout"] = 0
+                else:
+                    config["timeout"] = row[1] if row[1] is not None else config["timeout"]
+                config["retry"] = row[2] or config["retry"]
+                config["queue_limit"] = row[3] or config["queue_limit"]
+    except (OperationalError, ProgrammingError, Exception):
+        # Database not ready yet (migrations not run), use defaults
+        pass
+
+    return config
+
+
+Q_CLUSTER = _get_q_cluster_config()
 
 
 # PyRunner Configuration

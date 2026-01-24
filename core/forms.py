@@ -991,6 +991,125 @@ class LogRetentionForm(forms.Form):
         return instance
 
 
+class WorkerSettingsForm(forms.Form):
+    """Form for Django-Q2 worker configuration."""
+
+    q_workers = forms.IntegerField(
+        min_value=1,
+        max_value=16,
+        initial=2,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 1,
+                "max": 16,
+            }
+        ),
+        label="Worker Count",
+        help_text="Number of worker processes (1-16). More workers can process more tasks simultaneously.",
+    )
+
+    q_timeout = forms.IntegerField(
+        min_value=0,
+        max_value=86400,
+        initial=600,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 0,
+                "max": 86400,
+            }
+        ),
+        label="Task Timeout (seconds)",
+        help_text="Maximum time a task can run before worker timeout. Use 0 for no timeout (required on Windows). For long-running scripts, also increase the script's own timeout.",
+    )
+
+    q_retry = forms.IntegerField(
+        min_value=60,
+        max_value=86400,
+        initial=660,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 60,
+                "max": 86400,
+            }
+        ),
+        label="Retry Delay (seconds)",
+        help_text="Time before retrying a failed/timed-out task. Should be greater than timeout.",
+    )
+
+    q_queue_limit = forms.IntegerField(
+        min_value=5,
+        max_value=100,
+        initial=20,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "min": 5,
+                "max": 100,
+            }
+        ),
+        label="Queue Limit",
+        help_text="Maximum number of tasks that can be queued at once.",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["q_workers"].initial = instance.q_workers
+            self.fields["q_timeout"].initial = instance.q_timeout
+            self.fields["q_retry"].initial = instance.q_retry
+            self.fields["q_queue_limit"].initial = instance.q_queue_limit
+
+    def clean(self):
+        """Validate that retry > timeout."""
+        cleaned_data = super().clean()
+        timeout = cleaned_data.get("q_timeout", 0)
+        retry = cleaned_data.get("q_retry", 660)
+
+        if timeout > 0 and retry <= timeout:
+            self.add_error(
+                "q_retry",
+                f"Retry delay ({retry}s) must be greater than timeout ({timeout}s).",
+            )
+
+        return cleaned_data
+
+    def save(self, instance):
+        """Save the worker settings to the GlobalSettings instance."""
+        from django.utils import timezone
+
+        # Check if any values actually changed
+        changed = (
+            instance.q_workers != self.cleaned_data["q_workers"]
+            or instance.q_timeout != self.cleaned_data["q_timeout"]
+            or instance.q_retry != self.cleaned_data["q_retry"]
+            or instance.q_queue_limit != self.cleaned_data["q_queue_limit"]
+        )
+
+        instance.q_workers = self.cleaned_data["q_workers"]
+        instance.q_timeout = self.cleaned_data["q_timeout"]
+        instance.q_retry = self.cleaned_data["q_retry"]
+        instance.q_queue_limit = self.cleaned_data["q_queue_limit"]
+
+        if changed:
+            instance.worker_settings_updated_at = timezone.now()
+
+        instance.save(
+            update_fields=[
+                "q_workers",
+                "q_timeout",
+                "q_retry",
+                "q_queue_limit",
+                "worker_settings_updated_at",
+                "updated_at",
+            ]
+        )
+        return instance
+
+
 class BackupCreateForm(forms.Form):
     """Form for configuring backup creation."""
 

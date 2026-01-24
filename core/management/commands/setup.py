@@ -29,16 +29,9 @@ class Command(BaseCommand):
         skip_env = options["skip_env"]
         force = options["force"]
 
-        # Check if setup is already complete
-        if not force and not SetupService.is_setup_needed():
-            self.stdout.write(
-                self.style.SUCCESS("Setup already completed. Use --force to re-run.")
-            )
-            return
-
         self.stdout.write("Starting PyRunner setup...\n")
 
-        # Run migrations
+        # ALWAYS run migrations (required for upgrades)
         self.stdout.write("Running database migrations...")
         success, message = SetupService.run_migrations()
         if success:
@@ -47,7 +40,14 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"  Migration failed: {message}"))
             return
 
-        # Create default environment
+        # Check if full setup is needed (environment creation, etc.)
+        if not force and not SetupService.is_setup_needed():
+            self.stdout.write(
+                self.style.SUCCESS("Setup already completed.")
+            )
+            return
+
+        # Create default environment (only on initial setup)
         if not skip_env:
             self.stdout.write("Creating default Python environment...")
             success, message = SetupService.create_default_environment()

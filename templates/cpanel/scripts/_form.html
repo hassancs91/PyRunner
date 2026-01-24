@@ -27,7 +27,10 @@
         <label for="id_code" class="block text-sm font-medium text-code-text mb-2">
             {{ form.code.label }}
         </label>
+        <!-- Hidden textarea for Django form submission -->
         {{ form.code }}
+        <!-- Ace Editor container -->
+        <div id="code-editor-container" style="height: 400px;" class="rounded-lg border border-code-border overflow-hidden"></div>
         {% if form.code.errors %}
         <p class="mt-1 text-sm text-code-red">{{ form.code.errors.0 }}</p>
         {% endif %}

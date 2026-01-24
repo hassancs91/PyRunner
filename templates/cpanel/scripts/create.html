@@ -43,3 +43,40 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+
+require(['vs/editor/editor.main'], function () {
+    const textarea = document.getElementById('id_code');
+    const container = document.getElementById('code-editor-container');
+
+    if (!textarea || !container) {
+        console.error('Editor elements not found');
+        return;
+    }
+
+    textarea.style.display = 'none';
+
+    const editor = monaco.editor.create(container, {
+        value: textarea.value,
+        language: 'python',
+        theme: 'vs-dark',
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        lineNumbers: 'on',
+        tabSize: 4,
+        insertSpaces: true,
+        automaticLayout: true
+    });
+
+    editor.onDidChangeModelContent(function () {
+        textarea.value = editor.getValue();
+    });
+});
+</script>
+{% endblock %}

@@ -23,6 +23,7 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-code-bg text-code-text min-h-screen flex flex-col">
+    {% block header %}
     <header class="border-b border-code-border bg-code-surface/50 backdrop-blur-sm sticky top-0 z-50">
         <div class="px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -49,27 +50,40 @@
             </div>
         </div>
     </header>
+    {% endblock %}
 
+    {# Toast notifications initialized via JavaScript #}
     {% if messages %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
         {% for message in messages %}
-        <div class="mb-2 p-4 rounded-lg border {% if message.tags == 'error' %}bg-code-red/10 border-code-red/30 text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border-code-green/30 text-code-green{% else %}bg-code-accent/10 border-code-accent/30 text-code-accent{% endif %}">
-            {{ message }}
-        </div>
+        {% if message.tags == 'error' %}
+        Toast.error("{{ message|escapejs }}");
+        {% elif message.tags == 'success' %}
+        Toast.success("{{ message|escapejs }}");
+        {% elif message.tags == 'warning' %}
+        Toast.warning("{{ message|escapejs }}");
+        {% else %}
+        Toast.info("{{ message|escapejs }}");
+        {% endif %}
         {% endfor %}
-    </div>
+    });
+    </script>
     {% endif %}
 
     <main class="flex-1">
         {% block content %}{% endblock %}
     </main>
 
+    {% block footer %}
     <footer class="border-t border-code-border py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-code-muted text-sm">
             <p>PyRunner - Self-hosted Python automation</p>
         </div>
     </footer>
+    {% endblock %}
 
+    <script src="{% static 'js/toast.js' %}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

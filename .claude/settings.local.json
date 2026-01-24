@@ -14,7 +14,9 @@
       "Bash(powershell -Command \"Get-ChildItem -Exclude venv | Select-Object Name, @{Name=''Type''; Expression={if\\($_PSIsContainer\\){''Folder''}else{''File''}}}\")",
       "Bash(grep:*)",
       "Bash(wc:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

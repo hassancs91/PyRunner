@@ -154,6 +154,29 @@ class GlobalSettings(models.Model):
         help_text="Last heartbeat from django-q workers",
     )
 
+    # Worker Settings (Q_CLUSTER configuration)
+    q_workers = models.PositiveIntegerField(
+        default=2,
+        help_text="Number of worker processes for task queue",
+    )
+    q_timeout = models.PositiveIntegerField(
+        default=600,
+        help_text="Task timeout in seconds (0 for no timeout)",
+    )
+    q_retry = models.PositiveIntegerField(
+        default=660,
+        help_text="Seconds before a task is retried after timeout",
+    )
+    q_queue_limit = models.PositiveIntegerField(
+        default=20,
+        help_text="Maximum number of tasks in the queue",
+    )
+    worker_settings_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When worker settings were last updated (requires restart)",
+    )
+
     # Setup wizard tracking
     setup_completed = models.BooleanField(
         default=False,
@@ -190,3 +213,9 @@ class GlobalSettings(models.Model):
         """Get or create the singleton settings instance."""
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    def worker_restart_required(self) -> bool:
+        """Check if worker restart is required due to pending settings changes."""
+        if not self.worker_settings_updated_at or not self.worker_heartbeat_at:
+            return False
+        return self.worker_settings_updated_at > self.worker_heartbeat_at

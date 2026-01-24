@@ -10,51 +10,57 @@
         <h1 class="text-2xl font-bold text-code-text mb-8">Settings</h1>
 
         <!-- Tabs -->
-        <div class="mb-6 border-b border-code-border">
-            <nav class="flex space-x-8">
+        <div class="mb-6">
+            <div class="bg-code-surface border border-code-border rounded-xl p-1.5 inline-flex flex-wrap gap-1">
                 <button type="button"
                         onclick="showTab('general')"
                         id="tab-general"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-code-accent text-code-accent">
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg bg-code-accent text-white transition-colors">
                     General
                 </button>
                 <button type="button"
                         onclick="showTab('security')"
                         id="tab-security"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
                     Security
                 </button>
                 <button type="button"
                         onclick="showTab('schedules')"
                         id="tab-schedules"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
-                    Schedule Control
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    Schedules
                 </button>
                 <button type="button"
                         onclick="showTab('notifications')"
                         id="tab-notifications"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
-                    Email Notifications
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    Email
                 </button>
                 <button type="button"
                         onclick="showTab('retention')"
                         id="tab-retention"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
-                    Log Retention
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    Retention
+                </button>
+                <button type="button"
+                        onclick="showTab('workers')"
+                        id="tab-workers"
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    Workers
                 </button>
                 <button type="button"
                         onclick="showTab('system')"
                         id="tab-system"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
-                    System Info
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    System
                 </button>
                 <button type="button"
                         onclick="showTab('backup')"
                         id="tab-backup"
-                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
-                    Backup & Restore
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    Backup
                 </button>
-            </nav>
+            </div>
         </div>
 
         <!-- General Settings Tab -->
@@ -400,6 +406,112 @@
             </div>
         </div>
 
+        <!-- Worker Settings Tab -->
+        <div id="panel-workers" class="tab-panel hidden">
+            {% if settings.worker_restart_required %}
+            <!-- Restart Required Warning -->
+            <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 max-w-xl mb-6">
+                <div class="flex items-start gap-3">
+                    <svg class="w-6 h-6 text-yellow-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div>
+                        <h3 class="text-yellow-400 font-semibold mb-2">Worker Restart Required</h3>
+                        <p class="text-sm text-code-muted">
+                            Settings were updated {{ settings.worker_settings_updated_at|timesince }} ago.
+                            Restart the workers for changes to take effect.
+                        </p>
+                        <p class="text-xs text-code-muted mt-2">
+                            Run: <code class="bg-code-bg px-2 py-1 rounded">python manage.py qcluster</code>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Worker Control Section -->
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl mb-6">
+                <h3 class="text-lg font-semibold text-code-text mb-4">Worker Control</h3>
+
+                <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg">
+                    <div>
+                        <p class="text-code-text font-medium">Restart Workers</p>
+                        <p class="text-sm text-code-muted">
+                            Gracefully restart task workers. Running tasks will complete before restart.
+                        </p>
+                    </div>
+                    <button type="button"
+                            onclick="restartWorkers()"
+                            id="restart-workers-btn"
+                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white rounded-lg font-medium transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Restart
+                    </button>
+                </div>
+
+                <div id="restart-result" class="hidden mt-4 p-4 rounded-lg"></div>
+            </div>
+
+            <form method="post" action="{% url 'cpanel:worker_settings' %}">
+                {% csrf_token %}
+                <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl mb-6">
+                    <h3 class="text-lg font-semibold text-code-text mb-4">Task Queue Configuration</h3>
+                    <p class="text-sm text-code-muted mb-6">
+                        Configure Django-Q2 worker settings. Changes require a worker restart to take effect.
+                    </p>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ worker_form.q_workers.label }}</label>
+                            {{ worker_form.q_workers }}
+                            <p class="mt-1 text-xs text-code-muted">{{ worker_form.q_workers.help_text }}</p>
+                            {% if worker_form.q_workers.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ worker_form.q_workers.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ worker_form.q_timeout.label }}</label>
+                            {{ worker_form.q_timeout }}
+                            <p class="mt-1 text-xs text-code-muted">{{ worker_form.q_timeout.help_text }}</p>
+                            {% if worker_form.q_timeout.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ worker_form.q_timeout.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ worker_form.q_retry.label }}</label>
+                            {{ worker_form.q_retry }}
+                            <p class="mt-1 text-xs text-code-muted">{{ worker_form.q_retry.help_text }}</p>
+                            {% if worker_form.q_retry.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ worker_form.q_retry.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ worker_form.q_queue_limit.label }}</label>
+                            {{ worker_form.q_queue_limit }}
+                            <p class="mt-1 text-xs text-code-muted">{{ worker_form.q_queue_limit.help_text }}</p>
+                            {% if worker_form.q_queue_limit.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ worker_form.q_queue_limit.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button type="submit" class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Save Settings
+                    </button>
+                    <p class="text-xs text-code-muted">
+                        Remember to restart workers after saving.
+                    </p>
+                </div>
+            </form>
+        </div>
+
         <!-- System Info Tab -->
         <div id="panel-system" class="tab-panel hidden">
             <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl mb-6">
@@ -563,17 +675,17 @@
 function showTab(tabName) {
     // Hide all panels
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-    // Reset all tabs
+    // Reset all tabs to inactive state
     document.querySelectorAll('.tab-btn').forEach(t => {
-        t.classList.remove('border-code-accent', 'text-code-accent');
-        t.classList.add('border-transparent', 'text-code-muted');
+        t.classList.remove('bg-code-accent', 'text-white');
+        t.classList.add('text-code-muted', 'hover:text-code-text', 'hover:bg-code-bg');
     });
     // Show selected panel
     document.getElementById('panel-' + tabName).classList.remove('hidden');
     // Highlight selected tab
     const tab = document.getElementById('tab-' + tabName);
-    tab.classList.remove('border-transparent', 'text-code-muted');
-    tab.classList.add('border-code-accent', 'text-code-accent');
+    tab.classList.remove('text-code-muted', 'hover:text-code-text', 'hover:bg-code-bg');
+    tab.classList.add('bg-code-accent', 'text-white');
     // Load system info when tab is selected
     if (tabName === 'system') {
         loadSystemInfo();
@@ -863,6 +975,49 @@ function closeRestoreModal() {
     modal.style.display = 'none';
 }
 
+function restartWorkers() {
+    const btn = document.getElementById('restart-workers-btn');
+    const resultDiv = document.getElementById('restart-result');
+
+    if (!confirm('Are you sure you want to restart the workers? Running tasks will complete before restart.')) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Restarting...';
+    resultDiv.classList.add('hidden');
+
+    fetch('{% url "cpanel:restart_workers" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultDiv.classList.remove('hidden');
+        if (data.success) {
+            resultDiv.className = 'mt-4 p-4 rounded-lg bg-code-green/10 border border-code-green text-code-green';
+            resultDiv.innerHTML = '<p class="font-medium">Success!</p><p class="text-sm mt-1">' + (data.message || 'Workers restarted successfully.') + '</p>';
+            // Refresh system info after a delay
+            setTimeout(loadSystemInfo, 3000);
+        } else {
+            resultDiv.className = 'mt-4 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+            resultDiv.innerHTML = '<p class="font-medium">Error</p><p class="text-sm mt-1">' + (data.error || 'Unknown error') + '</p>';
+        }
+    })
+    .catch(error => {
+        resultDiv.classList.remove('hidden');
+        resultDiv.className = 'mt-4 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+        resultDiv.innerHTML = '<p class="font-medium">Error</p><p class="text-sm mt-1">' + error.message + '</p>';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Restart';
+    });
+}
+
 // Close modal on escape key
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
@@ -887,6 +1042,8 @@ if (hash === '#security') {
     showTab('schedules');
 } else if (hash === '#retention') {
     showTab('retention');
+} else if (hash === '#workers') {
+    showTab('workers');
 } else if (hash === '#system') {
     showTab('system');
 } else if (hash === '#backup') {
