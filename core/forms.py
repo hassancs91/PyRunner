@@ -7,7 +7,7 @@ from zoneinfo import available_timezones
 from django import forms
 from django.utils.text import slugify
 
-from core.models import Script, Environment, ScriptSchedule
+from core.models import Script, Environment, ScriptSchedule, Tag
 from core.services import EnvironmentService
 
 
@@ -50,6 +50,7 @@ class ScriptForm(forms.ModelForm):
             "description",
             "code",
             "environment",
+            "tags",
             "timeout_seconds",
             "is_enabled",
             "notify_on",
@@ -81,6 +82,11 @@ class ScriptForm(forms.ModelForm):
             "environment": forms.Select(
                 attrs={
                     "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                }
+            ),
+            "tags": forms.CheckboxSelectMultiple(
+                attrs={
+                    "class": "tag-checkbox",
                 }
             ),
             "timeout_seconds": forms.NumberInput(
@@ -123,6 +129,7 @@ class ScriptForm(forms.ModelForm):
             "description": "Description",
             "code": "Python Code",
             "environment": "Environment",
+            "tags": "Tags",
             "timeout_seconds": "Timeout (seconds)",
             "is_enabled": "Enabled",
             "notify_on": "Notify On",
@@ -152,6 +159,43 @@ class ScriptForm(forms.ModelForm):
         if timeout is not None and (timeout < 1 or timeout > 3600):
             raise forms.ValidationError("Timeout must be between 1 and 3600 seconds.")
         return timeout
+
+
+class TagForm(forms.ModelForm):
+    """Form for creating and editing tags."""
+
+    class Meta:
+        model = Tag
+        fields = ["name", "color"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "Tag name",
+                }
+            ),
+            "color": forms.Select(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                }
+            ),
+        }
+        labels = {
+            "name": "Tag Name",
+            "color": "Color",
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data.get("name", "").strip()
+        if not name:
+            raise forms.ValidationError("Tag name is required.")
+        # Check uniqueness (excluding current instance for edits)
+        qs = Tag.objects.filter(name__iexact=name)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A tag with this name already exists.")
+        return name
 
 
 class ScheduleForm(forms.ModelForm):
@@ -1025,3 +1069,115 @@ class BackupRestoreForm(forms.Form):
         label="I understand all existing data will be deleted",
         help_text="This action cannot be undone without the automatic backup",
     )
+
+
+# =============================================================================
+# Authentication Forms
+# =============================================================================
+
+INPUT_CLASS = "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent"
+
+
+class PasswordLoginForm(forms.Form):
+    """Form for password-based login."""
+
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "you@example.com",
+                "autocomplete": "email",
+            }
+        ),
+        label="Email address",
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Your password",
+                "autocomplete": "current-password",
+            }
+        ),
+        label="Password",
+    )
+
+
+class SetPasswordForm(forms.Form):
+    """Form for setting or changing password."""
+
+    password = forms.CharField(
+        min_length=8,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "New password",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="New Password",
+        help_text="Minimum 8 characters",
+    )
+    password_confirm = forms.CharField(
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Confirm new password",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Confirm Password",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        confirm = cleaned_data.get("password_confirm")
+        if password and confirm and password != confirm:
+            raise forms.ValidationError("Passwords do not match.")
+        return cleaned_data
+
+
+class AdminSetupForm(forms.Form):
+    """Form for initial admin setup with password."""
+
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "admin@example.com",
+                "autocomplete": "email",
+            }
+        ),
+        label="Admin Email",
+    )
+    password = forms.CharField(
+        min_length=8,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Create a strong password",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Password",
+        help_text="Minimum 8 characters",
+    )
+    password_confirm = forms.CharField(
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Confirm password",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Confirm Password",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        confirm = cleaned_data.get("password_confirm")
+        if password and confirm and password != confirm:
+            raise forms.ValidationError("Passwords do not match.")
+        return cleaned_data

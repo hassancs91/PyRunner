@@ -32,6 +32,16 @@
                     {% if script.description %}
                     <p class="text-code-muted mt-1">{{ script.description }}</p>
                     {% endif %}
+                    {% if script.tags.exists %}
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        {% for tag in script.tags.all %}
+                        <a href="{% url 'cpanel:script_list' %}?tag={{ tag.pk }}"
+                           class="inline-flex items-center px-2.5 py-1 text-xs rounded-full tag-{{ tag.color }} hover:opacity-80 transition-opacity">
+                            {{ tag.name }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Actions -->

@@ -19,6 +19,12 @@
                     General
                 </button>
                 <button type="button"
+                        onclick="showTab('security')"
+                        id="tab-security"
+                        class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
+                    Security
+                </button>
+                <button type="button"
                         onclick="showTab('schedules')"
                         id="tab-schedules"
                         class="tab-btn pb-4 text-sm font-medium border-b-2 border-transparent text-code-muted hover:text-code-text">
@@ -90,6 +96,72 @@
             </form>
         </div>
 
+        <!-- Security Tab -->
+        <div id="panel-security" class="tab-panel hidden">
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl mb-6">
+                <h3 class="text-lg font-semibold text-code-text mb-4">Password</h3>
+
+                {% if request.user.has_usable_password %}
+                <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg mb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-code-green/20 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-code-text font-medium">Password Set</p>
+                            <p class="text-sm text-code-muted">You can sign in with your password</p>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="flex items-center justify-between p-4 bg-code-yellow/10 border border-code-yellow/30 rounded-lg mb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-code-yellow/20 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-code-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-code-text font-medium">No Password Set</p>
+                            <p class="text-sm text-code-muted">You're using magic link authentication only</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <a href="{% url 'auth:change_password' %}"
+                   class="inline-flex items-center px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-medium rounded-lg transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    {% if request.user.has_usable_password %}Change Password{% else %}Set Password{% endif %}
+                </a>
+            </div>
+
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl">
+                <h3 class="text-lg font-semibold text-code-text mb-4">Account Information</h3>
+
+                <div class="space-y-3">
+                    <div class="flex justify-between p-3 bg-code-bg rounded-lg">
+                        <span class="text-code-muted">Email</span>
+                        <span class="text-code-text font-mono">{{ request.user.email }}</span>
+                    </div>
+                    <div class="flex justify-between p-3 bg-code-bg rounded-lg">
+                        <span class="text-code-muted">Account Type</span>
+                        <span class="text-code-text">{% if request.user.is_superuser %}Administrator{% else %}User{% endif %}</span>
+                    </div>
+                    <div class="flex justify-between p-3 bg-code-bg rounded-lg">
+                        <span class="text-code-muted">Verified</span>
+                        <span class="{% if request.user.is_verified %}text-code-green{% else %}text-code-yellow{% endif %}">
+                            {% if request.user.is_verified %}Yes{% else %}No{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Schedule Control Tab -->
         <div id="panel-schedules" class="tab-panel hidden">
             <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-xl">
@@ -131,6 +203,28 @@
 
         <!-- Notifications Tab -->
         <div id="panel-notifications" class="tab-panel hidden">
+            {% if settings.email_backend == 'disabled' %}
+            <!-- Security Warning when email is disabled -->
+            <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-6 max-w-2xl mb-6">
+                <div class="flex items-start gap-3">
+                    <svg class="w-6 h-6 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    <div>
+                        <h3 class="text-red-400 font-semibold mb-2">Email is Disabled - Security Risk</h3>
+                        <ul class="text-sm text-code-muted space-y-1">
+                            <li>Sign-in links are displayed on-screen instead of sent via email</li>
+                            <li>Script failure/success notifications won't be sent</li>
+                            <li>User invites must be shared manually</li>
+                        </ul>
+                        <p class="text-sm text-red-300 mt-3">
+                            Configure SMTP or Resend below to enable secure email delivery.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <form method="post" action="{% url 'cpanel:notification_settings' %}">
                 {% csrf_token %}
 
@@ -785,7 +879,9 @@ document.getElementById('restore-preview-modal').addEventListener('click', funct
 
 // Check URL hash for tab navigation
 const hash = window.location.hash;
-if (hash === '#notifications') {
+if (hash === '#security') {
+    showTab('security');
+} else if (hash === '#notifications') {
     showTab('notifications');
 } else if (hash === '#schedules') {
     showTab('schedules');

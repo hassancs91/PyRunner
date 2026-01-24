@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Users - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <div class="flex items-center justify-between mb-8">
+            <h1 class="text-2xl font-bold text-code-text">Users</h1>
+            <button type="button"
+                    onclick="document.getElementById('invite-modal').classList.remove('hidden')"
+                    class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                Invite User
+            </button>
+        </div>
+
+        {% if last_invite_url %}
+        <!-- Recently Created Invite Link -->
+        <div class="bg-code-green/10 border border-code-green/30 rounded-xl p-6 mb-6">
+            <div class="flex items-start gap-3 mb-4">
+                <svg class="w-5 h-5 text-code-green mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <div class="flex-1">
+                    <p class="text-sm text-code-green font-medium mb-1">Invite created for {{ last_invite_email }}</p>
+                    <p class="text-sm text-code-muted mb-3">Share this link with the user. It expires in 7 days.</p>
+                    <div class="relative">
+                        <input type="text"
+                               value="{{ last_invite_url }}"
+                               readonly
+                               id="invite-link-input"
+                               class="w-full px-4 py-3 pr-20 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-xs">
+                        <button onclick="copyInviteLink()"
+                                id="copy-invite-btn"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-code-surface border border-code-border rounded text-code-muted text-sm hover:text-code-text hover:bg-code-border transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Registration Settings -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 mb-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-code-text mb-1">Open Registration</h3>
+                    <p class="text-sm text-code-muted">
+                        {% if allow_registration %}
+                        Anyone can create an account by entering their email.
+                        {% else %}
+                        Only invited users can create accounts.
+                        {% endif %}
+                    </p>
+                </div>
+                <form method="post" action="{% url 'cpanel:toggle_registration' %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="px-4 py-2 rounded-lg font-medium transition-colors {% if allow_registration %}bg-code-yellow hover:bg-code-yellow/90 text-black{% else %}bg-code-green hover:bg-code-green/90 text-white{% endif %}">
+                        {% if allow_registration %}Disable{% else %}Enable{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Pending Invites -->
+        {% if pending_invites %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 mb-6">
+            <h3 class="text-lg font-semibold text-code-text mb-4">Pending Invites</h3>
+            <div class="space-y-3">
+                {% for invite in pending_invites %}
+                <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg">
+                    <div class="flex-1">
+                        <p class="text-code-text font-medium">{{ invite.email }}</p>
+                        <p class="text-xs text-code-muted">
+                            Invited {{ invite.created_at|timesince }} ago by {{ invite.created_by.email }}
+                            &bull; Expires {{ invite.expires_at|timeuntil }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="copyLink('{{ request.scheme }}://{{ request.get_host }}{% url 'auth:accept_invite' token=invite.token %}', this)"
+                                class="px-3 py-1.5 bg-code-surface border border-code-border rounded text-code-muted text-sm hover:text-code-text hover:bg-code-border transition-colors">
+                            Copy Link
+                        </button>
+                        <form method="post" action="{% url 'cpanel:revoke_invite' pk=invite.pk %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    onclick="return confirm('Revoke invite for {{ invite.email }}?')"
+                                    class="px-3 py-1.5 bg-code-red/20 border border-code-red/30 rounded text-code-red text-sm hover:bg-code-red/30 transition-colors">
+                                Revoke
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Users List -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6">
+            <h3 class="text-lg font-semibold text-code-text mb-4">All Users</h3>
+            <div class="space-y-3">
+                {% for user in users %}
+                <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-code-accent/20 rounded-full flex items-center justify-center">
+                            <span class="text-code-accent font-semibold">{{ user.email|first|upper }}</span>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <p class="text-code-text font-medium">{{ user.email }}</p>
+                                {% if user.is_superuser %}
+                                <span class="px-2 py-0.5 bg-code-accent/20 text-code-accent text-xs rounded-full">Admin</span>
+                                {% endif %}
+                                {% if user.is_verified %}
+                                <span class="px-2 py-0.5 bg-code-green/20 text-code-green text-xs rounded-full">Verified</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 bg-code-yellow/20 text-code-yellow text-xs rounded-full">Pending</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-xs text-code-muted">
+                                Joined {{ user.date_joined|timesince }} ago
+                                {% if user.last_login %}
+                                &bull; Last login {{ user.last_login|timesince }} ago
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% if user.pk != request.user.pk %}
+                    <form method="post" action="{% url 'cpanel:delete_user' pk=user.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit"
+                                onclick="return confirm('Delete user {{ user.email }}? This cannot be undone.')"
+                                class="px-3 py-1.5 bg-code-red/20 border border-code-red/30 rounded text-code-red text-sm hover:bg-code-red/30 transition-colors">
+                            Delete
+                        </button>
+                    </form>
+                    {% else %}
+                    <span class="text-xs text-code-muted">(You)</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invite Modal -->
+<div id="invite-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 flex">
+    <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-md w-full mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-code-text">Invite User</h3>
+            <button type="button"
+                    onclick="document.getElementById('invite-modal').classList.add('hidden')"
+                    class="text-code-muted hover:text-code-text">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <form method="post" action="{% url 'cpanel:invite_user' %}">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="email" class="block text-sm font-medium text-code-text mb-2">Email Address</label>
+                <input type="email"
+                       name="email"
+                       id="email"
+                       required
+                       placeholder="user@example.com"
+                       class="w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted focus:outline-none focus:border-code-accent">
+            </div>
+
+            <p class="text-sm text-code-muted mb-4">
+                An invite link will be generated. You can share this link with the user directly.
+            </p>
+
+            <div class="flex gap-3">
+                <button type="button"
+                        onclick="document.getElementById('invite-modal').classList.add('hidden')"
+                        class="flex-1 px-4 py-2 bg-code-bg border border-code-border hover:border-code-accent text-code-text font-semibold rounded-lg transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="flex-1 px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                    Create Invite
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function copyInviteLink() {
+    const input = document.getElementById('invite-link-input');
+    const btn = document.getElementById('copy-invite-btn');
+    navigator.clipboard.writeText(input.value).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('text-code-green');
+        setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('text-code-green');
+        }, 2000);
+    });
+}
+
+function copyLink(url, btn) {
+    navigator.clipboard.writeText(url).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('text-code-green');
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('text-code-green');
+        }, 2000);
+    });
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        document.getElementById('invite-modal').classList.add('hidden');
+    }
+});
+
+// Close modal on background click
+document.getElementById('invite-modal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        this.classList.add('hidden');
+    }
+});
+</script>
+{% endblock %}

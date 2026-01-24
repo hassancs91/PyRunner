@@ -1,0 +1,43 @@
+services:
+  pyrunner:
+    build: .
+    container_name: pyrunner
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      # Persist database and environments
+      - pyrunner_data:/app/data
+    environment:
+      # Required - will be auto-generated if not set (check logs for the key!)
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+
+      # Django settings
+      - SECRET_KEY=${SECRET_KEY:-}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      # Email settings (optional)
+      - EMAIL_BACKEND=${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-noreply@pyrunner.local}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - USE_RESEND=${USE_RESEND:-False}
+
+      # Worker settings
+      - Q_WORKERS=${Q_WORKERS:-2}
+
+      # Gunicorn settings
+      - PORT=8000
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-4}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  pyrunner_data:
+    driver: local

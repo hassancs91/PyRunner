@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 from django.http import HttpRequest, HttpResponse
 
-from core.models import Script, Run, ScriptSchedule, ScheduleHistory
+from core.models import Script, Run, ScriptSchedule, ScheduleHistory, Tag
 from core.forms import ScriptForm, ScheduleForm
 from core.tasks import queue_script_run
 from core.services.schedule_service import ScheduleService
@@ -16,7 +16,7 @@ from core.services.schedule_service import ScheduleService
 @login_required
 def script_list_view(request: HttpRequest) -> HttpResponse:
     """List all scripts with optional filtering."""
-    scripts = Script.objects.select_related("environment", "created_by").order_by("-updated_at")
+    scripts = Script.objects.select_related("environment", "created_by").prefetch_related("tags").order_by("-updated_at")
 
     # Optional filtering by status
     status_filter = request.GET.get("status")
@@ -30,9 +30,24 @@ def script_list_view(request: HttpRequest) -> HttpResponse:
         # Default "All" excludes archived scripts
         scripts = scripts.filter(archived_at__isnull=True)
 
+    # Filter by tag
+    tag_filter = request.GET.get("tag")
+    selected_tag = None
+    if tag_filter:
+        try:
+            selected_tag = Tag.objects.get(pk=tag_filter)
+            scripts = scripts.filter(tags=selected_tag)
+        except (Tag.DoesNotExist, ValueError):
+            pass
+
+    # Get all tags for filter dropdown
+    all_tags = Tag.objects.all().order_by("name")
+
     return render(request, "cpanel/scripts/list.html", {
         "scripts": scripts,
         "status_filter": status_filter,
+        "all_tags": all_tags,
+        "selected_tag": selected_tag,
     })
 
 
@@ -45,6 +60,7 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
             script = form.save(commit=False)
             script.created_by = request.user
             script.save()
+            form.save_m2m()  # Save M2M relationships (tags)
             messages.success(request, f'Script "{script.name}" created successfully.')
             return redirect("cpanel:script_detail", pk=script.pk)
     else:
@@ -57,7 +73,7 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
 def script_detail_view(request: HttpRequest, pk) -> HttpResponse:
     """View script details and recent runs."""
     script = get_object_or_404(
-        Script.objects.select_related("environment", "created_by"),
+        Script.objects.select_related("environment", "created_by").prefetch_related("tags"),
         pk=pk
     )
     recent_runs = script.runs.select_related("triggered_by").order_by("-created_at")[:10]

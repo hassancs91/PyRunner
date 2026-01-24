@@ -51,11 +51,24 @@ from core.views.secrets import (
     secret_edit_view,
     secret_delete_view,
 )
+from core.views.tags import (
+    tag_list_view,
+    tag_create_view,
+    tag_edit_view,
+    tag_delete_view,
+)
 from core.views.backup import (
     backup_create_view,
     backup_upload_view,
     backup_preview_view,
     backup_restore_view,
+)
+from core.views.users import (
+    user_list_view,
+    invite_user_view,
+    revoke_invite_view,
+    toggle_registration_view,
+    delete_user_view,
 )
 
 app_name = "cpanel"
@@ -108,6 +121,12 @@ urlpatterns = [
     path("secrets/<uuid:pk>/edit/", secret_edit_view, name="secret_edit"),
     path("secrets/<uuid:pk>/delete/", secret_delete_view, name="secret_delete"),
 
+    # Tags
+    path("tags/", tag_list_view, name="tag_list"),
+    path("tags/create/", tag_create_view, name="tag_create"),
+    path("tags/<uuid:pk>/edit/", tag_edit_view, name="tag_edit"),
+    path("tags/<uuid:pk>/delete/", tag_delete_view, name="tag_delete"),
+
     # Settings
     path("settings/", settings_view, name="settings"),
     path("settings/toggle-pause/", toggle_global_pause_view, name="toggle_global_pause"),
@@ -124,4 +143,11 @@ urlpatterns = [
     path("settings/backup/upload/", backup_upload_view, name="backup_upload"),
     path("settings/backup/preview/", backup_preview_view, name="backup_preview"),
     path("settings/backup/restore/", backup_restore_view, name="backup_restore"),
+
+    # User Management
+    path("users/", user_list_view, name="user_list"),
+    path("users/invite/", invite_user_view, name="invite_user"),
+    path("users/invite/<int:pk>/revoke/", revoke_invite_view, name="revoke_invite"),
+    path("users/<int:pk>/delete/", delete_user_view, name="delete_user"),
+    path("users/toggle-registration/", toggle_registration_view, name="toggle_registration"),
 ]

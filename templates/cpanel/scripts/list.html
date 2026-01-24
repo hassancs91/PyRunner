@@ -23,25 +23,60 @@
         </div>
 
         <!-- Filters -->
-        <div class="mb-6 flex items-center space-x-4">
-            <span class="text-code-muted text-sm">Filter:</span>
-            <a href="{% url 'cpanel:script_list' %}"
-               class="px-3 py-1 text-sm rounded-lg transition-colors {% if not status_filter %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
-                All
-            </a>
-            <a href="{% url 'cpanel:script_list' %}?status=enabled"
-               class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'enabled' %}bg-code-green/20 text-code-green{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
-                Enabled
-            </a>
-            <a href="{% url 'cpanel:script_list' %}?status=disabled"
-               class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'disabled' %}bg-code-yellow/20 text-code-yellow{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
-                Disabled
-            </a>
-            <a href="{% url 'cpanel:script_list' %}?status=archived"
-               class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'archived' %}bg-code-red/20 text-code-red{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
-                Archived
-            </a>
+        <div class="mb-6 flex items-center flex-wrap gap-4">
+            <div class="flex items-center space-x-4">
+                <span class="text-code-muted text-sm">Status:</span>
+                <a href="{% url 'cpanel:script_list' %}{% if selected_tag %}?tag={{ selected_tag.pk }}{% endif %}"
+                   class="px-3 py-1 text-sm rounded-lg transition-colors {% if not status_filter %}bg-code-accent/20 text-code-accent{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                    All
+                </a>
+                <a href="{% url 'cpanel:script_list' %}?status=enabled{% if selected_tag %}&tag={{ selected_tag.pk }}{% endif %}"
+                   class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'enabled' %}bg-code-green/20 text-code-green{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                    Enabled
+                </a>
+                <a href="{% url 'cpanel:script_list' %}?status=disabled{% if selected_tag %}&tag={{ selected_tag.pk }}{% endif %}"
+                   class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'disabled' %}bg-code-yellow/20 text-code-yellow{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                    Disabled
+                </a>
+                <a href="{% url 'cpanel:script_list' %}?status=archived{% if selected_tag %}&tag={{ selected_tag.pk }}{% endif %}"
+                   class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'archived' %}bg-code-red/20 text-code-red{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                    Archived
+                </a>
+            </div>
+
+            {% if all_tags %}
+            <div class="flex items-center space-x-2">
+                <span class="text-code-muted text-sm">Tag:</span>
+                <select onchange="filterByTag(this.value)"
+                        class="px-3 py-1 text-sm bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                    <option value="">All Tags</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.pk }}" {% if selected_tag.pk == tag.pk %}selected{% endif %}>
+                        {{ tag.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if selected_tag %}
+                <a href="{% url 'cpanel:script_list' %}{% if status_filter %}?status={{ status_filter }}{% endif %}"
+                   class="text-code-muted hover:text-code-text text-sm">
+                    Clear
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
+
+        <script>
+        function filterByTag(tagId) {
+            const url = new URL(window.location.href);
+            if (tagId) {
+                url.searchParams.set('tag', tagId);
+            } else {
+                url.searchParams.delete('tag');
+            }
+            window.location.href = url.toString();
+        }
+        </script>
 
         <!-- Scripts Table -->
         {% if scripts %}
@@ -51,6 +86,7 @@
                     <tr>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Name</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Environment</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Tags</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Status</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Runs</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Success Rate</th>
@@ -70,6 +106,18 @@
                         </td>
                         <td class="px-6 py-4 text-code-text">
                             {{ script.environment.name }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                {% for tag in script.tags.all %}
+                                <a href="{% url 'cpanel:script_list' %}?tag={{ tag.pk }}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                                   class="inline-flex items-center px-2 py-0.5 text-xs rounded-full tag-{{ tag.color }} hover:opacity-80 transition-opacity">
+                                    {{ tag.name }}
+                                </a>
+                                {% empty %}
+                                <span class="text-code-muted text-sm">-</span>
+                                {% endfor %}
+                            </div>
                         </td>
                         <td class="px-6 py-4">
                             {% if script.is_archived %}

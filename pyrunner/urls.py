@@ -23,6 +23,7 @@ from core.views.webhooks import webhook_trigger_view
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("setup/", include("core.urls.setup")),
     path("auth/", include("core.urls.auth")),
     path("cpanel/", include("core.urls.cpanel")),
     # Public webhook endpoint (no auth required)

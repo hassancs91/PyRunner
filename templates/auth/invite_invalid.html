@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Invalid Invite - PyRunner{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md text-center">
+        <div class="w-20 h-20 bg-code-red/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+
+        <h1 class="text-2xl font-bold text-code-text mb-4">{{ error }}</h1>
+
+        <p class="text-code-muted mb-8">
+            {{ message }}
+        </p>
+
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 mb-8">
+            <h3 class="text-sm font-medium text-code-text mb-3">What can you do?</h3>
+            <ul class="text-sm text-code-muted space-y-2 text-left">
+                <li class="flex items-start">
+                    <svg class="w-4 h-4 text-code-accent mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    Ask an administrator for a new invite
+                </li>
+                <li class="flex items-start">
+                    <svg class="w-4 h-4 text-code-accent mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    Check if you have the correct link
+                </li>
+                <li class="flex items-start">
+                    <svg class="w-4 h-4 text-code-accent mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    If you already have an account, try signing in
+                </li>
+            </ul>
+        </div>
+
+        <a
+            href="{% url 'auth:login' %}"
+            class="inline-flex items-center text-code-accent hover:text-code-accent/80 transition-colors"
+        >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to sign in
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -31,6 +31,15 @@ class Script(models.Model):
         related_name="scripts",
         help_text="Python environment to use for execution",
     )
+
+    # Tags for categorization
+    tags = models.ManyToManyField(
+        "Tag",
+        blank=True,
+        related_name="scripts",
+        help_text="Tags for organizing and filtering scripts",
+    )
+
     timeout_seconds = models.PositiveIntegerField(
         default=300,  # 5 minutes default
         help_text="Maximum execution time in seconds (default: 5 minutes)",

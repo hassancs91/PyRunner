@@ -107,6 +107,106 @@ PyRunner - Python Script Automation
         return False
 
 
+def send_password_reset_email(request, user, reset_token) -> bool:
+    """
+    Send password reset email.
+
+    Args:
+        request: HttpRequest object (for building absolute URL)
+        user: User instance
+        reset_token: PasswordResetToken instance
+
+    Returns:
+        bool: True if email sent successfully
+    """
+    reset_path = reverse("auth:reset_password", kwargs={"token": reset_token.token})
+    reset_url = request.build_absolute_uri(reset_path)
+
+    # Print URL directly to console in development
+    if settings.DEBUG:
+        print("\n" + "=" * 60)
+        print("PASSWORD RESET LINK (click or copy):")
+        print(reset_url)
+        print("=" * 60 + "\n")
+
+    subject = "Reset Your PyRunner Password"
+
+    text_message = f"""Hi there!
+
+You requested a password reset for your PyRunner account.
+
+Click the link below to reset your password:
+
+========================================
+{reset_url}
+========================================
+
+This link will expire in 24 hours and can only be used once.
+
+If you didn't request this, you can safely ignore this email.
+
+---
+PyRunner - Python Script Automation
+"""
+
+    html_message = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Reset Your Password</h2>
+        <p>You requested a password reset for your PyRunner account ({user.email}).</p>
+        <p style="margin: 30px 0;">
+            <a href="{reset_url}" class="button">Reset Password</a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px;">
+            This link expires in 24 hours and can only be used once.
+        </p>
+        <p style="color: #6b7280; font-size: 14px;">
+            Or copy and paste this URL into your browser:<br>
+            <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px;">{reset_url}</code>
+        </p>
+        <div class="footer">
+            <p>If you didn't request this, you can safely ignore this email.</p>
+            <p><strong>PyRunner</strong> - Python Script Automation</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    try:
+        if _should_use_resend():
+            return _send_via_resend(
+                to_email=user.email,
+                subject=subject,
+                text_content=text_message,
+                html_content=html_message,
+            )
+
+        send_mail(
+            subject=subject,
+            message=text_message,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@localhost"),
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        logger.info(f"Password reset email sent to {user.email}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {user.email}: {e}")
+        return False
+
+
 def _should_use_resend() -> bool:
     """Check if Resend API should be used."""
     return (

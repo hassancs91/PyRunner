@@ -1,10 +1,81 @@
 {% extends "base.html" %}
 
-{% block title %}Check Your Email - PyRunner{% endblock %}
+{% block title %}{% if show_magic_link %}Sign In{% else %}Check Your Email{% endif %} - PyRunner{% endblock %}
 
 {% block content %}
 <div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4 py-12">
     <div class="w-full max-w-md text-center">
+        {% if show_magic_link %}
+        <!-- Email not configured - show magic link with security warning -->
+        <div class="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+        </div>
+
+        <h1 class="text-2xl font-bold text-code-text mb-4">Your Sign-In Link</h1>
+
+        <!-- Security Warning -->
+        <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-5 mb-6 text-left">
+            <div class="flex items-start gap-3 mb-3">
+                <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <h3 class="text-red-400 font-semibold text-sm">Security Warning: Email Not Configured</h3>
+                    <p class="text-xs text-code-muted mt-1">
+                        Sign-in links are displayed on-screen because email is disabled.
+                        <strong class="text-red-300">Anyone who sees this screen can sign in.</strong>
+                    </p>
+                </div>
+            </div>
+            <p class="text-xs text-red-300/80 ml-8">
+                Configure SMTP in Settings → Email Notifications to send links securely.
+            </p>
+        </div>
+
+        <!-- Sign In Button and Link -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 mb-6">
+            <a href="{{ magic_link_url }}"
+               class="block w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors text-center mb-4">
+                Sign In Now
+            </a>
+
+            <div class="relative">
+                <input type="text"
+                       value="{{ magic_link_url }}"
+                       readonly
+                       id="magic-link-input"
+                       class="w-full px-4 py-3 pr-20 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-xs">
+                <button onclick="copyMagicLink()"
+                        id="copy-btn"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-code-surface border border-code-border rounded text-code-muted text-sm hover:text-code-text hover:bg-code-border transition-colors">
+                    Copy
+                </button>
+            </div>
+
+            <p class="text-xs text-code-muted mt-3 text-center">
+                Expires in 15 minutes. One-time use only.
+            </p>
+        </div>
+
+        <script>
+        function copyMagicLink() {
+            const input = document.getElementById('magic-link-input');
+            const btn = document.getElementById('copy-btn');
+            navigator.clipboard.writeText(input.value).then(() => {
+                btn.textContent = 'Copied!';
+                btn.classList.add('text-code-green');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('text-code-green');
+                }, 2000);
+            });
+        }
+        </script>
+
+        {% else %}
+        <!-- Email configured - show check email message -->
         <div class="w-20 h-20 bg-code-green/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg class="w-10 h-10 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
@@ -40,6 +111,7 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
         <a
             href="{% url 'auth:login' %}"

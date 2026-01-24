@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Create Tag - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:tag_list' %}" class="hover:text-code-accent">Tags</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Create Tag</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">Create New Tag</h1>
+            <p class="text-code-muted">Add a tag to organize and categorize your scripts</p>
+        </div>
+
+        <!-- Form -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Tag Name -->
+                <div class="mb-6">
+                    <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.name.label }}
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Color -->
+                <div class="mb-6">
+                    <label for="id_color" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.color.label }}
+                    </label>
+                    {{ form.color }}
+                    <div class="mt-3">
+                        <span class="text-sm text-code-muted mr-2">Preview:</span>
+                        <span id="tag-preview" class="inline-flex items-center px-3 py-1 text-sm rounded-full tag-gray">
+                            Sample Tag
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-code-border">
+                    <a href="{% url 'cpanel:tag_list' %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Create Tag
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const colorSelect = document.getElementById('id_color');
+    const nameInput = document.getElementById('id_name');
+    const preview = document.getElementById('tag-preview');
+
+    function updatePreview() {
+        const color = colorSelect.value || 'gray';
+        const name = nameInput.value || 'Sample Tag';
+
+        // Remove all tag-* classes and add the new one
+        preview.className = preview.className.replace(/tag-\w+/g, '');
+        preview.classList.add('tag-' + color);
+        preview.classList.add('inline-flex', 'items-center', 'px-3', 'py-1', 'text-sm', 'rounded-full');
+        preview.textContent = name;
+    }
+
+    colorSelect.addEventListener('change', updatePreview);
+    nameInput.addEventListener('input', updatePreview);
+    updatePreview();
+});
+</script>
+{% endblock %}

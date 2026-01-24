@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Environment files (should be passed as env vars)
+.env
+.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# Data (will be mounted as volume)
+data/
+*.sqlite3
+
+# Logs
+*.log
+
+# Documentation (not needed in image)
+*.md
+docs/
+notes.md
+
+# Static files (collected during build)
+staticfiles/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude plans
+.claude/

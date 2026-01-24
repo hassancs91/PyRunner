@@ -154,6 +154,23 @@ class GlobalSettings(models.Model):
         help_text="Last heartbeat from django-q workers",
     )
 
+    # Setup wizard tracking
+    setup_completed = models.BooleanField(
+        default=False,
+        help_text="Whether initial setup has been completed",
+    )
+    setup_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the initial setup was completed",
+    )
+
+    # Registration control
+    allow_registration = models.BooleanField(
+        default=True,
+        help_text="Allow new users to register without an invite (auto-disabled after first user)",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"

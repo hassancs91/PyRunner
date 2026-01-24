@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Setup - PyRunner{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-lg">
+        <div class="text-center mb-10">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-6 glow-accent">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-bold gradient-text mb-3">PyRunner Setup</h1>
+            <p class="text-code-muted text-lg">First-time configuration</p>
+        </div>
+
+        <div class="bg-code-surface border border-code-border rounded-xl p-8">
+            {% if setup_complete %}
+                <!-- Setup Complete -->
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-code-green/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <svg class="w-8 h-8 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-code-text mb-4">Setup Complete!</h2>
+                    <p class="text-code-muted mb-6">
+                        {% if redirect_to_admin_setup %}
+                            System is ready. Now let's create your admin account.
+                        {% else %}
+                            PyRunner is ready to use.
+                        {% endif %}
+                    </p>
+
+                    {% if redirect_to_admin_setup %}
+                        <a href="{% url 'setup:admin_setup' %}" class="inline-block w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors text-center">
+                            Create Admin Account
+                        </a>
+                    {% else %}
+                        <a href="{% url 'auth:login' %}" class="inline-block w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors text-center">
+                            Continue to Login
+                        </a>
+                    {% endif %}
+
+                    <div class="mt-8 p-4 bg-code-bg rounded-lg border border-code-border text-left">
+                        <h3 class="text-sm font-semibold text-code-yellow mb-2">Next Steps</h3>
+                        <ul class="text-sm text-code-muted space-y-2">
+                            <li class="flex items-start">
+                                <span class="text-code-green mr-2">1.</span>
+                                <span>Start the task worker: <code class="text-code-accent">python manage.py qcluster</code></span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-code-green mr-2">2.</span>
+                                <span>{% if redirect_to_admin_setup %}Create your admin account{% else %}Sign in to your account{% endif %}</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-code-green mr-2">3.</span>
+                                <span>Create your first script</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+            {% elif results %}
+                <!-- Setup Results -->
+                <h2 class="text-xl font-semibold text-code-text mb-6 text-center">Setup Progress</h2>
+
+                <div class="space-y-4 mb-6">
+                    <!-- Migrations -->
+                    <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg border border-code-border">
+                        <div class="flex items-center space-x-3">
+                            {% if results.migrations.success %}
+                                <div class="w-8 h-8 bg-code-green/20 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                </div>
+                            {% else %}
+                                <div class="w-8 h-8 bg-code-red/20 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </div>
+                            {% endif %}
+                            <span class="text-code-text">Database Migrations</span>
+                        </div>
+                        <span class="text-sm {% if results.migrations.success %}text-code-green{% else %}text-code-red{% endif %}">
+                            {% if results.migrations.success %}Complete{% else %}Failed{% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Default Environment -->
+                    <div class="flex items-center justify-between p-4 bg-code-bg rounded-lg border border-code-border">
+                        <div class="flex items-center space-x-3">
+                            {% if results.default_env.success %}
+                                <div class="w-8 h-8 bg-code-green/20 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                </div>
+                            {% else %}
+                                <div class="w-8 h-8 bg-code-red/20 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </div>
+                            {% endif %}
+                            <span class="text-code-text">Default Python Environment</span>
+                        </div>
+                        <span class="text-sm {% if results.default_env.success %}text-code-green{% else %}text-code-red{% endif %}">
+                            {% if results.default_env.success %}Complete{% else %}Failed{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                {% if not results.completed %}
+                    <!-- Error Messages -->
+                    {% if not results.migrations.success %}
+                        <div class="p-4 bg-code-red/10 border border-code-red/30 rounded-lg mb-4">
+                            <p class="text-sm text-code-red">Migration error: {{ results.migrations.message }}</p>
+                        </div>
+                    {% endif %}
+                    {% if not results.default_env.success %}
+                        <div class="p-4 bg-code-red/10 border border-code-red/30 rounded-lg mb-4">
+                            <p class="text-sm text-code-red">Environment error: {{ results.default_env.message }}</p>
+                        </div>
+                    {% endif %}
+
+                    <form method="post" class="mt-6">
+                        {% csrf_token %}
+                        <button type="submit" class="w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                            Retry Setup
+                        </button>
+                    </form>
+                {% endif %}
+
+            {% else %}
+                <!-- Initial State - Run Setup -->
+                <h2 class="text-xl font-semibold text-code-text mb-6 text-center">Welcome to PyRunner</h2>
+
+                <div class="space-y-4 mb-6">
+                    <div class="flex items-center space-x-3 p-4 bg-code-bg rounded-lg border border-code-border">
+                        {% if status.database_ready %}
+                            <div class="w-6 h-6 bg-code-green/20 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                        {% else %}
+                            <div class="w-6 h-6 bg-code-yellow/20 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-code-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01"/>
+                                </svg>
+                            </div>
+                        {% endif %}
+                        <span class="text-code-muted">Database: {% if status.database_ready %}Ready{% else %}Needs Migration{% endif %}</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 p-4 bg-code-bg rounded-lg border border-code-border">
+                        {% if status.default_env_exists %}
+                            <div class="w-6 h-6 bg-code-green/20 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                        {% else %}
+                            <div class="w-6 h-6 bg-code-yellow/20 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-code-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01"/>
+                                </svg>
+                            </div>
+                        {% endif %}
+                        <span class="text-code-muted">Default Environment: {% if status.default_env_exists %}Ready{% else %}Will be created{% endif %}</span>
+                    </div>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Run Setup
+                    </button>
+                </form>
+
+                <p class="mt-6 text-center text-sm text-code-muted">
+                    This will set up the database and create the default Python environment.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

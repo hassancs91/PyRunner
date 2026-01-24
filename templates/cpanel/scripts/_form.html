@@ -61,6 +61,28 @@
         </div>
     </div>
 
+    <!-- Tags -->
+    <div>
+        <label class="block text-sm font-medium text-code-text mb-2">
+            {{ form.tags.label }}
+        </label>
+        <div class="flex flex-wrap gap-2 p-4 bg-code-bg border border-code-border rounded-lg min-h-[3rem]">
+            {% for checkbox in form.tags %}
+            <label class="inline-flex items-center px-3 py-1.5 rounded-full cursor-pointer border transition-colors
+                          {% if checkbox.data.selected %}border-code-accent bg-code-accent/20{% else %}border-code-border bg-code-surface hover:border-code-accent/50{% endif %}">
+                <input type="checkbox" name="tags" value="{{ checkbox.data.value }}" {% if checkbox.data.selected %}checked{% endif %} class="sr-only peer">
+                <span class="w-2 h-2 rounded-full mr-2 tag-dot-{{ checkbox.data.attrs.data_color|default:'gray' }}"></span>
+                <span class="text-sm text-code-text">{{ checkbox.choice_label }}</span>
+            </label>
+            {% empty %}
+            <p class="text-sm text-code-muted">No tags available. <a href="{% url 'cpanel:tag_list' %}" class="text-code-accent hover:underline">Create tags</a></p>
+            {% endfor %}
+        </div>
+        {% if form.tags.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.tags.errors.0 }}</p>
+        {% endif %}
+    </div>
+
     <!-- Enabled -->
     <div class="flex items-center space-x-3">
         {{ form.is_enabled }}
