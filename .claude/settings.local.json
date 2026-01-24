@@ -11,7 +11,10 @@
       "Bash(where:*)",
       "Bash(python:*)",
       "Bash(powershell -Command \"Get-ChildItem -Path . -Depth 2 -Exclude venv | Where-Object {$_PSIsContainer -or $_Extension -eq ''.py''} | Select-Object FullName\")",
-      "Bash(powershell -Command \"Get-ChildItem -Exclude venv | Select-Object Name, @{Name=''Type''; Expression={if\\($_PSIsContainer\\){''Folder''}else{''File''}}}\")"
+      "Bash(powershell -Command \"Get-ChildItem -Exclude venv | Select-Object Name, @{Name=''Type''; Expression={if\\($_PSIsContainer\\){''Folder''}else{''File''}}}\")",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(tree:*)"
     ]
   }
 }

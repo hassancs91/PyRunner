@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found - PyRunner{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md text-center">
+        <div class="w-20 h-20 bg-code-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-8 glow-accent">
+            <svg class="w-10 h-10 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+        </div>
+
+        <h1 class="text-8xl font-bold gradient-text mb-4">404</h1>
+        <h2 class="text-2xl font-semibold text-code-text mb-4">Page Not Found</h2>
+        <p class="text-code-muted mb-8">
+            The page you're looking for doesn't exist or has been moved.
+        </p>
+
+        <a href="/" class="inline-block py-3 px-6 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:ring-offset-2 focus:ring-offset-code-bg">
+            Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}

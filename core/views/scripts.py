@@ -21,9 +21,14 @@ def script_list_view(request: HttpRequest) -> HttpResponse:
     # Optional filtering by status
     status_filter = request.GET.get("status")
     if status_filter == "enabled":
-        scripts = scripts.filter(is_enabled=True)
+        scripts = scripts.filter(is_enabled=True, archived_at__isnull=True)
     elif status_filter == "disabled":
-        scripts = scripts.filter(is_enabled=False)
+        scripts = scripts.filter(is_enabled=False, archived_at__isnull=True)
+    elif status_filter == "archived":
+        scripts = scripts.filter(archived_at__isnull=False)
+    else:
+        # Default "All" excludes archived scripts
+        scripts = scripts.filter(archived_at__isnull=True)
 
     return render(request, "cpanel/scripts/list.html", {
         "scripts": scripts,
@@ -144,8 +149,11 @@ def script_run_view(request: HttpRequest, pk) -> HttpResponse:
     """Trigger a manual script run."""
     script = get_object_or_404(Script, pk=pk)
 
-    if not script.is_enabled:
-        messages.error(request, "Cannot run a disabled script.")
+    if not script.can_run:
+        if script.is_archived:
+            messages.error(request, "Cannot run an archived script.")
+        else:
+            messages.error(request, "Cannot run a disabled script.")
         return redirect("cpanel:script_detail", pk=pk)
 
     # Create a new Run record (pending state)
@@ -278,3 +286,70 @@ def webhook_regenerate_view(request: HttpRequest, pk) -> HttpResponse:
     messages.success(request, f'Webhook URL regenerated for "{script.name}". The old URL is now invalid.')
 
     return redirect("cpanel:script_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def script_archive_view(request: HttpRequest, pk) -> HttpResponse:
+    """Archive a script (soft delete)."""
+    from django.utils import timezone
+
+    script = get_object_or_404(Script, pk=pk)
+
+    if script.is_archived:
+        messages.info(request, f'Script "{script.name}" is already archived.')
+        return redirect("cpanel:script_detail", pk=pk)
+
+    # Archive the script
+    script.archived_at = timezone.now()
+    script.archived_by = request.user
+    script.save(update_fields=["archived_at", "archived_by", "updated_at"])
+
+    # Pause the schedule if it exists and is active
+    try:
+        schedule = script.schedule
+        if schedule.is_active:
+            schedule.is_active = False
+            schedule.save(update_fields=["is_active", "updated_at"])
+            ScheduleService.sync_schedule(schedule)
+    except ScriptSchedule.DoesNotExist:
+        pass
+
+    messages.success(request, f'Script "{script.name}" has been archived.')
+    return redirect("cpanel:script_list")
+
+
+@login_required
+@require_POST
+def script_restore_view(request: HttpRequest, pk) -> HttpResponse:
+    """Restore an archived script."""
+    script = get_object_or_404(Script, pk=pk)
+
+    if not script.is_archived:
+        messages.info(request, f'Script "{script.name}" is not archived.')
+        return redirect("cpanel:script_detail", pk=pk)
+
+    # Restore the script
+    script.archived_at = None
+    script.archived_by = None
+    script.save(update_fields=["archived_at", "archived_by", "updated_at"])
+
+    messages.success(request, f'Script "{script.name}" has been restored.')
+    return redirect("cpanel:script_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def script_delete_view(request: HttpRequest, pk) -> HttpResponse:
+    """Permanently delete an archived script."""
+    script = get_object_or_404(Script, pk=pk)
+
+    if not script.is_archived:
+        messages.error(request, "Only archived scripts can be permanently deleted.")
+        return redirect("cpanel:script_detail", pk=pk)
+
+    name = script.name
+    script.delete()  # CASCADE will handle runs and schedule
+
+    messages.success(request, f'Script "{name}" has been permanently deleted.')
+    return redirect("cpanel:script_list")

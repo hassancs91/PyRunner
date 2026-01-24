@@ -139,10 +139,11 @@ def execute_scheduled_run(script_id: str) -> dict:
         logger.error(f"Invalid script_id format: {script_id} - {e}")
         return {"success": False, "error": f"Invalid UUID format: {e}"}
 
-    # Check if script is enabled
-    if not script.is_enabled:
-        logger.info(f"Scheduled run for script {script.name} skipped - script disabled")
-        return {"success": False, "error": "Script disabled"}
+    # Check if script can run (enabled and not archived)
+    if not script.can_run:
+        reason = "archived" if script.is_archived else "disabled"
+        logger.info(f"Scheduled run for script {script.name} skipped - script {reason}")
+        return {"success": False, "error": f"Script {reason}"}
 
     # Check if schedule is active
     try:

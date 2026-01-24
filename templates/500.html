@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Error - PyRunner</title>
+    <link rel="stylesheet" href="/static/css/dist/styles.css">
+</head>
+<body class="bg-code-bg text-code-text min-h-screen flex flex-col">
+    <header class="border-b border-code-border bg-code-surface/50 backdrop-blur-sm sticky top-0 z-50">
+        <div class="px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <a href="/" class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-code-accent/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold gradient-text">PyRunner</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1">
+        <div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4 py-12">
+            <div class="w-full max-w-md text-center">
+                <div class="w-20 h-20 bg-code-red/20 rounded-2xl flex items-center justify-center mx-auto mb-8">
+                    <svg class="w-10 h-10 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+
+                <h1 class="text-8xl font-bold gradient-text mb-4">500</h1>
+                <h2 class="text-2xl font-semibold text-code-text mb-4">Something Went Wrong</h2>
+                <p class="text-code-muted mb-8">
+                    We're experiencing technical difficulties. Please try again later.
+                </p>
+
+                <a href="/" class="inline-block py-3 px-6 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:ring-offset-2 focus:ring-offset-code-bg">
+                    Back to Home
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="border-t border-code-border py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-code-muted text-sm">
+            <p>PyRunner - Self-hosted Python automation</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -45,11 +45,12 @@ def webhook_trigger_view(request: HttpRequest, token: str) -> JsonResponse:
             status=404,
         )
 
-    # Check if script is enabled
-    if not script.is_enabled:
-        logger.info(f"Webhook trigger rejected - script disabled: {script.name}")
+    # Check if script can run (enabled and not archived)
+    if not script.can_run:
+        reason = "archived" if script.is_archived else "disabled"
+        logger.info(f"Webhook trigger rejected - script {reason}: {script.name}")
         return JsonResponse(
-            {"error": "Script is disabled"},
+            {"error": f"Script is {reason}"},
             status=403,
         )
 

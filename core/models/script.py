@@ -91,6 +91,20 @@ class Script(models.Model):
         help_text="Override global retention count for this script",
     )
 
+    # Archive fields (soft delete)
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this script was archived (null = not archived)",
+    )
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="archived_scripts",
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -109,8 +123,20 @@ class Script(models.Model):
         ordering = ["-updated_at"]
 
     def __str__(self):
+        if self.is_archived:
+            return f"{self.name} (archived)"
         status = "enabled" if self.is_enabled else "disabled"
         return f"{self.name} ({status})"
+
+    @property
+    def is_archived(self) -> bool:
+        """Check if this script is archived."""
+        return self.archived_at is not None
+
+    @property
+    def can_run(self) -> bool:
+        """Check if this script can be executed (enabled and not archived)."""
+        return self.is_enabled and not self.is_archived
 
     @property
     def last_run(self):

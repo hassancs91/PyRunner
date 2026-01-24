@@ -37,6 +37,10 @@
                class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'disabled' %}bg-code-yellow/20 text-code-yellow{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
                 Disabled
             </a>
+            <a href="{% url 'cpanel:script_list' %}?status=archived"
+               class="px-3 py-1 text-sm rounded-lg transition-colors {% if status_filter == 'archived' %}bg-code-red/20 text-code-red{% else %}text-code-muted hover:text-code-text hover:bg-code-bg{% endif %}">
+                Archived
+            </a>
         </div>
 
         <!-- Scripts Table -->
@@ -68,7 +72,9 @@
                             {{ script.environment.name }}
                         </td>
                         <td class="px-6 py-4">
-                            {% if script.is_enabled %}
+                            {% if script.is_archived %}
+                            <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Archived</span>
+                            {% elif script.is_enabled %}
                             <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Enabled</span>
                             {% else %}
                             <span class="px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Disabled</span>
