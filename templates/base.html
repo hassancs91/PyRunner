@@ -76,9 +76,28 @@
     </main>
 
     {% block footer %}
-    <footer class="border-t border-code-border py-6">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-code-muted text-sm">
-            <p>PyRunner - Self-hosted Python automation</p>
+    <footer class="border-t border-code-border py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col items-center gap-4">
+                <!-- Developer Section -->
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="text-code-muted">Developer:</span>
+                    <a href="https://x.com/hasan_ab_hasan" target="_blank" class="text-code-accent hover:text-white transition">X</a>
+                    <span class="text-code-border">|</span>
+                    <a href="https://www.youtube.com/@hasanaboulhasan" target="_blank" class="text-code-accent hover:text-white transition">YouTube</a>
+                    <span class="text-code-border">|</span>
+                    <a href="https://www.threads.com/@hassancs91tech" target="_blank" class="text-code-accent hover:text-white transition">Threads</a>
+                    <span class="text-code-border">|</span>
+                    <a href="https://learnwithhasan.com" target="_blank" class="text-code-accent hover:text-white transition">Website</a>
+                </div>
+
+                <!-- Solo Builder Badge -->
+                <a href="https://learnwithhasan.com/solo-builder-v1/" target="_blank"
+                   class="inline-flex items-center gap-2 px-3 py-1 bg-code-surface border border-code-border rounded-full text-sm text-code-muted hover:text-white hover:border-code-accent transition">
+                    <span>Built With:</span>
+                    <span class="text-code-purple font-medium">Solo Builder</span>
+                </a>
+            </div>
         </div>
     </footer>
     {% endblock %}

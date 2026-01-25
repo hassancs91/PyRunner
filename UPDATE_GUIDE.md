@@ -144,6 +144,9 @@ docker-compose logs -f pyrunner
 
 ## Version-Specific Notes
 
+### v1.1.1
+- Bug fixes and improvements
+
 ### v1.1.0
 - Added version display in sidebar
 - Fixed migrations not running on container updates

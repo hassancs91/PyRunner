@@ -303,8 +303,14 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
         except subprocess.TimeoutExpired as e:
             # Handle timeout - process is automatically killed
             run.status = Run.Status.TIMEOUT
-            stdout_raw = e.stdout or "" if e.stdout else ""
-            stderr_raw = e.stderr or "" if e.stderr else ""
+            # TimeoutExpired provides stdout/stderr as bytes even with text=True
+            # Decode them to strings for consistent processing
+            stdout_raw = ""
+            if e.stdout:
+                stdout_raw = e.stdout.decode("utf-8", errors="replace") if isinstance(e.stdout, bytes) else e.stdout
+            stderr_raw = ""
+            if e.stderr:
+                stderr_raw = e.stderr.decode("utf-8", errors="replace") if isinstance(e.stderr, bytes) else e.stderr
             run.stdout = _truncate_output(_mask_secrets_in_output(stdout_raw, secrets))
             run.stderr = _truncate_output(_mask_secrets_in_output(stderr_raw, secrets))
             if run.stderr:
