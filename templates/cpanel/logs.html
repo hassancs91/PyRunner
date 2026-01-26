@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-code-text">Application Logs</h1>
+                <p class="text-code-muted">View and search through application logs</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm text-code-muted">
+                    {{ log_files_count }} file(s), {{ total_size|filesizeformat }}
+                </span>
+                {% if request.user.is_superuser %}
+                <button type="button"
+                        onclick="clearLogs()"
+                        id="clear-logs-btn"
+                        class="px-4 py-2 bg-code-red hover:bg-code-red/90 text-white text-sm rounded-lg transition-colors">
+                    Clear Logs
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-4 mb-6">
+            <form method="get" class="flex flex-wrap items-end gap-4">
+                <!-- Level Filter -->
+                <div>
+                    <label class="block text-xs text-code-muted mb-1">Level</label>
+                    <select name="level"
+                            class="px-3 py-2 bg-code-bg border border-code-border rounded-lg text-code-text text-sm focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                        <option value="">All Levels</option>
+                        {% for level in log_levels %}
+                        <option value="{{ level }}" {% if level_filter == level %}selected{% endif %}>{{ level }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Search -->
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs text-code-muted mb-1">Search</label>
+                    <input type="text"
+                           name="search"
+                           value="{{ search_query }}"
+                           placeholder="Search logs..."
+                           class="w-full px-3 py-2 bg-code-bg border border-code-border rounded-lg text-code-text text-sm placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                </div>
+
+                <!-- Date From -->
+                <div>
+                    <label class="block text-xs text-code-muted mb-1">From</label>
+                    <input type="datetime-local"
+                           name="date_from"
+                           value="{{ date_from|default:'' }}"
+                           class="px-3 py-2 bg-code-bg border border-code-border rounded-lg text-code-text text-sm focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                </div>
+
+                <!-- Date To -->
+                <div>
+                    <label class="block text-xs text-code-muted mb-1">To</label>
+                    <input type="datetime-local"
+                           name="date_to"
+                           value="{{ date_to|default:'' }}"
+                           class="px-3 py-2 bg-code-bg border border-code-border rounded-lg text-code-text text-sm focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                </div>
+
+                <!-- Submit -->
+                <button type="submit"
+                        class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-sm font-medium rounded-lg transition-colors">
+                    Filter
+                </button>
+
+                {% if level_filter or search_query or date_from or date_to %}
+                <a href="{% url 'cpanel:logs' %}"
+                   class="px-4 py-2 bg-code-bg border border-code-border hover:border-code-accent text-code-text text-sm rounded-lg transition-colors">
+                    Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Results Info -->
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm text-code-muted">
+                Showing {{ entries|length }} of {{ total_count }} entries
+            </p>
+
+            <!-- Auto-refresh toggle -->
+            <label class="flex items-center space-x-2 text-sm text-code-muted cursor-pointer">
+                <input type="checkbox"
+                       id="auto-refresh"
+                       class="w-4 h-4 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent">
+                <span>Auto-refresh</span>
+            </label>
+        </div>
+
+        <!-- Log Entries -->
+        {% if entries %}
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+            <div class="max-h-[600px] overflow-y-auto" id="log-container">
+                <table class="w-full">
+                    <thead class="bg-code-bg border-b border-code-border sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-40">Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-24">Level</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-40">Logger</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Message</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-code-border font-mono text-sm" id="log-body">
+                        {% for entry in entries %}
+                        <tr class="hover:bg-code-bg/50 transition-colors">
+                            <td class="px-4 py-2 text-code-muted whitespace-nowrap">
+                                {{ entry.timestamp|date:"M d, H:i:s" }}
+                            </td>
+                            <td class="px-4 py-2">
+                                <span class="px-2 py-0.5 text-xs rounded
+                                    {% if entry.level == 'ERROR' or entry.level == 'CRITICAL' %}bg-code-red/20 text-code-red
+                                    {% elif entry.level == 'WARNING' %}bg-code-yellow/20 text-code-yellow
+                                    {% elif entry.level == 'INFO' %}bg-code-green/20 text-code-green
+                                    {% else %}bg-code-muted/20 text-code-muted{% endif %}">
+                                    {{ entry.level }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-2 text-code-muted truncate max-w-[160px]" title="{{ entry.logger }}">
+                                {{ entry.logger }}
+                            </td>
+                            <td class="px-4 py-2 text-code-text">
+                                <div class="truncate max-w-[500px]" title="{{ entry.message }}">
+                                    {{ entry.message }}
+                                </div>
+                                {% if entry.exception %}
+                                <details class="mt-1">
+                                    <summary class="text-code-red cursor-pointer text-xs">Show exception</summary>
+                                    <pre class="mt-2 p-2 bg-code-bg rounded text-xs text-code-red overflow-x-auto">{{ entry.exception }}</pre>
+                                </details>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="flex items-center justify-center space-x-2 mt-6">
+            {% if page > 1 %}
+            <a href="?page={{ page|add:'-1' }}{% if level_filter %}&level={{ level_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+               class="px-3 py-1 bg-code-bg border border-code-border rounded-lg text-code-text text-sm hover:border-code-accent transition-colors">
+                Previous
+            </a>
+            {% endif %}
+
+            <span class="text-sm text-code-muted">Page {{ page }} of {{ total_pages }}</span>
+
+            {% if page < total_pages %}
+            <a href="?page={{ page|add:'1' }}{% if level_filter %}&level={{ level_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+               class="px-3 py-1 bg-code-bg border border-code-border rounded-lg text-code-text text-sm hover:border-code-accent transition-colors">
+                Next
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-code-text mb-2">No logs found</h3>
+            <p class="text-code-muted">
+                {% if level_filter or search_query or date_from or date_to %}
+                Try adjusting your filters or <a href="{% url 'cpanel:logs' %}" class="text-code-accent hover:underline">clear all filters</a>.
+                {% else %}
+                No log entries have been recorded yet.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+let autoRefreshInterval = null;
+const AUTO_REFRESH_KEY = 'pyrunner_logs_auto_refresh';
+
+function clearLogs() {
+    if (!confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
+        return;
+    }
+
+    const btn = document.getElementById('clear-logs-btn');
+    btn.disabled = true;
+    btn.textContent = 'Clearing...';
+
+    fetch('{% url "cpanel:logs_clear" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Clear Logs';
+    });
+}
+
+function startAutoRefresh() {
+    if (!autoRefreshInterval) {
+        autoRefreshInterval = setInterval(function() {
+            window.location.reload();
+        }, 5000);
+    }
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const checkbox = document.getElementById('auto-refresh');
+    const isEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === 'true';
+
+    // Restore checkbox state
+    checkbox.checked = isEnabled;
+
+    // Start auto-refresh if it was enabled
+    if (isEnabled) {
+        startAutoRefresh();
+    }
+
+    // Handle checkbox changes
+    checkbox.addEventListener('change', function() {
+        if (this.checked) {
+            localStorage.setItem(AUTO_REFRESH_KEY, 'true');
+            startAutoRefresh();
+        } else {
+            localStorage.setItem(AUTO_REFRESH_KEY, 'false');
+            stopAutoRefresh();
+        }
+    });
+});
+</script>
+{% endblock %}

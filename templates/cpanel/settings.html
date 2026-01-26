@@ -672,6 +672,13 @@
 </div>
 
 <script>
+// HTML escape helper to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function showTab(tabName) {
     // Hide all panels
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
@@ -752,9 +759,9 @@ function loadCleanupPreview() {
         if (data.success) {
             const stats = data.stats;
             let html = '<div class="space-y-2">';
-            html += `<p class="text-sm text-code-text"><strong>Total runs:</strong> ${stats.total_runs}</p>`;
-            html += `<p class="text-sm text-code-text"><strong>Runs to delete:</strong> <span class="text-code-red">${stats.runs_to_delete}</span></p>`;
-            html += `<p class="text-sm text-code-text"><strong>Runs to keep:</strong> <span class="text-code-green">${stats.runs_to_keep}</span></p>`;
+            html += `<p class="text-sm text-code-text"><strong>Total runs:</strong> ${escapeHtml(String(stats.total_runs))}</p>`;
+            html += `<p class="text-sm text-code-text"><strong>Runs to delete:</strong> <span class="text-code-red">${escapeHtml(String(stats.runs_to_delete))}</span></p>`;
+            html += `<p class="text-sm text-code-text"><strong>Runs to keep:</strong> <span class="text-code-green">${escapeHtml(String(stats.runs_to_keep))}</span></p>`;
 
             if (stats.per_script && stats.per_script.length > 0) {
                 html += '<div class="mt-3 pt-3 border-t border-code-border">';
@@ -762,7 +769,7 @@ function loadCleanupPreview() {
                 html += '<div class="max-h-32 overflow-y-auto space-y-1">';
                 stats.per_script.forEach(script => {
                     if (script.to_delete > 0) {
-                        html += `<p class="text-xs text-code-muted">${script.script_name}: <span class="text-code-red">-${script.to_delete}</span> / ${script.total_runs}</p>`;
+                        html += `<p class="text-xs text-code-muted">${escapeHtml(script.script_name)}: <span class="text-code-red">-${escapeHtml(String(script.to_delete))}</span> / ${escapeHtml(String(script.total_runs))}</p>`;
                     }
                 });
                 html += '</div></div>';
@@ -770,11 +777,13 @@ function loadCleanupPreview() {
             html += '</div>';
             previewDiv.innerHTML = html;
         } else {
-            previewDiv.innerHTML = `<p class="text-sm text-code-red">Error: ${data.error}</p>`;
+            previewDiv.textContent = 'Error: ' + (data.error || 'Unknown error');
+            previewDiv.className = 'text-sm text-code-red';
         }
     })
     .catch(error => {
-        previewDiv.innerHTML = `<p class="text-sm text-code-red">Error: ${error.message}</p>`;
+        previewDiv.textContent = 'Error: ' + error.message;
+        previewDiv.className = 'text-sm text-code-red';
     })
     .finally(() => {
         btn.disabled = false;
@@ -807,32 +816,31 @@ function loadSystemInfo() {
         if (data.success) {
             const info = data.data;
             const worker = info.worker_status;
-            const workerStatusClass = worker.status === 'running' ? 'text-code-green'
-                : worker.status === 'stopped' ? 'text-code-red'
-                : 'text-code-yellow';
-            const workerStatusText = worker.status_text;
+            // Whitelist allowed status classes
+            const statusClasses = {'running': 'text-code-green', 'stopped': 'text-code-red'};
+            const workerStatusClass = statusClasses[worker.status] || 'text-code-yellow';
 
             let html = `
                 <div class="grid grid-cols-2 gap-4">
                     <div class="p-4 bg-code-bg rounded-lg">
                         <p class="text-xs text-code-muted mb-1">PyRunner Version</p>
-                        <p class="text-code-text font-mono">${info.version}</p>
+                        <p class="text-code-text font-mono">${escapeHtml(String(info.version))}</p>
                     </div>
                     <div class="p-4 bg-code-bg rounded-lg">
                         <p class="text-xs text-code-muted mb-1">Python Version</p>
-                        <p class="text-code-text font-mono">${info.python_version}</p>
+                        <p class="text-code-text font-mono">${escapeHtml(String(info.python_version))}</p>
                     </div>
                     <div class="p-4 bg-code-bg rounded-lg">
                         <p class="text-xs text-code-muted mb-1">Uptime</p>
-                        <p class="text-code-text font-mono">${info.uptime}</p>
+                        <p class="text-code-text font-mono">${escapeHtml(String(info.uptime))}</p>
                     </div>
                     <div class="p-4 bg-code-bg rounded-lg">
                         <p class="text-xs text-code-muted mb-1">Database Size</p>
-                        <p class="text-code-text font-mono">${info.database_size_display}</p>
+                        <p class="text-code-text font-mono">${escapeHtml(String(info.database_size_display))}</p>
                     </div>
                     <div class="p-4 bg-code-bg rounded-lg col-span-2">
                         <p class="text-xs text-code-muted mb-1">Environments Disk Usage</p>
-                        <p class="text-code-text font-mono">${info.environments_size_display}</p>
+                        <p class="text-code-text font-mono">${escapeHtml(String(info.environments_size_display))}</p>
                     </div>
                 </div>
 
@@ -841,30 +849,32 @@ function loadSystemInfo() {
                     <div class="grid grid-cols-2 gap-4">
                         <div class="p-4 bg-code-bg rounded-lg">
                             <p class="text-xs text-code-muted mb-1">Worker Status</p>
-                            <p class="${workerStatusClass} font-semibold">${workerStatusText}</p>
+                            <p class="${workerStatusClass} font-semibold">${escapeHtml(String(worker.status_text))}</p>
                         </div>
                         <div class="p-4 bg-code-bg rounded-lg">
                             <p class="text-xs text-code-muted mb-1">Configured Workers</p>
-                            <p class="text-code-text font-mono">${worker.configured_workers}</p>
+                            <p class="text-code-text font-mono">${escapeHtml(String(worker.configured_workers))}</p>
                         </div>
                         <div class="p-4 bg-code-bg rounded-lg">
                             <p class="text-xs text-code-muted mb-1">Queued Tasks</p>
-                            <p class="text-code-text font-mono">${worker.queued_tasks}</p>
+                            <p class="text-code-text font-mono">${escapeHtml(String(worker.queued_tasks))}</p>
                         </div>
                         <div class="p-4 bg-code-bg rounded-lg">
                             <p class="text-xs text-code-muted mb-1">Tasks (Last Hour)</p>
-                            <p class="text-code-text font-mono">${worker.recent_tasks}</p>
+                            <p class="text-code-text font-mono">${escapeHtml(String(worker.recent_tasks))}</p>
                         </div>
                     </div>
                 </div>
             `;
             contentDiv.innerHTML = html;
         } else {
-            contentDiv.innerHTML = `<p class="text-sm text-code-red">Error: ${data.error}</p>`;
+            contentDiv.textContent = 'Error: ' + (data.error || 'Unknown error');
+            contentDiv.className = 'text-sm text-code-red';
         }
     })
     .catch(error => {
-        contentDiv.innerHTML = `<p class="text-sm text-code-red">Error: ${error.message}</p>`;
+        contentDiv.textContent = 'Error: ' + error.message;
+        contentDiv.className = 'text-sm text-code-red';
     })
     .finally(() => {
         btn.disabled = false;
@@ -897,11 +907,11 @@ function handleBackupUpload(event) {
         } else {
             let errorHtml = '<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">';
             errorHtml += '<p class="text-sm text-red-300 font-semibold mb-2">Validation failed:</p>';
-            errorHtml += '<p class="text-sm text-red-300">' + (data.error || 'Unknown error') + '</p>';
+            errorHtml += '<p class="text-sm text-red-300">' + escapeHtml(data.error || 'Unknown error') + '</p>';
             if (data.errors && data.errors.length > 0) {
                 errorHtml += '<ul class="text-xs text-red-300/80 mt-2 ml-4 space-y-1">';
                 data.errors.forEach(err => {
-                    errorHtml += '<li>• ' + err + '</li>';
+                    errorHtml += '<li>• ' + escapeHtml(String(err)) + '</li>';
                 });
                 errorHtml += '</ul>';
             }
@@ -910,7 +920,7 @@ function handleBackupUpload(event) {
         }
     })
     .catch(error => {
-        statusDiv.innerHTML = '<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg"><p class="text-sm text-red-300">Upload error: ' + error.message + '</p></div>';
+        statusDiv.innerHTML = '<div class="p-4 bg-red-500/10 border border-red-500/30 rounded-lg"><p class="text-sm text-red-300">Upload error: ' + escapeHtml(error.message) + '</p></div>';
     });
 }
 
@@ -921,26 +931,26 @@ function showRestorePreview(preview, warnings) {
     let html = '<div class="space-y-4">';
     html += '<div class="p-4 bg-code-bg rounded-lg">';
     html += '<p class="text-sm text-code-muted">Source Instance</p>';
-    html += '<p class="text-code-text font-semibold">' + preview.instance_name + '</p>';
+    html += '<p class="text-code-text font-semibold">' + escapeHtml(String(preview.instance_name)) + '</p>';
     html += '</div>';
 
     html += '<div class="p-4 bg-code-bg rounded-lg">';
     html += '<p class="text-sm text-code-muted">Created</p>';
-    html += '<p class="text-code-text">' + preview.created_at + '</p>';
+    html += '<p class="text-code-text">' + escapeHtml(String(preview.created_at)) + '</p>';
     if (preview.created_by_email) {
-        html += '<p class="text-xs text-code-muted mt-1">By: ' + preview.created_by_email + '</p>';
+        html += '<p class="text-xs text-code-muted mt-1">By: ' + escapeHtml(String(preview.created_by_email)) + '</p>';
     }
     html += '</div>';
 
     html += '<div class="p-4 bg-code-bg rounded-lg">';
     html += '<p class="text-sm text-code-muted mb-2">This backup contains:</p>';
     html += '<div class="grid grid-cols-2 gap-2 text-sm text-code-text">';
-    html += '<div>• Scripts: <strong>' + preview.counts.scripts + '</strong></div>';
-    html += '<div>• Environments: <strong>' + preview.counts.environments + '</strong></div>';
-    html += '<div>• Secrets: <strong>' + preview.counts.secrets + '</strong></div>';
-    html += '<div>• Runs: <strong>' + preview.counts.runs + '</strong></div>';
-    html += '<div>• Schedules: <strong>' + preview.counts.schedules + '</strong></div>';
-    html += '<div>• Users: <strong>' + preview.counts.users + '</strong></div>';
+    html += '<div>• Scripts: <strong>' + escapeHtml(String(preview.counts.scripts)) + '</strong></div>';
+    html += '<div>• Environments: <strong>' + escapeHtml(String(preview.counts.environments)) + '</strong></div>';
+    html += '<div>• Secrets: <strong>' + escapeHtml(String(preview.counts.secrets)) + '</strong></div>';
+    html += '<div>• Runs: <strong>' + escapeHtml(String(preview.counts.runs)) + '</strong></div>';
+    html += '<div>• Schedules: <strong>' + escapeHtml(String(preview.counts.schedules)) + '</strong></div>';
+    html += '<div>• Users: <strong>' + escapeHtml(String(preview.counts.users)) + '</strong></div>';
     html += '</div>';
     html += '</div>';
 
@@ -949,7 +959,7 @@ function showRestorePreview(preview, warnings) {
         html += '<p class="text-sm text-yellow-300 font-semibold mb-2">⚠ Warnings:</p>';
         html += '<ul class="text-xs text-yellow-300/80 ml-4 space-y-1">';
         warnings.forEach(warning => {
-            html += '<li>• ' + warning + '</li>';
+            html += '<li>• ' + escapeHtml(String(warning)) + '</li>';
         });
         html += '</ul>';
         html += '</div>';
@@ -999,18 +1009,18 @@ function restartWorkers() {
         resultDiv.classList.remove('hidden');
         if (data.success) {
             resultDiv.className = 'mt-4 p-4 rounded-lg bg-code-green/10 border border-code-green text-code-green';
-            resultDiv.innerHTML = '<p class="font-medium">Success!</p><p class="text-sm mt-1">' + (data.message || 'Workers restarted successfully.') + '</p>';
+            resultDiv.innerHTML = '<p class="font-medium">Success!</p><p class="text-sm mt-1">' + escapeHtml(data.message || 'Workers restarted successfully.') + '</p>';
             // Refresh system info after a delay
             setTimeout(loadSystemInfo, 3000);
         } else {
             resultDiv.className = 'mt-4 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
-            resultDiv.innerHTML = '<p class="font-medium">Error</p><p class="text-sm mt-1">' + (data.error || 'Unknown error') + '</p>';
+            resultDiv.innerHTML = '<p class="font-medium">Error</p><p class="text-sm mt-1">' + escapeHtml(data.error || 'Unknown error') + '</p>';
         }
     })
     .catch(error => {
         resultDiv.classList.remove('hidden');
         resultDiv.className = 'mt-4 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
-        resultDiv.innerHTML = '<p class="font-medium">Error</p><p class="text-sm mt-1">' + error.message + '</p>';
+        resultDiv.innerHTML = '<p class="font-medium">Error</p><p class="text-sm mt-1">' + escapeHtml(error.message) + '</p>';
     })
     .finally(() => {
         btn.disabled = false;

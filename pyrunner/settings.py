@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,13 +27,12 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
-    "SECRET_KEY",
-    "django-insecure-2-^q2i(5y%jt8&-4u1*ve$%2efq568qi&dn0f)fl%uzkru5lm4",
-)
+# SECRET_KEY is required - generate one with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
+# Defaults to False for security - set DEBUG=True explicitly for development
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
@@ -244,3 +244,95 @@ SCRIPTS_WORKDIR.mkdir(exist_ok=True)
 # Secrets Encryption
 # Generate a key with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
+
+# Validate ENCRYPTION_KEY
+if not ENCRYPTION_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "ENCRYPTION_KEY is required in production. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+else:
+    # Validate key format
+    try:
+        from cryptography.fernet import Fernet
+        Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
+    except Exception:
+        raise ImproperlyConfigured("ENCRYPTION_KEY is invalid. Must be a valid Fernet key.")
+
+
+# Logging Configuration
+LOGS_DIR = DATA_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name} {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "json": {
+            "()": "core.logging.JsonFormatter",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOGS_DIR / "pyrunner.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "json",
+            "encoding": "utf-8",
+        },
+    },
+    "root": {
+        "handlers": ["console", "file"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "core": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
+
+# Security Settings
+# These settings are applied when DEBUG=False (production)
+if not DEBUG:
+    # HTTPS/SSL Settings
+    SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "True").lower() == "true"
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+    # HSTS - HTTP Strict Transport Security
+    # Start with a shorter duration, increase to 31536000 (1 year) once confirmed working
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "2592000"))  # 30 days default
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get("SECURE_HSTS_INCLUDE_SUBDOMAINS", "True").lower() == "true"
+    SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "False").lower() == "true"
+
+    # Cookie Security
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Always-on security settings (regardless of DEBUG)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+
+# Note: For Content Security Policy (CSP), install django-csp and add to middleware:
+# pip install django-csp
+# Add 'csp.middleware.CSPMiddleware' to MIDDLEWARE
+# Then configure CSP_* settings as needed

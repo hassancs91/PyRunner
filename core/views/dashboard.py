@@ -2,10 +2,12 @@
 Dashboard view for the control panel.
 """
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import render
 
 from core.models import Environment, Run, Script
 from core.services.dashboard_service import DashboardService
+from core.services.system_info_service import SystemInfoService
 
 
 @login_required
@@ -34,6 +36,7 @@ def dashboard_view(request):
     recent_failures = DashboardService.get_recent_failures()
     upcoming_runs = DashboardService.get_upcoming_scheduled_runs()
     system_health = DashboardService.get_system_health()
+    system_resources = SystemInfoService.get_system_resources()
 
     context = {
         # Statistics cards
@@ -55,5 +58,14 @@ def dashboard_view(request):
         "upcoming_runs": upcoming_runs,
         # System health
         "system_health": system_health,
+        # System resources (CPU, RAM, Storage)
+        "system_resources": system_resources,
     }
     return render(request, "cpanel/dashboard.html", context)
+
+
+@login_required
+def system_resources_api(request):
+    """AJAX endpoint for system resource metrics."""
+    resources = SystemInfoService.get_system_resources()
+    return JsonResponse(resources)

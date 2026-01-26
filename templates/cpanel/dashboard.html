@@ -41,10 +41,17 @@
                 <p class="text-code-muted">Welcome back, <span class="text-code-accent">{{ user.email }}</span></p>
             </div>
             <!-- System Health Indicator -->
-            <div class="flex items-center space-x-2 px-3 py-2 bg-code-surface border border-code-border rounded-lg">
-                <span class="w-2.5 h-2.5 rounded-full {% if system_health.worker_status == 'running' %}bg-code-green{% elif system_health.worker_status == 'stopped' %}bg-code-red{% else %}bg-code-yellow{% endif %}"></span>
-                <span class="text-sm text-code-muted">Workers: </span>
-                <span class="text-sm {% if system_health.worker_status == 'running' %}text-code-green{% elif system_health.worker_status == 'stopped' %}text-code-red{% else %}text-code-yellow{% endif %}">{{ system_health.worker_status_text }}</span>
+            <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2 px-3 py-2 bg-code-surface border border-code-border rounded-lg">
+                    <span class="w-2.5 h-2.5 rounded-full {% if system_health.worker_status == 'running' %}bg-code-green{% elif system_health.worker_status == 'stopped' %}bg-code-red{% else %}bg-code-yellow{% endif %}"></span>
+                    <span class="text-sm text-code-muted">Workers: </span>
+                    <span class="text-sm {% if system_health.worker_status == 'running' %}text-code-green{% elif system_health.worker_status == 'stopped' %}text-code-red{% else %}text-code-yellow{% endif %}">{{ system_health.worker_status_text }}</span>
+                </div>
+                <button onclick="location.reload()" class="p-2 bg-code-surface border border-code-border rounded-lg hover:border-code-accent transition-colors" title="Refresh dashboard">
+                    <svg class="w-4 h-4 text-code-muted hover:text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </button>
             </div>
         </div>
 
@@ -144,6 +151,79 @@
                     </div>
                 </div>
             </a>
+        </div>
+
+        <!-- System Resources -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-code-text">System Resources</h2>
+                <button id="toggleAutoRefresh" class="text-xs px-2 py-1 bg-code-surface border border-code-border rounded hover:border-code-accent transition-colors text-code-muted" title="Toggle auto-refresh">
+                    <span id="autoRefreshStatus">Auto-refresh: OFF</span>
+                </button>
+            </div>
+            <div id="systemResourcesContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- CPU Usage -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div id="cpuValue" class="text-3xl font-bold {% if system_resources.cpu.percent >= 90 %}text-code-red{% elif system_resources.cpu.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}">
+                                {{ system_resources.cpu.percent|floatformat:1 }}%
+                            </div>
+                            <div class="text-code-muted">CPU Usage</div>
+                        </div>
+                        <div id="cpuIcon" class="w-12 h-12 {% if system_resources.cpu.percent >= 90 %}bg-code-red/20{% elif system_resources.cpu.percent >= 70 %}bg-code-yellow/20{% else %}bg-code-green/20{% endif %} rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 {% if system_resources.cpu.percent >= 90 %}text-code-red{% elif system_resources.cpu.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 h-2 bg-code-bg rounded-full overflow-hidden">
+                        <div id="cpuBar" class="h-full {% if system_resources.cpu.percent >= 90 %}bg-code-red{% elif system_resources.cpu.percent >= 70 %}bg-code-yellow{% else %}bg-code-green{% endif %} transition-all duration-300" style="width: {{ system_resources.cpu.percent }}%"></div>
+                    </div>
+                </div>
+
+                <!-- RAM Usage -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div id="ramValue" class="text-3xl font-bold {% if system_resources.memory.percent >= 90 %}text-code-red{% elif system_resources.memory.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}">
+                                {{ system_resources.memory.percent|floatformat:1 }}%
+                            </div>
+                            <div class="text-code-muted">RAM Usage</div>
+                            <div id="ramDetails" class="text-xs text-code-muted mt-1">{{ system_resources.memory.used_display }} / {{ system_resources.memory.total_display }}</div>
+                        </div>
+                        <div id="ramIcon" class="w-12 h-12 {% if system_resources.memory.percent >= 90 %}bg-code-red/20{% elif system_resources.memory.percent >= 70 %}bg-code-yellow/20{% else %}bg-code-green/20{% endif %} rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 {% if system_resources.memory.percent >= 90 %}text-code-red{% elif system_resources.memory.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 h-2 bg-code-bg rounded-full overflow-hidden">
+                        <div id="ramBar" class="h-full {% if system_resources.memory.percent >= 90 %}bg-code-red{% elif system_resources.memory.percent >= 70 %}bg-code-yellow{% else %}bg-code-green{% endif %} transition-all duration-300" style="width: {{ system_resources.memory.percent }}%"></div>
+                    </div>
+                </div>
+
+                <!-- Storage Usage -->
+                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div id="diskValue" class="text-3xl font-bold {% if system_resources.disk.percent >= 90 %}text-code-red{% elif system_resources.disk.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}">
+                                {{ system_resources.disk.percent|floatformat:1 }}%
+                            </div>
+                            <div class="text-code-muted">Storage Usage</div>
+                            <div id="diskDetails" class="text-xs text-code-muted mt-1">{{ system_resources.disk.used_display }} / {{ system_resources.disk.total_display }}</div>
+                        </div>
+                        <div id="diskIcon" class="w-12 h-12 {% if system_resources.disk.percent >= 90 %}bg-code-red/20{% elif system_resources.disk.percent >= 70 %}bg-code-yellow/20{% else %}bg-code-green/20{% endif %} rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 {% if system_resources.disk.percent >= 90 %}text-code-red{% elif system_resources.disk.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 h-2 bg-code-bg rounded-full overflow-hidden">
+                        <div id="diskBar" class="h-full {% if system_resources.disk.percent >= 90 %}bg-code-red{% elif system_resources.disk.percent >= 70 %}bg-code-yellow{% else %}bg-code-green{% endif %} transition-all duration-300" style="width: {{ system_resources.disk.percent }}%"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Recent Failures & Upcoming Runs -->
@@ -391,4 +471,100 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    let autoRefreshEnabled = false;
+    let refreshInterval = null;
+    const REFRESH_RATE = 30000;
+
+    const toggleBtn = document.getElementById('toggleAutoRefresh');
+    const statusSpan = document.getElementById('autoRefreshStatus');
+
+    function getColorClass(percent) {
+        if (percent >= 90) return { text: 'text-code-red', bg: 'bg-code-red', bgLight: 'bg-code-red/20' };
+        if (percent >= 70) return { text: 'text-code-yellow', bg: 'bg-code-yellow', bgLight: 'bg-code-yellow/20' };
+        return { text: 'text-code-green', bg: 'bg-code-green', bgLight: 'bg-code-green/20' };
+    }
+
+    function updateMetric(valueEl, barEl, iconEl, percent, details, detailsEl) {
+        const colors = getColorClass(percent);
+
+        valueEl.textContent = percent.toFixed(1) + '%';
+        valueEl.className = 'text-3xl font-bold ' + colors.text;
+
+        barEl.style.width = percent + '%';
+        barEl.className = 'h-full ' + colors.bg + ' transition-all duration-300';
+
+        const svg = iconEl.querySelector('svg');
+        iconEl.className = 'w-12 h-12 ' + colors.bgLight + ' rounded-lg flex items-center justify-center';
+        if (svg) svg.className = 'w-6 h-6 ' + colors.text;
+
+        if (details && detailsEl) {
+            detailsEl.textContent = details;
+        }
+    }
+
+    async function fetchResources() {
+        try {
+            const response = await fetch('{% url "cpanel:system_resources_api" %}');
+            if (!response.ok) throw new Error('Failed to fetch');
+            const data = await response.json();
+
+            updateMetric(
+                document.getElementById('cpuValue'),
+                document.getElementById('cpuBar'),
+                document.getElementById('cpuIcon'),
+                data.cpu.percent
+            );
+
+            updateMetric(
+                document.getElementById('ramValue'),
+                document.getElementById('ramBar'),
+                document.getElementById('ramIcon'),
+                data.memory.percent,
+                data.memory.used_display + ' / ' + data.memory.total_display,
+                document.getElementById('ramDetails')
+            );
+
+            updateMetric(
+                document.getElementById('diskValue'),
+                document.getElementById('diskBar'),
+                document.getElementById('diskIcon'),
+                data.disk.percent,
+                data.disk.used_display + ' / ' + data.disk.total_display,
+                document.getElementById('diskDetails')
+            );
+        } catch (error) {
+            console.error('Failed to refresh system resources:', error);
+        }
+    }
+
+    function toggleAutoRefresh() {
+        autoRefreshEnabled = !autoRefreshEnabled;
+
+        if (autoRefreshEnabled) {
+            statusSpan.textContent = 'Auto-refresh: ON';
+            toggleBtn.classList.add('border-code-green', 'text-code-green');
+            toggleBtn.classList.remove('text-code-muted');
+            refreshInterval = setInterval(fetchResources, REFRESH_RATE);
+            fetchResources();
+        } else {
+            statusSpan.textContent = 'Auto-refresh: OFF';
+            toggleBtn.classList.remove('border-code-green', 'text-code-green');
+            toggleBtn.classList.add('text-code-muted');
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleAutoRefresh);
+    }
+})();
+</script>
 {% endblock %}

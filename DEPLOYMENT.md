@@ -130,7 +130,12 @@ GUNICORN_TIMEOUT=120
 1. Create new **Docker** resource
 2. Set **Image**: `hasanaboulhasan/pyrunner:latest`
 3. Set **Port**: `8000`
-4. Add **Volume**: `/app/data` (persistent storage)
+4. Add **Volume** with these settings:
+   | Field | Value |
+   |-------|-------|
+   | **Name** | `pyrunner-data` |
+   | **Source Path** | Leave empty (Coolify manages it) |
+   | **Destination Path** | `/app/data` |
 5. Add environment variables (see above)
 6. Deploy
 

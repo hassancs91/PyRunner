@@ -255,13 +255,23 @@
                     {% if script.has_webhook %}
                     <div class="space-y-4">
                         <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Webhook URL</dt>
+                            <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Webhook URL <span class="text-code-yellow">(sensitive)</span></dt>
                             <div class="flex items-center space-x-2">
-                                <input type="text"
+                                <input type="password"
                                        id="webhook-url"
                                        value="{{ request.scheme }}://{{ request.get_host }}{% url 'webhook_trigger' token=script.webhook_token %}"
                                        readonly
                                        class="flex-1 px-3 py-2 bg-code-bg border border-code-border rounded text-code-text text-xs font-mono">
+                                <button type="button"
+                                        onclick="toggleWebhookVisibility()"
+                                        id="webhook-toggle-btn"
+                                        class="px-3 py-2 bg-code-bg hover:bg-code-border text-code-muted text-xs rounded transition-colors border border-code-border"
+                                        title="Show/Hide URL">
+                                    <svg id="webhook-eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                </button>
                                 <button type="button"
                                         onclick="copyWebhookUrl()"
                                         class="px-3 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-xs rounded transition-colors"
@@ -275,7 +285,13 @@
 
                         <div>
                             <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Example curl</dt>
-                            <pre class="p-3 bg-code-bg rounded text-xs font-mono text-code-muted overflow-x-auto">curl -X POST \
+                            <button type="button"
+                                    id="curl-toggle-btn"
+                                    onclick="toggleCurlExample()"
+                                    class="text-xs text-code-accent hover:underline mb-2">
+                                Show example
+                            </button>
+                            <pre id="curl-example" class="hidden p-3 bg-code-bg rounded text-xs font-mono text-code-muted overflow-x-auto">curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"key": "value"}' \
   "{{ request.scheme }}://{{ request.get_host }}{% url 'webhook_trigger' token=script.webhook_token %}"</pre>
@@ -440,6 +456,30 @@ function copyWebhookUrl() {
             urlInput.select();
             document.execCommand('copy');
         });
+    }
+}
+
+function toggleWebhookVisibility() {
+    const urlInput = document.getElementById('webhook-url');
+    const eyeIcon = document.getElementById('webhook-eye-icon');
+    if (urlInput.type === 'password') {
+        urlInput.type = 'text';
+        eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>';
+    } else {
+        urlInput.type = 'password';
+        eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>';
+    }
+}
+
+function toggleCurlExample() {
+    const curlExample = document.getElementById('curl-example');
+    const toggleBtn = document.getElementById('curl-toggle-btn');
+    if (curlExample.classList.contains('hidden')) {
+        curlExample.classList.remove('hidden');
+        toggleBtn.textContent = 'Hide example';
+    } else {
+        curlExample.classList.add('hidden');
+        toggleBtn.textContent = 'Show example';
     }
 }
 </script>

@@ -138,6 +138,7 @@ class SetupService:
 
         # Check if default environment already exists
         existing = Environment.objects.filter(is_default=True).first()
+        needs_package_restore = False
         if existing:
             # Check if directory exists
             if existing.exists():
@@ -147,6 +148,9 @@ class SetupService:
                 logger.warning(
                     f"Default environment record exists but directory missing, recreating..."
                 )
+                # Mark for package restoration if we have saved requirements
+                if existing.requirements:
+                    needs_package_restore = True
 
         # Define paths
         env_path = "default"
@@ -218,6 +222,24 @@ class SetupService:
             msg = f"Created default environment (Python {python_version})"
 
         logger.info(msg)
+
+        # Restore packages from database if venv was recreated and had saved requirements
+        if needs_package_restore and existing:
+            from core.services.environment_service import EnvironmentService
+
+            logger.info(f"Restoring packages from database for {existing.name}...")
+            success, _, stderr = EnvironmentService.install_requirements(
+                existing, existing.requirements
+            )
+            if success:
+                logger.info(f"Successfully restored packages for {existing.name}")
+                msg += " (packages restored from database)"
+            else:
+                logger.warning(
+                    f"Some packages failed to restore: {stderr[:200] if stderr else 'unknown error'}"
+                )
+                msg += " (package restoration had errors, check logs)"
+
         return True, msg
 
     @classmethod

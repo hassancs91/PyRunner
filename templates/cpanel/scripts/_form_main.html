@@ -1,0 +1,40 @@
+<!-- Main Form Content: Name, Description, Code Editor -->
+<div class="bg-code-surface border border-code-border rounded-xl p-6">
+    <!-- Name -->
+    <div class="mb-6">
+        <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
+            {{ form.name.label }}
+        </label>
+        {{ form.name }}
+        {% if form.name.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Description -->
+    <div class="mb-6">
+        <label for="id_description" class="block text-sm font-medium text-code-text mb-2">
+            {{ form.description.label }}
+        </label>
+        {{ form.description }}
+        {% if form.description.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.description.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Code Editor -->
+    <div>
+        <label for="id_code" class="block text-sm font-medium text-code-text mb-2">
+            {{ form.code.label }}
+        </label>
+        <!-- Hidden textarea for Django form submission -->
+        {{ form.code }}
+        <!-- Monaco Editor container -->
+        <div id="code-editor-container"
+             style="height: calc(100vh - 26rem); min-height: 400px; max-height: 700px;"
+             class="rounded-lg border border-code-border overflow-hidden"></div>
+        {% if form.code.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.code.errors.0 }}</p>
+        {% endif %}
+    </div>
+</div>

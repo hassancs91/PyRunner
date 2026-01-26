@@ -6,3 +6,4 @@ whitenoise>=6.6.0
 resend>=0.7.0
 cryptography>=42.0.0
 python-dotenv>=1.0.0
+psutil>=5.9.0

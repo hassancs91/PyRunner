@@ -5,25 +5,25 @@ echo "=========================================="
 echo "  PyRunner - Starting up..."
 echo "=========================================="
 
-# Auto-generate ENCRYPTION_KEY if not provided
-if [ -z "$ENCRYPTION_KEY" ]; then
+# Validate required environment variables
+if [ -z "$SECRET_KEY" ]; then
     echo ""
-    echo "[!] ENCRYPTION_KEY not set - generating a new one..."
-    export ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+    echo "ERROR: SECRET_KEY is required but not set."
     echo ""
-    echo "=================================================="
-    echo "  Generated ENCRYPTION_KEY:"
-    echo "  $ENCRYPTION_KEY"
-    echo "=================================================="
+    echo "Generate one with:"
+    echo "  python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
     echo ""
-    echo "  *** IMPORTANT: Save this key! ***"
-    echo "  Set ENCRYPTION_KEY env var to persist across restarts"
-    echo ""
+    exit 1
 fi
 
-# Auto-generate SECRET_KEY if not provided
-if [ -z "$SECRET_KEY" ]; then
-    export SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(50))")
+if [ -z "$ENCRYPTION_KEY" ]; then
+    echo ""
+    echo "ERROR: ENCRYPTION_KEY is required but not set."
+    echo ""
+    echo "Generate one with:"
+    echo "  python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    echo ""
+    exit 1
 fi
 
 # Run setup (migrations + default environment)

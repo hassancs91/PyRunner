@@ -2,7 +2,7 @@
 URL patterns for control panel.
 """
 from django.urls import path
-from core.views.dashboard import dashboard_view
+from core.views.dashboard import dashboard_view, system_resources_api
 from core.views.scripts import (
     script_list_view,
     script_create_view,
@@ -83,12 +83,24 @@ from core.views.users import (
     toggle_registration_view,
     delete_user_view,
 )
+from core.views.logs import (
+    logs_view,
+    logs_api_view,
+    logs_clear_view,
+)
+from core.views.tasks import (
+    tasks_view,
+    tasks_api_view,
+    task_cancel_view,
+    task_force_stop_view,
+)
 
 app_name = "cpanel"
 
 urlpatterns = [
     # Dashboard
     path("", dashboard_view, name="dashboard"),
+    path("api/system-resources/", system_resources_api, name="system_resources_api"),
 
     # Scripts
     path("scripts/", script_list_view, name="script_list"),
@@ -111,6 +123,12 @@ urlpatterns = [
     # Runs
     path("runs/", run_list_view, name="run_list"),
     path("runs/<uuid:pk>/", run_detail_view, name="run_detail"),
+
+    # Tasks
+    path("tasks/", tasks_view, name="tasks"),
+    path("api/tasks/", tasks_api_view, name="tasks_api"),
+    path("tasks/<str:task_id>/cancel/", task_cancel_view, name="task_cancel"),
+    path("tasks/<str:task_id>/force-stop/", task_force_stop_view, name="task_force_stop"),
 
     # Environments
     path("environments/", environment_list_view, name="environment_list"),
@@ -176,4 +194,9 @@ urlpatterns = [
     path("users/invite/<int:pk>/revoke/", revoke_invite_view, name="revoke_invite"),
     path("users/<int:pk>/delete/", delete_user_view, name="delete_user"),
     path("users/toggle-registration/", toggle_registration_view, name="toggle_registration"),
+
+    # Logs
+    path("logs/", logs_view, name="logs"),
+    path("api/logs/", logs_api_view, name="logs_api"),
+    path("api/logs/clear/", logs_clear_view, name="logs_clear"),
 ]

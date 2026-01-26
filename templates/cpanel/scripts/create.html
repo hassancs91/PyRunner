@@ -20,26 +20,22 @@
             <p class="text-code-muted">Write and configure a new Python script</p>
         </div>
 
-        <!-- Form -->
-        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-3xl">
-            <form method="post">
-                {% csrf_token %}
+        <!-- Form with Two-Column Layout -->
+        <form method="post">
+            {% csrf_token %}
 
-                {% include "cpanel/scripts/_form.html" %}
-
-                <!-- Actions -->
-                <div class="flex items-center justify-end space-x-4 mt-8 pt-6 border-t border-code-border">
-                    <a href="{% url 'cpanel:script_list' %}"
-                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
-                        Cancel
-                    </a>
-                    <button type="submit"
-                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
-                        Create Script
-                    </button>
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Main Column: Name, Description, Code Editor -->
+                <div class="lg:col-span-7">
+                    {% include "cpanel/scripts/_form_main.html" %}
                 </div>
-            </form>
-        </div>
+
+                <!-- Sidebar: Properties and Settings -->
+                <div class="lg:col-span-5">
+                    {% include "cpanel/scripts/_form_sidebar.html" %}
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -47,6 +43,55 @@
 {% block extra_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 <script>
+// Collapsible sections toggle
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    const chevron = document.getElementById(sectionId + '-chevron');
+
+    if (content && chevron) {
+        content.classList.toggle('hidden');
+        chevron.classList.toggle('rotate-180');
+    }
+}
+
+// Schedule options toggle
+function toggleScheduleOptions(mode) {
+    const intervalOptions = document.getElementById('interval-options');
+    const dailyOptions = document.getElementById('daily-options');
+
+    if (intervalOptions) {
+        intervalOptions.classList.toggle('hidden', mode !== 'interval');
+    }
+    if (dailyOptions) {
+        dailyOptions.classList.toggle('hidden', mode !== 'daily');
+    }
+
+    // Update radio button styles
+    document.querySelectorAll('input[name="run_mode"]').forEach(radio => {
+        const label = radio.closest('label');
+        const dot = label.querySelector('span > span');
+
+        if (radio.checked) {
+            label.classList.add('border-code-accent', 'bg-code-accent/10');
+            label.classList.remove('border-code-border');
+            label.querySelector('span').classList.add('border-code-accent');
+            label.querySelector('span').classList.remove('border-code-border');
+            if (!dot) {
+                const indicator = label.querySelector('span.w-4');
+                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-code-accent"></span>';
+            }
+        } else {
+            label.classList.remove('border-code-accent', 'bg-code-accent/10');
+            label.classList.add('border-code-border');
+            label.querySelector('span').classList.remove('border-code-accent');
+            label.querySelector('span').classList.add('border-code-border');
+            const indicator = label.querySelector('span.w-4');
+            indicator.innerHTML = '';
+        }
+    });
+}
+
+// Monaco Editor initialization
 require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
 
 require(['vs/editor/editor.main'], function () {

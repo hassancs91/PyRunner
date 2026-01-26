@@ -23,7 +23,8 @@ COPY . .
 # Create data directories
 RUN mkdir -p /app/data/environments /app/data/workdir
 
-# Collect static files
+# Collect static files (build-time only key, not used at runtime)
+ENV SECRET_KEY="build-only-key-not-for-runtime"
 RUN python manage.py collectstatic --noinput
 
 # Copy and set up entrypoint (convert Windows CRLF to Unix LF)

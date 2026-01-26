@@ -1,0 +1,239 @@
+<!-- Sidebar: Properties and Settings -->
+<div class="lg:sticky lg:top-24 space-y-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto scrollbar-thin lg:pr-1">
+
+    <!-- Execution Settings (Always Visible) -->
+    <div class="bg-code-surface border border-code-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-code-text mb-4 flex items-center">
+            <svg class="w-4 h-4 mr-2 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            Execution Settings
+        </h3>
+
+        <!-- Environment -->
+        <div class="mb-4">
+            <label for="id_environment" class="block text-sm font-medium text-code-text mb-2">
+                {{ form.environment.label }}
+            </label>
+            {{ form.environment }}
+            {% if form.environment.errors %}
+            <p class="mt-1 text-sm text-code-red">{{ form.environment.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Timeout -->
+        <div class="mb-4">
+            <label for="id_timeout_seconds" class="block text-sm font-medium text-code-text mb-2">
+                {{ form.timeout_seconds.label }}
+            </label>
+            {{ form.timeout_seconds }}
+            {% if form.timeout_seconds.help_text %}
+            <p class="mt-1 text-xs text-code-muted">{{ form.timeout_seconds.help_text }}</p>
+            {% endif %}
+            {% if form.timeout_seconds.errors %}
+            <p class="mt-1 text-sm text-code-red">{{ form.timeout_seconds.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Enabled Toggle -->
+        <div class="flex items-center space-x-3 pt-3 border-t border-code-border">
+            {{ form.is_enabled }}
+            <label for="id_is_enabled" class="text-sm font-medium text-code-text">
+                {{ form.is_enabled.label }}
+            </label>
+            {% if form.is_enabled.errors %}
+            <p class="text-sm text-code-red">{{ form.is_enabled.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tags (Always Visible) -->
+    <div class="bg-code-surface border border-code-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-code-text mb-4 flex items-center">
+            <svg class="w-4 h-4 mr-2 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+            </svg>
+            {{ form.tags.label }}
+        </h3>
+        <div class="flex flex-wrap gap-2 min-h-[2.5rem]">
+            {% for checkbox in form.tags %}
+            <label class="inline-flex items-center px-3 py-1.5 rounded-full cursor-pointer border transition-colors
+                          {% if checkbox.data.selected %}border-code-accent bg-code-accent/20{% else %}border-code-border bg-code-bg hover:border-code-accent/50{% endif %}">
+                <input type="checkbox" name="tags" value="{{ checkbox.data.value }}" {% if checkbox.data.selected %}checked{% endif %} class="sr-only peer">
+                <span class="w-2 h-2 rounded-full mr-2 tag-dot-{{ checkbox.data.attrs.data_color|default:'gray' }}"></span>
+                <span class="text-sm text-code-text">{{ checkbox.choice_label }}</span>
+            </label>
+            {% empty %}
+            <p class="text-sm text-code-muted">No tags available. <a href="{% url 'cpanel:tag_list' %}" class="text-code-accent hover:underline">Create tags</a></p>
+            {% endfor %}
+        </div>
+        {% if form.tags.errors %}
+        <p class="mt-1 text-sm text-code-red">{{ form.tags.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    {% if schedule_form %}
+    <!-- Schedule Configuration (Collapsible) -->
+    <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleSection('schedule')"
+                class="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-code-bg/50 transition-colors">
+            <h3 class="text-sm font-semibold text-code-text flex items-center">
+                <svg class="w-4 h-4 mr-2 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Schedule
+            </h3>
+            <svg id="schedule-chevron" class="w-4 h-4 text-code-muted transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        <div id="schedule-content" class="px-5 pb-5 space-y-4">
+            <!-- Run Mode Selection -->
+            <div>
+                <label class="block text-sm font-medium text-code-text mb-3">Run Mode</label>
+                <div class="space-y-2">
+                    {% for radio in schedule_form.run_mode %}
+                    <label class="flex items-center p-3 border border-code-border rounded-lg cursor-pointer hover:border-code-accent/50 transition-colors {% if radio.data.selected %}border-code-accent bg-code-accent/10{% endif %}">
+                        <input type="radio" name="run_mode" value="{{ radio.data.value }}" {% if radio.data.selected %}checked{% endif %} class="sr-only peer" onchange="toggleScheduleOptions(this.value)">
+                        <span class="w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center {% if radio.data.selected %}border-code-accent{% else %}border-code-border{% endif %}">
+                            {% if radio.data.selected %}
+                            <span class="w-2 h-2 rounded-full bg-code-accent"></span>
+                            {% endif %}
+                        </span>
+                        <span class="text-sm text-code-text">{{ radio.choice_label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% if schedule_form.run_mode.errors %}
+                <p class="mt-1 text-sm text-code-red">{{ schedule_form.run_mode.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Interval Options -->
+            <div id="interval-options" class="{% if schedule_form.instance.run_mode != 'interval' %}hidden{% endif %}">
+                <label for="id_interval_minutes" class="block text-sm font-medium text-code-text mb-2">
+                    {{ schedule_form.interval_minutes.label }}
+                </label>
+                {{ schedule_form.interval_minutes }}
+                {% if schedule_form.interval_minutes.errors %}
+                <p class="mt-1 text-sm text-code-red">{{ schedule_form.interval_minutes.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Daily Options -->
+            <div id="daily-options" class="space-y-4 {% if schedule_form.instance.run_mode != 'daily' %}hidden{% endif %}">
+                <div>
+                    <label for="id_daily_times_input" class="block text-sm font-medium text-code-text mb-2">
+                        {{ schedule_form.daily_times_input.label }}
+                    </label>
+                    {{ schedule_form.daily_times_input }}
+                    <p class="mt-1 text-xs text-code-muted">{{ schedule_form.daily_times_input.help_text }}</p>
+                    {% if schedule_form.daily_times_input.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.daily_times_input.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="id_timezone" class="block text-sm font-medium text-code-text mb-2">
+                        Timezone
+                    </label>
+                    {{ schedule_form.timezone }}
+                    {% if schedule_form.timezone.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.timezone.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Schedule Active Toggle -->
+            <div class="flex items-center space-x-3 pt-3 border-t border-code-border">
+                {{ schedule_form.is_active }}
+                <label for="id_is_active" class="text-sm font-medium text-code-text">
+                    {{ schedule_form.is_active.label }}
+                </label>
+                {% if schedule_form.is_active.errors %}
+                <p class="text-sm text-code-red">{{ schedule_form.is_active.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Notifications (Collapsible) -->
+    <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+        <button type="button" onclick="toggleSection('notifications')"
+                class="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-code-bg/50 transition-colors">
+            <h3 class="text-sm font-semibold text-code-text flex items-center">
+                <svg class="w-4 h-4 mr-2 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                Notifications
+            </h3>
+            <svg id="notifications-chevron" class="w-4 h-4 text-code-muted transition-transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        <div id="notifications-content" class="hidden px-5 pb-5 space-y-4">
+            <!-- Notify On -->
+            <div>
+                <label for="id_notify_on" class="block text-sm font-medium text-code-text mb-2">
+                    {{ form.notify_on.label }}
+                </label>
+                {{ form.notify_on }}
+                {% if form.notify_on.errors %}
+                <p class="mt-1 text-sm text-code-red">{{ form.notify_on.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Override Email -->
+            <div>
+                <label for="id_notify_email" class="block text-sm font-medium text-code-text mb-2">
+                    {{ form.notify_email.label }}
+                </label>
+                {{ form.notify_email }}
+                {% if form.notify_email.help_text %}
+                <p class="mt-1 text-xs text-code-muted">{{ form.notify_email.help_text }}</p>
+                {% endif %}
+                {% if form.notify_email.errors %}
+                <p class="mt-1 text-sm text-code-red">{{ form.notify_email.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Webhook Configuration -->
+            <div class="p-4 bg-code-bg rounded-lg space-y-4">
+                <div class="flex items-center space-x-3">
+                    {{ form.notify_webhook_enabled }}
+                    <label for="id_notify_webhook_enabled" class="text-sm font-medium text-code-text">
+                        {{ form.notify_webhook_enabled.label }}
+                    </label>
+                </div>
+
+                <div>
+                    <label for="id_notify_webhook_url" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.notify_webhook_url.label }}
+                    </label>
+                    {{ form.notify_webhook_url }}
+                    {% if form.notify_webhook_url.help_text %}
+                    <p class="mt-1 text-xs text-code-muted">{{ form.notify_webhook_url.help_text }}</p>
+                    {% endif %}
+                    {% if form.notify_webhook_url.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.notify_webhook_url.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="bg-code-surface border border-code-border rounded-xl p-5">
+        <div class="flex flex-col space-y-3">
+            <button type="submit"
+                    class="w-full px-4 py-3 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                {% if script %}Update Script{% else %}Create Script{% endif %}
+            </button>
+            <a href="{% if script %}{% url 'cpanel:script_detail' pk=script.pk %}{% else %}{% url 'cpanel:script_list' %}{% endif %}"
+               class="w-full px-4 py-3 bg-code-surface border border-code-border hover:border-code-accent text-code-text text-center rounded-lg transition-colors">
+                Cancel
+            </a>
+        </div>
+    </div>
+</div>

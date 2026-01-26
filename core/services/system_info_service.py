@@ -8,6 +8,7 @@ import sys
 from datetime import timedelta
 from typing import Optional
 
+import psutil
 from django.conf import settings
 from django.utils import timezone
 
@@ -226,4 +227,105 @@ class SystemInfoService:
             "environments_size": cls.get_environments_disk_usage(),
             "environments_size_display": cls.get_environments_disk_usage_display(),
             "worker_status": worker_status,
+        }
+
+    @classmethod
+    def _format_bytes(cls, bytes_value: int) -> str:
+        """Format bytes into human-readable string."""
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if bytes_value < 1024.0:
+                return f"{bytes_value:.1f} {unit}"
+            bytes_value /= 1024.0
+        return f"{bytes_value:.1f} PB"
+
+    @classmethod
+    def get_cpu_usage(cls) -> float:
+        """Get current CPU usage percentage (0-100)."""
+        try:
+            return psutil.cpu_percent(interval=0.1)
+        except Exception as e:
+            logger.error(f"Failed to get CPU usage: {e}")
+            return 0.0
+
+    @classmethod
+    def get_memory_info(cls) -> dict:
+        """
+        Get RAM usage information.
+
+        Returns dict with:
+        - total: Total RAM in bytes
+        - used: Used RAM in bytes
+        - available: Available RAM in bytes
+        - percent: Usage percentage (0-100)
+        - total_display: Human-readable total
+        - used_display: Human-readable used
+        """
+        try:
+            mem = psutil.virtual_memory()
+            return {
+                "total": mem.total,
+                "used": mem.used,
+                "available": mem.available,
+                "percent": mem.percent,
+                "total_display": cls._format_bytes(mem.total),
+                "used_display": cls._format_bytes(mem.used),
+            }
+        except Exception as e:
+            logger.error(f"Failed to get memory info: {e}")
+            return {
+                "total": 0,
+                "used": 0,
+                "available": 0,
+                "percent": 0,
+                "total_display": "Unknown",
+                "used_display": "Unknown",
+            }
+
+    @classmethod
+    def get_disk_info(cls) -> dict:
+        """
+        Get storage/disk usage information.
+
+        Returns dict with:
+        - total: Total disk space in bytes
+        - used: Used disk space in bytes
+        - free: Free disk space in bytes
+        - percent: Usage percentage (0-100)
+        - total_display: Human-readable total
+        - used_display: Human-readable used
+        """
+        try:
+            disk = psutil.disk_usage(settings.BASE_DIR)
+            return {
+                "total": disk.total,
+                "used": disk.used,
+                "free": disk.free,
+                "percent": disk.percent,
+                "total_display": cls._format_bytes(disk.total),
+                "used_display": cls._format_bytes(disk.used),
+            }
+        except Exception as e:
+            logger.error(f"Failed to get disk info: {e}")
+            return {
+                "total": 0,
+                "used": 0,
+                "free": 0,
+                "percent": 0,
+                "total_display": "Unknown",
+                "used_display": "Unknown",
+            }
+
+    @classmethod
+    def get_system_resources(cls) -> dict:
+        """
+        Get all system resource metrics in one call.
+
+        Returns dict with cpu, memory, and disk info.
+        """
+        return {
+            "cpu": {
+                "percent": cls.get_cpu_usage(),
+            },
+            "memory": cls.get_memory_info(),
+            "disk": cls.get_disk_info(),
         }

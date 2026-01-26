@@ -3,7 +3,7 @@ Service for managing django-q2 schedules.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from django.utils import timezone
@@ -130,18 +130,35 @@ class ScheduleService:
 
     @classmethod
     def _calculate_next_run(cls, script_schedule) -> Optional[datetime]:
-        """Calculate the next scheduled run time."""
-        if not script_schedule.q_schedule_ids:
+        """Calculate the next scheduled run time based on schedule configuration."""
+        from core.models import ScriptSchedule
+
+        if not script_schedule.is_active:
             return None
 
-        # Get the earliest next_run from all associated django-q2 schedules
-        next_runs = QSchedule.objects.filter(
-            id__in=script_schedule.q_schedule_ids
-        ).values_list("next_run", flat=True)
+        now = timezone.now()
 
-        valid_runs = [r for r in next_runs if r is not None]
-        if valid_runs:
-            return min(valid_runs)
+        if script_schedule.run_mode == ScriptSchedule.RunMode.INTERVAL:
+            # Interval schedules run immediately, then every X minutes
+            return now
+
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.DAILY:
+            # Calculate next occurrence from daily_times
+            if not script_schedule.daily_times:
+                return None
+
+            candidates = []
+            for time_str in script_schedule.daily_times:
+                hour, minute = map(int, time_str.split(":"))
+                # Today's occurrence
+                candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if candidate <= now:
+                    # Already passed today, use tomorrow
+                    candidate += timedelta(days=1)
+                candidates.append(candidate)
+
+            return min(candidates) if candidates else None
+
         return None
 
     @classmethod

@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-code-text">Task Queue</h1>
+                <p class="text-code-muted">Monitor and manage Django-Q2 tasks</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <!-- Auto-refresh toggle -->
+                <label class="flex items-center space-x-2 text-sm text-code-muted cursor-pointer">
+                    <input type="checkbox"
+                           id="auto-refresh"
+                           class="w-4 h-4 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent">
+                    <span>Auto-refresh</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-code-surface border border-code-border rounded-xl p-4">
+                <p class="text-xs text-code-muted mb-1">Queued</p>
+                <p class="text-2xl font-bold text-code-accent" id="stat-queued">{{ stats.queued_count }}</p>
+            </div>
+            <div class="bg-code-surface border border-code-border rounded-xl p-4">
+                <p class="text-xs text-code-muted mb-1">Running</p>
+                <p class="text-2xl font-bold text-code-yellow" id="stat-running">{{ stats.running_count }}</p>
+            </div>
+            <div class="bg-code-surface border border-code-border rounded-xl p-4">
+                <p class="text-xs text-code-muted mb-1">Completed (24h)</p>
+                <p class="text-2xl font-bold text-code-green" id="stat-completed">{{ stats.completed_today }}</p>
+            </div>
+            <div class="bg-code-surface border border-code-border rounded-xl p-4">
+                <p class="text-xs text-code-muted mb-1">Failed (24h)</p>
+                <p class="text-2xl font-bold text-code-red" id="stat-failed">{{ stats.failed_today }}</p>
+            </div>
+        </div>
+
+        <!-- Stuck Tasks Warning -->
+        {% if stuck_tasks %}
+        <div class="bg-code-yellow/10 border border-code-yellow/30 rounded-xl p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <svg class="w-6 h-6 text-code-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div>
+                        <p class="text-code-yellow font-semibold">{{ stuck_tasks|length }} Stuck Task(s) Detected</p>
+                        <p class="text-sm text-code-muted">Tasks have been waiting longer than expected. Workers may not be running.</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Stuck tasks list -->
+            <div class="mt-4 space-y-2">
+                {% for task in stuck_tasks %}
+                <div class="flex items-center justify-between bg-code-bg/50 rounded-lg p-3">
+                    <div class="flex items-center gap-3">
+                        <span class="text-code-text font-mono text-sm">{{ task.id|truncatechars:20 }}</span>
+                        <span class="text-code-muted text-sm">Stuck for {{ task.stuck_minutes }} minutes</span>
+                        {% if task.linked_run %}
+                        <a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}" class="text-code-accent hover:underline text-sm">
+                            {{ task.linked_run.script.name }}
+                        </a>
+                        {% endif %}
+                    </div>
+                    <button onclick="forceStopTask('{{ task.id }}')"
+                            class="px-3 py-1 bg-code-red/20 hover:bg-code-red/30 text-code-red text-sm rounded-lg transition-colors">
+                        Force Stop
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Filters -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-4 mb-6">
+            <form method="get" class="flex flex-wrap items-end gap-4">
+                <!-- Status Filter -->
+                <div>
+                    <label class="block text-xs text-code-muted mb-1">Status</label>
+                    <select name="status"
+                            class="px-3 py-2 bg-code-bg border border-code-border rounded-lg text-code-text text-sm focus:outline-none focus:ring-2 focus:ring-code-accent/50">
+                        <option value="">All Status</option>
+                        <option value="success" {% if status_filter == "success" %}selected{% endif %}>Success</option>
+                        <option value="failed" {% if status_filter == "failed" %}selected{% endif %}>Failed</option>
+                    </select>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit"
+                        class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-sm font-medium rounded-lg transition-colors">
+                    Filter
+                </button>
+
+                {% if status_filter %}
+                <a href="{% url 'cpanel:tasks' %}"
+                   class="px-4 py-2 bg-code-bg border border-code-border hover:border-code-accent text-code-text text-sm rounded-lg transition-colors">
+                    Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Queued Tasks Section -->
+        {% if queued_tasks %}
+        <div class="mb-8">
+            <h2 class="text-lg font-semibold text-code-text mb-4">Queued Tasks ({{ queued_tasks|length }})</h2>
+            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-code-bg border-b border-code-border">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Task ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Type</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Queued</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Linked Resource</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-code-border" id="queued-tasks-body">
+                        {% for task in queued_tasks %}
+                        <tr class="hover:bg-code-bg/50 transition-colors">
+                            <td class="px-4 py-3 font-mono text-sm text-code-text">
+                                {{ task.id|truncatechars:24 }}
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-0.5 text-xs rounded
+                                    {% if task.type == 'script_run' %}bg-code-accent/20 text-code-accent
+                                    {% else %}bg-code-muted/20 text-code-muted{% endif %}">
+                                    {% if task.type == 'script_run' %}Script Run{% else %}System{% endif %}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-code-muted">
+                                {{ task.queued_at|timesince }} ago
+                            </td>
+                            <td class="px-4 py-3 text-sm">
+                                {% if task.linked_run %}
+                                <a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}" class="text-code-accent hover:underline">
+                                    {{ task.linked_run.script.name }}
+                                </a>
+                                {% else %}
+                                <span class="text-code-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                <button onclick="cancelTask('{{ task.id }}')"
+                                        class="px-3 py-1 bg-code-red/20 hover:bg-code-red/30 text-code-red text-sm rounded-lg transition-colors">
+                                    Cancel
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Task History Section -->
+        <div>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-code-text">Task History</h2>
+                <p class="text-sm text-code-muted">
+                    Showing {{ completed_tasks|length }} of {{ total_completed }} tasks
+                </p>
+            </div>
+
+            {% if completed_tasks %}
+            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+                <div class="max-h-[500px] overflow-y-auto">
+                    <table class="w-full">
+                        <thead class="bg-code-bg border-b border-code-border sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Task Name</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Type</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Duration</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Started</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Linked Resource</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-code-border">
+                            {% for task in completed_tasks %}
+                            <tr class="hover:bg-code-bg/50 transition-colors">
+                                <td class="px-4 py-3 font-mono text-sm text-code-text" title="{{ task.name }}">
+                                    {{ task.name|truncatechars:30 }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-0.5 text-xs rounded
+                                        {% if task.type == 'script_run' %}bg-code-accent/20 text-code-accent
+                                        {% else %}bg-code-muted/20 text-code-muted{% endif %}">
+                                        {% if task.type == 'script_run' %}Script Run{% else %}System{% endif %}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    {% if task.success %}
+                                    <span class="px-2 py-0.5 text-xs rounded bg-code-green/20 text-code-green">Success</span>
+                                    {% else %}
+                                    <span class="px-2 py-0.5 text-xs rounded bg-code-red/20 text-code-red">Failed</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-sm text-code-muted">
+                                    {{ task.duration_display }}
+                                </td>
+                                <td class="px-4 py-3 text-sm text-code-muted">
+                                    {{ task.started|date:"M d, H:i" }}
+                                </td>
+                                <td class="px-4 py-3 text-sm">
+                                    {% if task.linked_run %}
+                                    <a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}" class="text-code-accent hover:underline">
+                                        {{ task.linked_run.script.name }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-code-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="flex items-center justify-center space-x-2 mt-6">
+                {% if page > 1 %}
+                <a href="?page={{ page|add:'-1' }}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                   class="px-3 py-1 bg-code-bg border border-code-border rounded-lg text-code-text text-sm hover:border-code-accent transition-colors">
+                    Previous
+                </a>
+                {% endif %}
+
+                <span class="text-sm text-code-muted">Page {{ page }} of {{ total_pages }}</span>
+
+                {% if page < total_pages %}
+                <a href="?page={{ page|add:'1' }}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                   class="px-3 py-1 bg-code-bg border border-code-border rounded-lg text-code-text text-sm hover:border-code-accent transition-colors">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+                <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-code-text mb-2">No tasks found</h3>
+                <p class="text-code-muted">
+                    {% if status_filter %}
+                    Try adjusting your filters or <a href="{% url 'cpanel:tasks' %}" class="text-code-accent hover:underline">clear all filters</a>.
+                    {% else %}
+                    No tasks have been executed yet.
+                    {% endif %}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+let autoRefreshInterval = null;
+const AUTO_REFRESH_KEY = 'pyrunner_tasks_auto_refresh';
+
+function cancelTask(taskId) {
+    if (!confirm('Cancel this queued task?')) return;
+
+    fetch(`{% url 'cpanel:tasks' %}${taskId}/cancel/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
+
+function forceStopTask(taskId) {
+    if (!confirm('Force stop this task? The underlying process may continue until it times out.')) return;
+
+    fetch(`{% url 'cpanel:tasks' %}${taskId}/force-stop/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
+
+function startAutoRefresh() {
+    if (!autoRefreshInterval) {
+        autoRefreshInterval = setInterval(function() {
+            window.location.reload();
+        }, 5000);
+    }
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const checkbox = document.getElementById('auto-refresh');
+    const isEnabled = localStorage.getItem(AUTO_REFRESH_KEY) === 'true';
+
+    // Restore checkbox state
+    checkbox.checked = isEnabled;
+
+    // Start auto-refresh if it was enabled
+    if (isEnabled) {
+        startAutoRefresh();
+    }
+
+    // Handle checkbox changes
+    checkbox.addEventListener('change', function() {
+        if (this.checked) {
+            localStorage.setItem(AUTO_REFRESH_KEY, 'true');
+            startAutoRefresh();
+        } else {
+            localStorage.setItem(AUTO_REFRESH_KEY, 'false');
+            stopAutoRefresh();
+        }
+    });
+});
+</script>
+{% endblock %}
