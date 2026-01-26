@@ -12,10 +12,17 @@ env/
 *.log
 local_settings.py
 db.sqlite3
+staticfiles/
+
+# Environment files (contain secrets)
+.env
+.env.*
+*.env
 
 # IDE/Editor
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *.sublime-workspace
