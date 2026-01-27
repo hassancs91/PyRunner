@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/hasanaboulhasan/pyrunner)
 [![Version](https://img.shields.io/badge/Version-1.1.1-green.svg)](https://github.com/hassancs91/PyRunner/releases)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/BjkmTn7XSd)
 
 A self-hosted Python script automation platform. Upload a script, schedule it, monitor it — nothing else to configure.
 
