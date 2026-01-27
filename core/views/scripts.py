@@ -66,7 +66,12 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
     else:
         form = ScriptForm()
 
-    return render(request, "cpanel/scripts/create.html", {"form": form})
+    available_tags = Tag.objects.all().order_by("name")
+    return render(request, "cpanel/scripts/create.html", {
+        "form": form,
+        "available_tags": available_tags,
+        "selected_tag_ids": [],
+    })
 
 
 @login_required
@@ -116,7 +121,9 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
                 "is_active": schedule.is_active,
             }
 
-            form.save()
+            script = form.save(commit=False)
+            script.save()
+            form.save_m2m()
             schedule = schedule_form.save()
 
             # Capture new config
@@ -152,10 +159,14 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
         form = ScriptForm(instance=script)
         schedule_form = ScheduleForm(instance=schedule)
 
+    available_tags = Tag.objects.all().order_by("name")
+    selected_tag_ids = list(script.tags.values_list("pk", flat=True))
     return render(request, "cpanel/scripts/edit.html", {
         "form": form,
         "schedule_form": schedule_form,
         "script": script,
+        "available_tags": available_tags,
+        "selected_tag_ids": selected_tag_ids,
     })
 
 

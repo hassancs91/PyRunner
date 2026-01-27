@@ -57,12 +57,12 @@
             {{ form.tags.label }}
         </h3>
         <div class="flex flex-wrap gap-2 min-h-[2.5rem]">
-            {% for checkbox in form.tags %}
-            <label class="inline-flex items-center px-3 py-1.5 rounded-full cursor-pointer border transition-colors
-                          {% if checkbox.data.selected %}border-code-accent bg-code-accent/20{% else %}border-code-border bg-code-bg hover:border-code-accent/50{% endif %}">
-                <input type="checkbox" name="tags" value="{{ checkbox.data.value }}" {% if checkbox.data.selected %}checked{% endif %} class="sr-only peer">
-                <span class="w-2 h-2 rounded-full mr-2 tag-dot-{{ checkbox.data.attrs.data_color|default:'gray' }}"></span>
-                <span class="text-sm text-code-text">{{ checkbox.choice_label }}</span>
+            {% for tag in available_tags %}
+            <label class="tag-label inline-flex items-center px-3 py-1.5 rounded-full cursor-pointer border transition-colors
+                          {% if tag.pk in selected_tag_ids %}border-code-accent bg-code-accent/20{% else %}border-code-border bg-code-bg hover:border-code-accent/50{% endif %}">
+                <input type="checkbox" name="tags" value="{{ tag.pk }}" {% if tag.pk in selected_tag_ids %}checked{% endif %} class="sr-only">
+                <span class="w-2 h-2 rounded-full mr-2 tag-dot-{{ tag.color }}"></span>
+                <span class="text-sm text-code-text">{{ tag.name }}</span>
             </label>
             {% empty %}
             <p class="text-sm text-code-muted">No tags available. <a href="{% url 'cpanel:tag_list' %}" class="text-code-accent hover:underline">Create tags</a></p>

@@ -123,5 +123,26 @@ require(['vs/editor/editor.main'], function () {
         textarea.value = editor.getValue();
     });
 });
+
+// Tag selection handling
+document.querySelectorAll('.tag-label').forEach(label => {
+    label.addEventListener('click', function(e) {
+        if (e.target.tagName === 'INPUT') return;
+        e.preventDefault();  // Prevent browser's default toggle (input is inside label)
+        const checkbox = this.querySelector('input[type="checkbox"]');
+        checkbox.checked = !checkbox.checked;
+        updateTagStyle(this, checkbox.checked);
+    });
+});
+
+function updateTagStyle(label, isChecked) {
+    if (isChecked) {
+        label.classList.add('border-code-accent', 'bg-code-accent/20');
+        label.classList.remove('border-code-border', 'bg-code-bg');
+    } else {
+        label.classList.remove('border-code-accent', 'bg-code-accent/20');
+        label.classList.add('border-code-border', 'bg-code-bg');
+    }
+}
 </script>
 {% endblock %}

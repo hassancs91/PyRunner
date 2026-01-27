@@ -126,9 +126,8 @@
                         <span class="text-sm font-medium text-code-text">Python Code</span>
                         <span class="text-xs text-code-muted">{{ script.code|length }} chars</span>
                     </div>
-                    <div class="p-4 overflow-x-auto">
-                        <pre class="text-code-text font-mono text-sm whitespace-pre-wrap">{{ script.code }}</pre>
-                    </div>
+                    <div id="code-viewer-container" style="height: 500px;" class="overflow-hidden"></div>
+                    <textarea id="code-content" class="hidden">{{ script.code }}</textarea>
                 </div>
             </div>
 
@@ -198,11 +197,15 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Schedule Info Card -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-semibold text-code-text">Schedule</h3>
+        <!-- Schedule, Webhook, Notifications Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+            <!-- Schedule Info Card -->
+            <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-code-text">Schedule</h3>
                         {% if schedule.run_mode != 'manual' %}
                         <form method="post" action="{% url 'cpanel:schedule_toggle' pk=script.pk %}">
                             {% csrf_token %}
@@ -374,7 +377,6 @@
                     </p>
                     {% endif %}
                 </div>
-            </div>
         </div>
 
         <!-- Recent Runs -->
@@ -438,6 +440,28 @@
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+    const container = document.getElementById('code-viewer-container');
+    const codeContent = document.getElementById('code-content');
+
+    monaco.editor.create(container, {
+        value: codeContent.value,
+        language: 'python',
+        theme: 'vs-dark',
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        lineNumbers: 'on',
+        readOnly: true,
+        automaticLayout: true
+    });
+});
+</script>
 
 <script>
 function copyWebhookUrl() {

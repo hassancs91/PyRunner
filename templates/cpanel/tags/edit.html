@@ -38,10 +38,20 @@
 
                 <!-- Color -->
                 <div class="mb-6">
-                    <label for="id_color" class="block text-sm font-medium text-code-text mb-2">
+                    <label class="block text-sm font-medium text-code-text mb-2">
                         {{ form.color.label }}
                     </label>
-                    {{ form.color }}
+                    <input type="hidden" name="color" id="id_color" value="{{ tag.color }}">
+                    <div class="flex items-center gap-3">
+                        <button type="button" data-color="gray" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'gray' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(107, 114, 128);"></button>
+                        <button type="button" data-color="red" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'red' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(239, 68, 68);"></button>
+                        <button type="button" data-color="orange" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'orange' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(249, 115, 22);"></button>
+                        <button type="button" data-color="yellow" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'yellow' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(234, 179, 8);"></button>
+                        <button type="button" data-color="green" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'green' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(34, 197, 94);"></button>
+                        <button type="button" data-color="blue" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'blue' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(59, 130, 246);"></button>
+                        <button type="button" data-color="purple" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'purple' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(168, 85, 247);"></button>
+                        <button type="button" data-color="pink" class="color-circle w-8 h-8 rounded-full ring-2 {% if tag.color == 'pink' %}ring-white{% else %}ring-transparent{% endif %} ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(236, 72, 153);"></button>
+                    </div>
                     <div class="mt-3">
                         <span class="text-sm text-code-muted mr-2">Preview:</span>
                         <span id="tag-preview" class="inline-flex items-center px-3 py-1 text-sm rounded-full tag-{{ tag.color }}">
@@ -78,22 +88,39 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const colorSelect = document.getElementById('id_color');
+    const colorInput = document.getElementById('id_color');
     const nameInput = document.getElementById('id_name');
     const preview = document.getElementById('tag-preview');
+    const colorCircles = document.querySelectorAll('.color-circle');
 
     function updatePreview() {
-        const color = colorSelect.value || 'gray';
+        const color = colorInput.value || 'gray';
         const name = nameInput.value || 'Sample Tag';
 
-        // Remove all tag-* classes and add the new one
         preview.className = preview.className.replace(/tag-\w+/g, '');
         preview.classList.add('tag-' + color);
         preview.classList.add('inline-flex', 'items-center', 'px-3', 'py-1', 'text-sm', 'rounded-full');
         preview.textContent = name;
     }
 
-    colorSelect.addEventListener('change', updatePreview);
+    function selectColor(color) {
+        colorInput.value = color;
+        colorCircles.forEach(circle => {
+            if (circle.dataset.color === color) {
+                circle.classList.remove('ring-transparent');
+                circle.classList.add('ring-white');
+            } else {
+                circle.classList.remove('ring-white');
+                circle.classList.add('ring-transparent');
+            }
+        });
+        updatePreview();
+    }
+
+    colorCircles.forEach(circle => {
+        circle.addEventListener('click', () => selectColor(circle.dataset.color));
+    });
+
     nameInput.addEventListener('input', updatePreview);
 });
 </script>
