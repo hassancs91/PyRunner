@@ -34,8 +34,7 @@ Desktop.ini
 .DS_Store
 
 # Project specific
-data/environments/
-data/db.sqlite3
+data/
 nul
 docs/
 
