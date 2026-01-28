@@ -15,7 +15,14 @@ class CoreConfig(AppConfig):
         # Register signal handlers for worker heartbeat
         self._register_worker_signals()
 
-        # Ensure heartbeat schedule exists (run after database is ready)
+        # Use post_migrate signal to ensure heartbeat schedule exists after migrations
+        # This avoids database access during app initialization
+        from django.db.models.signals import post_migrate
+
+        post_migrate.connect(self._on_post_migrate, sender=self)
+
+    def _on_post_migrate(self, sender, **kwargs):
+        """Run after migrations are complete to set up heartbeat schedule."""
         self._ensure_heartbeat_schedule()
 
     def _register_worker_signals(self):

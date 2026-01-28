@@ -103,8 +103,24 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "data" / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": 30,  # Wait up to 30 seconds for database lock
+        },
     }
 }
+
+
+# Enable SQLite WAL mode for better concurrency in multi-process environments
+def _enable_sqlite_wal(sender, connection, **kwargs):
+    if connection.vendor == "sqlite":
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=30000;")
+
+
+from django.db.backends.signals import connection_created
+
+connection_created.connect(_enable_sqlite_wal)
 
 
 # Custom User Model
@@ -143,7 +159,7 @@ AUTHENTICATION_BACKENDS = [
 AXES_FAILURE_LIMIT = int(os.environ.get("AXES_FAILURE_LIMIT", "5"))  # Lock after 5 failed attempts
 AXES_COOLOFF_TIME = 0.25  # 15 minutes lockout (in hours)
 AXES_RESET_ON_SUCCESS = True  # Reset failed attempts after successful login
-AXES_LOCKOUT_PARAMETERS = ["username"]  # Lock by username (email in our case)
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]  # Combined lockout by username AND IP
 AXES_ENABLE_ACCESS_FAILURE_LOG = True  # Log failed attempts
 AXES_VERBOSE = False  # Don't log every access attempt
 
@@ -217,8 +233,13 @@ def _get_q_cluster_config():
         "catch_up": False,
     }
 
-    # Try to load from database
+    # Try to load from database (only if apps are ready to avoid initialization warnings)
     try:
+        from django.apps import apps
+
+        if not apps.ready:
+            return config  # Return defaults during app initialization
+
         from django.db import connection
         from django.db.utils import OperationalError, ProgrammingError
 
