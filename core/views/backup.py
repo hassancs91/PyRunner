@@ -5,16 +5,22 @@ import json
 from datetime import datetime
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
+
+
+def superuser_required(view_func):
+    """Decorator to require superuser status for backup operations."""
+    return user_passes_test(lambda u: u.is_superuser, login_url="auth:login")(view_func)
 
 from core.forms import BackupCreateForm, BackupRestoreForm
 from core.services.backup_service import BackupService
 
 
 @login_required
+@superuser_required
 def backup_create_view(request):
     """
     Create and download a backup file.
@@ -54,6 +60,7 @@ def backup_create_view(request):
 
 
 @login_required
+@superuser_required
 @require_POST
 def backup_upload_view(request):
     """
@@ -116,6 +123,7 @@ def backup_upload_view(request):
 
 
 @login_required
+@superuser_required
 def backup_preview_view(request):
     """
     Get preview of uploaded backup for confirmation.
@@ -142,6 +150,7 @@ def backup_preview_view(request):
 
 
 @login_required
+@superuser_required
 @require_POST
 def backup_restore_view(request):
     """

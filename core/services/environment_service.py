@@ -36,6 +36,31 @@ class EnvironmentService:
     """
 
     @classmethod
+    def _safe_environment_path(cls, base: str, user_path: str) -> str:
+        """
+        Validate and return safe path within base directory.
+
+        Args:
+            base: The base directory (ENVIRONMENTS_ROOT)
+            user_path: User-supplied relative path
+
+        Returns:
+            The validated full path
+
+        Raises:
+            ValueError: If path traversal is detected
+        """
+        # Normalize and resolve the full path
+        full_path = os.path.normpath(os.path.join(base, user_path))
+        base_resolved = os.path.normpath(base)
+
+        # Ensure the path stays within the base directory
+        if not (full_path.startswith(base_resolved + os.sep) or full_path == base_resolved):
+            raise ValueError("Invalid path: path traversal detected")
+
+        return full_path
+
+    @classmethod
     def discover_python_versions(cls) -> list[dict]:
         """
         Discover available Python installations on the system.
@@ -170,8 +195,12 @@ class EnvironmentService:
 
         spec = package_spec.strip()
 
-        # Check for shell metacharacters
-        dangerous_chars = [";", "&", "|", "`", "$", "(", ")", "{", "}", "<", ">", "\n", "\r"]
+        # Block pip flags (e.g., --index-url, -e, etc.)
+        if spec.startswith("-"):
+            return False
+
+        # Check for shell metacharacters and null bytes
+        dangerous_chars = [";", "&", "|", "`", "$", "(", ")", "{", "}", "<", ">", "\n", "\r", "\0"]
         if any(char in spec for char in dangerous_chars):
             return False
 
@@ -199,7 +228,11 @@ class EnvironmentService:
         Returns:
             Tuple of (success: bool, message: str)
         """
-        full_path = os.path.join(settings.ENVIRONMENTS_ROOT, env_path)
+        # Validate path to prevent directory traversal attacks
+        try:
+            full_path = cls._safe_environment_path(settings.ENVIRONMENTS_ROOT, env_path)
+        except ValueError as e:
+            return False, str(e)
 
         # Check if path already exists
         if os.path.exists(full_path):

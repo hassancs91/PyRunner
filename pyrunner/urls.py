@@ -21,8 +21,21 @@ from django.shortcuts import redirect
 
 from core.views.webhooks import webhook_trigger_view
 
+
+def get_admin_url_slug():
+    """
+    Get admin URL slug from settings.
+    Called at startup - changes require app restart.
+    """
+    try:
+        from core.models import GlobalSettings
+        return GlobalSettings.get_settings().admin_url_slug or "django-admin"
+    except Exception:
+        return "django-admin"
+
+
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(f"{get_admin_url_slug()}/", admin.site.urls),
     path("setup/", include("core.urls.setup")),
     path("auth/", include("core.urls.auth")),
     path("cpanel/", include("core.urls.cpanel")),

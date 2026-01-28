@@ -5,8 +5,10 @@ This module handles sending notifications when script runs complete.
 Supports email via SMTP or Resend, and webhook POST notifications.
 """
 
+import ipaddress
 import logging
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import requests
 from django.core.mail import EmailMultiAlternatives
@@ -28,6 +30,44 @@ class NotificationService:
     """
 
     WEBHOOK_TIMEOUT = 10  # seconds
+
+    @classmethod
+    def _is_safe_webhook_url(cls, url: str) -> bool:
+        """
+        Validate webhook URL to prevent SSRF attacks.
+
+        Args:
+            url: The webhook URL to validate
+
+        Returns:
+            bool: True if URL is safe to use
+        """
+        try:
+            parsed = urlparse(url)
+
+            # Require http or https scheme
+            if parsed.scheme not in ("http", "https"):
+                return False
+
+            hostname = parsed.hostname
+            if not hostname:
+                return False
+
+            # Block localhost variations
+            if hostname.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+                return False
+
+            # Try to parse as IP and check if private/reserved
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                    return False
+            except ValueError:
+                pass  # It's a hostname, not an IP - allow it
+
+            return True
+        except Exception:
+            return False
 
     @classmethod
     def should_notify(cls, run: "Run") -> bool:
@@ -128,7 +168,10 @@ class NotificationService:
                 try:
                     password = EncryptionService.decrypt(settings.smtp_password_encrypted)
                 except EncryptionError as e:
-                    logger.error(f"Failed to decrypt SMTP password: {e}")
+                    logger.warning(
+                        f"Failed to decrypt SMTP password: {e}. "
+                        "Email notifications may fail due to missing credentials."
+                    )
 
             return SMTPBackend(
                 host=settings.smtp_host,
@@ -145,7 +188,10 @@ class NotificationService:
                 try:
                     api_key = EncryptionService.decrypt(settings.resend_api_key_encrypted)
                 except EncryptionError as e:
-                    logger.error(f"Failed to decrypt Resend API key: {e}")
+                    logger.warning(
+                        f"Failed to decrypt Resend API key: {e}. "
+                        "Email notifications may fail due to missing credentials."
+                    )
 
             return SMTPBackend(
                 host="smtp.resend.com",
@@ -202,6 +248,13 @@ class NotificationService:
     def _send_webhook_notification(cls, run: "Run") -> None:
         """Send webhook notification for a run."""
         url = run.script.notify_webhook_url
+
+        # Validate URL to prevent SSRF attacks
+        if not cls._is_safe_webhook_url(url):
+            raise ValueError(
+                f"Webhook URL rejected: must be http/https and not target localhost or private networks"
+            )
+
         payload = cls._build_webhook_payload(run)
 
         response = requests.post(

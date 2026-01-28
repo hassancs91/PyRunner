@@ -5,6 +5,7 @@ Webhook views for triggering scripts via HTTP.
 import json
 import logging
 
+from django.core.cache import cache
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -13,6 +14,10 @@ from core.models import Script, Run
 from core.tasks import queue_script_run
 
 logger = logging.getLogger(__name__)
+
+# Rate limit: 30 requests per minute per IP
+WEBHOOK_RATE_LIMIT = 30
+WEBHOOK_RATE_WINDOW = 60  # seconds
 
 
 @csrf_exempt
@@ -33,8 +38,23 @@ def webhook_trigger_view(request: HttpRequest, token: str) -> JsonResponse:
         - 200: Script queued successfully
         - 403: Script is disabled
         - 404: Invalid token
+        - 429: Rate limit exceeded
         - 500: Failed to queue
     """
+    # Rate limiting by IP
+    client_ip = request.META.get("REMOTE_ADDR", "unknown")
+    rate_key = f"webhook_rate_{client_ip}"
+    requests_count = cache.get(rate_key, 0)
+
+    if requests_count >= WEBHOOK_RATE_LIMIT:
+        logger.warning(f"Webhook rate limit exceeded for IP: {client_ip}")
+        return JsonResponse(
+            {"error": "Rate limit exceeded. Try again later."},
+            status=429,
+        )
+
+    cache.set(rate_key, requests_count + 1, WEBHOOK_RATE_WINDOW)
+
     # Find script by token
     try:
         script = Script.objects.select_related("environment").get(webhook_token=token)

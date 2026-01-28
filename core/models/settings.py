@@ -128,6 +128,13 @@ class GlobalSettings(models.Model):
         help_text="Time display format",
     )
 
+    # Security Settings
+    admin_url_slug = models.CharField(
+        max_length=100,
+        default="django-admin",
+        help_text="URL path for Django admin interface (requires restart)",
+    )
+
     # Log Retention Settings
     retention_days = models.PositiveIntegerField(
         default=0,

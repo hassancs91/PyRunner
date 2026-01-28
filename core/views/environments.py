@@ -18,6 +18,11 @@ from core.forms import (
 from core.services import EnvironmentService
 
 
+def _sanitize_filename(name: str) -> str:
+    """Remove characters that could cause header injection or invalid filenames."""
+    return "".join(c for c in name if c.isalnum() or c in "._- ").strip()
+
+
 @login_required
 def environment_list_view(request: HttpRequest) -> HttpResponse:
     """List all environments."""
@@ -344,10 +349,9 @@ def export_requirements_view(request: HttpRequest, pk) -> HttpResponse:
 
     requirements = EnvironmentService.pip_freeze(environment)
 
+    safe_name = _sanitize_filename(environment.name) or "environment"
     response = HttpResponse(requirements, content_type="text/plain")
-    response["Content-Disposition"] = (
-        f'attachment; filename="{environment.name}-requirements.txt"'
-    )
+    response["Content-Disposition"] = f'attachment; filename="{safe_name}-requirements.txt"'
     return response
 
 

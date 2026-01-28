@@ -896,6 +896,40 @@ class GeneralSettingsForm(forms.Form):
         label="Time Format",
     )
 
+    admin_url_slug = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "placeholder": "django-admin",
+            }
+        ),
+        label="Django Admin URL",
+        help_text="URL path for Django admin (e.g., 'django-admin' → /django-admin/). Requires app restart.",
+    )
+
+    def clean_admin_url_slug(self):
+        """Validate admin URL slug format."""
+        import re
+        slug = self.cleaned_data.get("admin_url_slug", "django-admin").strip().lower()
+        if not slug:
+            slug = "django-admin"
+        # Remove leading/trailing slashes
+        slug = slug.strip("/")
+        # Validate: alphanumeric, hyphens, underscores only
+        if not re.match(r"^[a-z0-9_-]+$", slug):
+            raise forms.ValidationError(
+                "Admin URL can only contain lowercase letters, numbers, hyphens, and underscores."
+            )
+        # Prevent conflicts with existing routes
+        reserved = ["setup", "auth", "cpanel", "webhook", "static", "media"]
+        if slug in reserved:
+            raise forms.ValidationError(
+                f"'{slug}' is a reserved URL path. Please choose a different name."
+            )
+        return slug
+
     def __init__(self, *args, instance=None, **kwargs):
         """Initialize form with existing settings."""
         super().__init__(*args, **kwargs)
@@ -904,6 +938,7 @@ class GeneralSettingsForm(forms.Form):
             self.fields["timezone"].initial = instance.timezone
             self.fields["date_format"].initial = instance.date_format
             self.fields["time_format"].initial = instance.time_format
+            self.fields["admin_url_slug"].initial = instance.admin_url_slug
 
     def save(self, instance):
         """Save the general settings to the GlobalSettings instance."""
@@ -911,8 +946,9 @@ class GeneralSettingsForm(forms.Form):
         instance.timezone = self.cleaned_data.get("timezone") or "UTC"
         instance.date_format = self.cleaned_data.get("date_format")
         instance.time_format = self.cleaned_data.get("time_format")
+        instance.admin_url_slug = self.cleaned_data.get("admin_url_slug") or "django-admin"
         instance.save(update_fields=[
-            "instance_name", "timezone", "date_format", "time_format", "updated_at"
+            "instance_name", "timezone", "date_format", "time_format", "admin_url_slug", "updated_at"
         ])
         return instance
 

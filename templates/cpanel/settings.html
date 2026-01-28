@@ -93,6 +93,19 @@
                                 {{ general_form.time_format }}
                             </div>
                         </div>
+
+                        <div class="pt-4 border-t border-code-border">
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ general_form.admin_url_slug.label }}</label>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-code-muted">/</span>
+                                {{ general_form.admin_url_slug }}
+                                <span class="text-code-muted">/</span>
+                            </div>
+                            <p class="mt-1 text-xs text-code-muted">{{ general_form.admin_url_slug.help_text }}</p>
+                            {% if general_form.admin_url_slug.errors %}
+                                <p class="mt-1 text-xs text-code-red">{{ general_form.admin_url_slug.errors.0 }}</p>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 

@@ -13,13 +13,14 @@ from core.services.setup_service import SetupService
 from core.forms import AdminSetupForm
 
 
+@csrf_protect
 @require_http_methods(["GET", "POST"])
 def setup_view(request: HttpRequest) -> HttpResponse:
     """
     Initial setup wizard view.
 
-    GET: Display setup status and run setup automatically
-    POST: Trigger setup if not already complete
+    GET: Display setup status (does not auto-execute)
+    POST: Trigger setup operations
     """
     # Check if setup is already complete
     if not SetupService.is_setup_needed():
@@ -31,8 +32,8 @@ def setup_view(request: HttpRequest) -> HttpResponse:
     # Get current status
     status = SetupService.get_status()
 
-    # On POST or if setup is needed, run the setup
-    if request.method == "POST" or status.get("migrations_pending") or not status.get("default_env_exists"):
+    # Only run setup on explicit POST request
+    if request.method == "POST":
         results = SetupService.run_full_setup()
 
         # Refresh status after setup
@@ -53,6 +54,7 @@ def setup_view(request: HttpRequest) -> HttpResponse:
             "setup_complete": results.get("completed", False),
         })
 
+    # GET request - just display status, don't auto-execute
     return render(request, "setup/setup.html", {
         "status": status,
         "results": None,

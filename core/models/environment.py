@@ -3,10 +3,45 @@ Environment model for isolated Python virtual environments.
 """
 
 import os
+import re
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+
+def validate_environment_path(value: str) -> None:
+    """
+    Validate environment path to prevent path traversal attacks.
+
+    Only allows simple directory names: alphanumeric, hyphens, underscores.
+    Blocks: .., absolute paths, drive letters, special characters.
+    """
+    if not value:
+        raise ValidationError("Path cannot be empty")
+
+    # Block path traversal sequences
+    if ".." in value:
+        raise ValidationError("Path cannot contain '..'")
+
+    # Block absolute paths (Unix and Windows)
+    if value.startswith("/") or value.startswith("\\"):
+        raise ValidationError("Path cannot be absolute")
+
+    # Block Windows drive letters (e.g., C:, D:)
+    if len(value) >= 2 and value[1] == ":":
+        raise ValidationError("Path cannot contain drive letters")
+
+    # Only allow safe characters: alphanumeric, hyphen, underscore
+    if not re.match(r"^[a-zA-Z0-9_-]+$", value):
+        raise ValidationError(
+            "Path can only contain letters, numbers, hyphens, and underscores"
+        )
+
+    # Length limit
+    if len(value) > 100:
+        raise ValidationError("Path cannot exceed 100 characters")
 
 
 class Environment(models.Model):
@@ -23,6 +58,7 @@ class Environment(models.Model):
     path = models.CharField(
         max_length=255,
         unique=True,
+        validators=[validate_environment_path],
         help_text="Directory name within the environments folder",
     )
 
@@ -74,6 +110,8 @@ class Environment(models.Model):
 
     def get_full_path(self) -> str:
         """Return the absolute path to this environment's directory."""
+        # Runtime validation as defense-in-depth
+        validate_environment_path(self.path)
         return os.path.join(settings.ENVIRONMENTS_ROOT, self.path)
 
     def get_python_executable(self) -> str:

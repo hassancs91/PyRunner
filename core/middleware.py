@@ -17,23 +17,39 @@ class SetupWizardMiddleware:
     Allows access to:
     - /setup/* (the setup wizard itself)
     - /static/* (static assets)
-    - /admin/* (emergency access)
+    - /<admin_url>/* (emergency access, configurable)
     """
 
-    ALLOWED_PATH_PREFIXES = [
+    # Static allowed paths (always allowed)
+    STATIC_ALLOWED_PREFIXES = [
         "/setup/",
         "/static/",
-        "/admin/",
     ]
 
     def __init__(self, get_response):
         self.get_response = get_response
+        self._admin_prefix = None
+
+    def _get_admin_prefix(self):
+        """Get the admin URL prefix (cached after first call)."""
+        if self._admin_prefix is None:
+            try:
+                from core.models import GlobalSettings
+                slug = GlobalSettings.get_settings().admin_url_slug or "django-admin"
+                self._admin_prefix = f"/{slug}/"
+            except Exception:
+                self._admin_prefix = "/django-admin/"
+        return self._admin_prefix
+
+    def _get_allowed_prefixes(self):
+        """Get all allowed path prefixes including dynamic admin URL."""
+        return self.STATIC_ALLOWED_PREFIXES + [self._get_admin_prefix()]
 
     def __call__(self, request):
         # Skip for allowed paths
         if any(
             request.path.startswith(prefix)
-            for prefix in self.ALLOWED_PATH_PREFIXES
+            for prefix in self._get_allowed_prefixes()
         ):
             return self.get_response(request)
 

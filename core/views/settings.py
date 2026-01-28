@@ -179,6 +179,13 @@ def worker_settings_view(request: HttpRequest) -> HttpResponse:
 @require_POST
 def restart_workers_view(request: HttpRequest) -> JsonResponse:
     """Trigger a worker restart via management command."""
+    # Only superusers can restart workers
+    if not request.user.is_superuser:
+        return JsonResponse({
+            "success": False,
+            "error": "Permission denied. Only administrators can restart workers.",
+        }, status=403)
+
     import subprocess
     import sys
     from django.conf import settings as django_settings

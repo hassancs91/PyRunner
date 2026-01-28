@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import shutil
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -50,6 +51,7 @@ INSTALLED_APPS = [
     "django_q",
     "tailwind",
     "theme",
+    "axes",
     # Local apps
     "core",
 ]
@@ -57,7 +59,7 @@ INSTALLED_APPS = [
 # Tailwind CSS
 TAILWIND_APP_NAME = "theme"
 INTERNAL_IPS = ["127.0.0.1"]
-NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
+NPM_BIN_PATH = os.environ.get("NPM_BIN_PATH", shutil.which("npm") or "npm")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -67,6 +69,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "axes.middleware.AxesMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.SetupWizardMiddleware",
@@ -129,6 +132,20 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+# Authentication backends (django-axes for brute force protection)
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# Django Axes Configuration (login rate limiting)
+AXES_FAILURE_LIMIT = int(os.environ.get("AXES_FAILURE_LIMIT", "5"))  # Lock after 5 failed attempts
+AXES_COOLOFF_TIME = 0.25  # 15 minutes lockout (in hours)
+AXES_RESET_ON_SUCCESS = True  # Reset failed attempts after successful login
+AXES_LOCKOUT_PARAMETERS = ["username"]  # Lock by username (email in our case)
+AXES_ENABLE_ACCESS_FAILURE_LOG = True  # Log failed attempts
+AXES_VERBOSE = False  # Don't log every access attempt
 
 
 # Internationalization
