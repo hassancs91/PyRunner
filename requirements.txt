@@ -1,5 +1,6 @@
 Django>=6.0,<6.1
 django-q2>=1.6.0
+croniter>=2.0.0
 django-tailwind>=4.4.0
 django-axes>=7.0.0
 gunicorn>=21.0.0
