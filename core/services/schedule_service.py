@@ -106,6 +106,7 @@ class ScheduleService:
                 schedule_type=QSchedule.CRON,
                 cron=cron_expr,
                 repeats=-1,
+                next_run=timezone.now(),
             )
             q_schedule_ids.append(q_schedule.id)
             logger.info(
@@ -139,8 +140,8 @@ class ScheduleService:
         now = timezone.now()
 
         if script_schedule.run_mode == ScriptSchedule.RunMode.INTERVAL:
-            # Interval schedules run immediately, then every X minutes
-            return now
+            # Next run is interval_minutes from now
+            return now + timedelta(minutes=script_schedule.interval_minutes)
 
         elif script_schedule.run_mode == ScriptSchedule.RunMode.DAILY:
             # Calculate next occurrence from daily_times

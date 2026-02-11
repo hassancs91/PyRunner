@@ -88,6 +88,13 @@ from core.views.logs import (
     logs_api_view,
     logs_clear_view,
 )
+from core.views.api_tokens import (
+    api_token_list_view,
+    api_token_create_view,
+    api_token_created_view,
+    api_token_revoke_view,
+    api_token_toggle_view,
+)
 from core.views.tasks import (
     tasks_view,
     tasks_api_view,
@@ -199,4 +206,11 @@ urlpatterns = [
     path("logs/", logs_view, name="logs"),
     path("api/logs/", logs_api_view, name="logs_api"),
     path("api/logs/clear/", logs_clear_view, name="logs_clear"),
+
+    # API Tokens
+    path("settings/api-tokens/", api_token_list_view, name="api_token_list"),
+    path("settings/api-tokens/create/", api_token_create_view, name="api_token_create"),
+    path("settings/api-tokens/<uuid:pk>/created/", api_token_created_view, name="api_token_created"),
+    path("settings/api-tokens/<uuid:pk>/revoke/", api_token_revoke_view, name="api_token_revoke"),
+    path("settings/api-tokens/<uuid:pk>/toggle/", api_token_toggle_view, name="api_token_toggle"),
 ]

@@ -7,7 +7,7 @@ from zoneinfo import available_timezones
 from django import forms
 from django.utils.text import slugify
 
-from core.models import Script, Environment, ScriptSchedule, Tag, DataStore, DataStoreEntry
+from core.models import Script, Environment, ScriptSchedule, Tag, DataStore, DataStoreEntry, DataStoreAPIToken
 from core.services import EnvironmentService
 
 
@@ -1347,6 +1347,56 @@ class DataStoreEntryForm(forms.Form):
             raise forms.ValidationError(f"Invalid JSON: {e}")
 
         return value
+
+
+# =============================================================================
+# API Token Forms
+# =============================================================================
+
+
+class DataStoreAPITokenForm(forms.ModelForm):
+    """Form for creating API tokens."""
+
+    class Meta:
+        model = DataStoreAPIToken
+        fields = ["name", "datastore", "expires_at"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "placeholder": "My Dashboard Token",
+                }
+            ),
+            "datastore": forms.Select(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                }
+            ),
+            "expires_at": forms.DateTimeInput(
+                attrs={
+                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "type": "datetime-local",
+                },
+                format="%Y-%m-%dT%H:%M",
+            ),
+        }
+        labels = {
+            "name": "Token Name",
+            "datastore": "Scope",
+            "expires_at": "Expires At",
+        }
+        help_texts = {
+            "name": "A friendly name to identify this token",
+            "datastore": "Leave empty for access to all datastores, or select a specific datastore",
+            "expires_at": "Optional. Leave empty for no expiration.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make datastore optional with a clear empty choice
+        self.fields["datastore"].required = False
+        self.fields["datastore"].empty_label = "All Datastores (Global Access)"
+        self.fields["expires_at"].required = False
 
 
 # =============================================================================

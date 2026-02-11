@@ -60,6 +60,12 @@
                         class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
                     Backup
                 </button>
+                <button type="button"
+                        onclick="showTab('api')"
+                        id="tab-api"
+                        class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-code-muted hover:text-code-text hover:bg-code-bg transition-colors">
+                    API
+                </button>
             </div>
         </div>
 
@@ -631,6 +637,35 @@
                 </form>
             </div>
         </div>
+
+        <!-- API Tab -->
+        <div id="panel-api" class="tab-panel hidden">
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mb-6">
+                <h3 class="text-lg font-semibold text-code-text mb-4">API Access</h3>
+                <p class="text-sm text-code-muted mb-4">
+                    PyRunner provides a REST API for accessing datastore data programmatically.
+                    Create API tokens to allow external applications to read your datastore entries.
+                </p>
+
+                <div class="p-4 bg-code-bg rounded-lg mb-6">
+                    <h4 class="text-sm font-medium text-code-text mb-2">API Endpoints</h4>
+                    <div class="space-y-2 text-sm font-mono text-code-muted">
+                        <p>GET /api/v1/datastores/</p>
+                        <p>GET /api/v1/datastores/{name}/</p>
+                        <p>GET /api/v1/datastores/{name}/entries/</p>
+                        <p>GET /api/v1/datastores/{name}/entries/{key}/</p>
+                    </div>
+                </div>
+
+                <a href="{% url 'cpanel:api_token_list' %}"
+                   class="inline-flex items-center px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                    </svg>
+                    Manage API Tokens
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1071,6 +1106,8 @@ if (hash === '#security') {
     showTab('system');
 } else if (hash === '#backup') {
     showTab('backup');
+} else if (hash === '#api') {
+    showTab('api');
 } else {
     showTab('general');
 }

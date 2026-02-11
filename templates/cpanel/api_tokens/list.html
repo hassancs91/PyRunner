@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}API Tokens - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-8">
+            <div>
+                <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                    <a href="{% url 'cpanel:settings' %}" class="hover:text-code-accent">Settings</a>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    <span class="text-code-text">API Tokens</span>
+                </nav>
+                <h1 class="text-2xl font-bold text-code-text">API Tokens</h1>
+                <p class="text-code-muted">Manage API tokens for external access to datastores</p>
+            </div>
+            <a href="{% url 'cpanel:api_token_create' %}"
+               class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Token
+            </a>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-code-red/10 border border-code-red/30 text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border border-code-green/30 text-code-green{% else %}bg-code-accent/10 border border-code-accent/30 text-code-accent{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Tokens Table -->
+        {% if tokens %}
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-code-bg border-b border-code-border">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Token</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Scope</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Last Used</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold text-code-muted uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-code-border">
+                    {% for token in tokens %}
+                    <tr class="hover:bg-code-bg/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <span class="font-medium text-code-text">{{ token.name }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="font-mono text-code-muted text-sm">{{ token.get_masked_token }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm">
+                            {% if token.datastore %}
+                            <span class="px-2 py-1 bg-code-accent/10 text-code-accent rounded">{{ token.datastore.name }}</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-code-purple/10 text-code-purple rounded">All Datastores</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if token.is_active %}
+                            <span class="px-2 py-1 bg-code-green/10 text-code-green rounded text-sm">Active</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-code-muted/10 text-code-muted rounded text-sm">Inactive</span>
+                            {% endif %}
+                            {% if token.expires_at %}
+                            <span class="block text-xs text-code-muted mt-1">
+                                Expires: {{ token.expires_at|date:"M d, Y" }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-code-muted text-sm">
+                            {% if token.last_used_at %}
+                            {{ token.last_used_at|timesince }} ago
+                            {% else %}
+                            Never
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end space-x-2">
+                                <form method="post" action="{% url 'cpanel:api_token_toggle' pk=token.pk %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="px-3 py-1.5 text-sm bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                        {% if token.is_active %}Disable{% else %}Enable{% endif %}
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'cpanel:api_token_revoke' pk=token.pk %}"
+                                      onsubmit="return confirm('Are you sure you want to revoke the token &quot;{{ token.name }}&quot;? This action cannot be undone.');"
+                                      class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="px-3 py-1.5 text-sm bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded transition-colors">
+                                        Revoke
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Usage Info -->
+        <div class="mt-6 p-4 bg-code-bg border border-code-border rounded-lg">
+            <h3 class="text-sm font-medium text-code-text mb-2">Using the API</h3>
+            <p class="text-sm text-code-muted mb-2">
+                Use your API token to access datastore data from external applications:
+            </p>
+            <code class="block p-3 bg-code-surface rounded text-sm font-mono text-code-text overflow-x-auto">
+                curl -H "Authorization: Bearer YOUR_TOKEN" {{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/
+            </code>
+        </div>
+        {% else %}
+        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
+            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-code-text mb-2">No API tokens yet</h3>
+            <p class="text-code-muted mb-6">Create an API token to access your datastores programmatically.</p>
+            <a href="{% url 'cpanel:api_token_create' %}"
+               class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Token
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

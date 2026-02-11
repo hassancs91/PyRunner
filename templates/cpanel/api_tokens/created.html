@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Token Created - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:settings' %}" class="hover:text-code-accent">Settings</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:api_token_list' %}" class="hover:text-code-accent">API Tokens</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Token Created</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">API Token Created</h1>
+            <p class="text-code-muted">Copy your new token now - it won't be shown again</p>
+        </div>
+
+        <!-- Success Card -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+            <!-- Success Icon -->
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-10 h-10 bg-code-green/20 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="font-semibold text-code-text">Token "{{ token_obj.name }}" created successfully</h2>
+                    <p class="text-sm text-code-muted">
+                        {% if token_obj.datastore %}
+                        Access: {{ token_obj.datastore.name }} datastore
+                        {% else %}
+                        Access: All datastores
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Token Display -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-code-text mb-2">Your API Token</label>
+                <div class="relative">
+                    <input type="text"
+                           id="token-value"
+                           value="{{ token_value }}"
+                           readonly
+                           class="w-full px-4 py-3 pr-24 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-sm focus:outline-none">
+                    <button type="button"
+                            onclick="copyToken()"
+                            id="copy-btn"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-code-accent hover:bg-code-accent/90 text-white text-sm font-medium rounded transition-colors">
+                        Copy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Warning -->
+            <div class="mb-6 p-4 bg-code-yellow/10 border border-code-yellow/30 rounded-lg">
+                <div class="flex items-start space-x-3">
+                    <svg class="w-5 h-5 text-code-yellow mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div class="text-sm">
+                        <p class="font-medium text-code-yellow">Copy this token now!</p>
+                        <p class="text-code-yellow/80 mt-1">
+                            This is the only time you'll see this token. Store it securely -
+                            if you lose it, you'll need to create a new one.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Example -->
+            <div class="mb-6 p-4 bg-code-bg border border-code-border rounded-lg">
+                <h3 class="text-sm font-medium text-code-text mb-3">Quick Start</h3>
+                <p class="text-sm text-code-muted mb-3">Use your token to access the API:</p>
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-xs text-code-muted mb-1">List datastores:</p>
+                        <code class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto">
+                            curl -H "Authorization: Bearer {{ token_value }}" {{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/
+                        </code>
+                    </div>
+                    <div>
+                        <p class="text-xs text-code-muted mb-1">Get entries from a datastore:</p>
+                        <code class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto">
+                            curl -H "Authorization: Bearer {{ token_value }}" {{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/YOUR_STORE/entries/
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end pt-6 border-t border-code-border">
+                <a href="{% url 'cpanel:api_token_list' %}"
+                   class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                    Done
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToken() {
+    const tokenInput = document.getElementById('token-value');
+    const copyBtn = document.getElementById('copy-btn');
+
+    navigator.clipboard.writeText(tokenInput.value).then(() => {
+        copyBtn.textContent = 'Copied!';
+        copyBtn.classList.remove('bg-code-accent', 'hover:bg-code-accent/90');
+        copyBtn.classList.add('bg-code-green', 'hover:bg-code-green/90');
+
+        setTimeout(() => {
+            copyBtn.textContent = 'Copy';
+            copyBtn.classList.remove('bg-code-green', 'hover:bg-code-green/90');
+            copyBtn.classList.add('bg-code-accent', 'hover:bg-code-accent/90');
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

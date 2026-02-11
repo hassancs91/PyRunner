@@ -374,3 +374,15 @@ X_FRAME_OPTIONS = "DENY"
 # pip install django-csp
 # Add 'csp.middleware.CSPMiddleware' to MIDDLEWARE
 # Then configure CSP_* settings as needed
+
+
+# =============================================================================
+# API Settings
+# =============================================================================
+
+# Rate limiting for API requests (requests per minute per token)
+API_RATE_LIMIT = int(os.environ.get("API_RATE_LIMIT", "60"))
+
+# CORS settings for API endpoints
+# Set to "*" to allow all origins (suitable for self-hosted), or comma-separated origins
+API_CORS_ORIGINS = os.environ.get("API_CORS_ORIGINS", "*")

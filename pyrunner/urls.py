@@ -39,6 +39,8 @@ urlpatterns = [
     path("setup/", include("core.urls.setup")),
     path("auth/", include("core.urls.auth")),
     path("cpanel/", include("core.urls.cpanel")),
+    # REST API endpoints (token auth required)
+    path("api/v1/", include("core.urls.api")),
     # Public webhook endpoint (no auth required)
     path("webhook/<str:token>/", webhook_trigger_view, name="webhook_trigger"),
     path("", lambda request: redirect("auth:login")),

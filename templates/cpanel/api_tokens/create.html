@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Create API Token - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
+                <a href="{% url 'cpanel:settings' %}" class="hover:text-code-accent">Settings</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <a href="{% url 'cpanel:api_token_list' %}" class="hover:text-code-accent">API Tokens</a>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span class="text-code-text">Create Token</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-code-text">Create API Token</h1>
+            <p class="text-code-muted">Generate a new token for API access to datastores</p>
+        </div>
+
+        <!-- Form -->
+        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
+            <form method="post" autocomplete="off">
+                {% csrf_token %}
+
+                <!-- Token Name -->
+                <div class="mb-6">
+                    <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.name.label }}
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.name.help_text }}</p>
+                    {% endif %}
+                    {% if form.name.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Datastore Scope -->
+                <div class="mb-6">
+                    <label for="id_datastore" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.datastore.label }}
+                    </label>
+                    {{ form.datastore }}
+                    {% if form.datastore.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.datastore.help_text }}</p>
+                    {% endif %}
+                    {% if form.datastore.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.datastore.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Expiration -->
+                <div class="mb-6">
+                    <label for="id_expires_at" class="block text-sm font-medium text-code-text mb-2">
+                        {{ form.expires_at.label }}
+                    </label>
+                    {{ form.expires_at }}
+                    {% if form.expires_at.help_text %}
+                    <p class="mt-1 text-sm text-code-muted">{{ form.expires_at.help_text }}</p>
+                    {% endif %}
+                    {% if form.expires_at.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ form.expires_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Security Notice -->
+                <div class="mb-6 p-4 bg-code-bg border border-code-border rounded-lg">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-5 h-5 text-code-accent mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <div class="text-sm text-code-muted">
+                            <p class="font-medium text-code-text">Important</p>
+                            <ul class="mt-1 space-y-1 list-disc list-inside">
+                                <li>The token will only be shown once after creation</li>
+                                <li>Store it securely - you won't be able to see it again</li>
+                                <li>Tokens provide read-only access to datastore data</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-code-border">
+                    <a href="{% url 'cpanel:api_token_list' %}"
+                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                        Create Token
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
