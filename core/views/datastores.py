@@ -10,18 +10,28 @@ from django.views.decorators.http import require_POST
 
 from core.forms import DataStoreForm, DataStoreEntryForm
 from core.models import DataStore, DataStoreEntry
+from core.services import DatastoreService
 
 
 @login_required
 def datastore_list_view(request: HttpRequest) -> HttpResponse:
     """List all data stores."""
-    datastores = DataStore.objects.all().order_by("name")
+    datastores = DatastoreService.get_datastores_with_stats()
+
+    # Format size for each datastore
+    for ds in datastores:
+        ds.size_display = DatastoreService.format_size(ds.size_bytes)
+
+    total_size = DatastoreService.get_total_size()
+    total_size_display = DatastoreService.format_size(total_size)
 
     return render(
         request,
         "cpanel/datastores/list.html",
         {
             "datastores": datastores,
+            "total_size_display": total_size_display,
+            "datastore_count": len(datastores),
         },
     )
 
