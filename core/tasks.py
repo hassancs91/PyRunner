@@ -311,3 +311,103 @@ def worker_heartbeat_task() -> dict:
     except Exception as e:
         logger.exception("Worker heartbeat failed")
         return {"success": False, "error": str(e)}
+
+
+def scheduled_backup_task() -> dict:
+    """
+    Execute a scheduled backup to S3.
+    Called by django-q2 scheduler.
+
+    Creates a backup, uploads to S3, and applies retention policy.
+
+    Returns:
+        dict: Backup result summary
+    """
+    from core.services.backup_service import BackupService
+    from core.services.s3_service import S3Service
+    from core.services.backup_schedule_service import BackupScheduleService
+
+    settings = GlobalSettings.get_settings()
+
+    # Validate S3 is configured
+    if not settings.s3_enabled:
+        logger.warning("Scheduled backup skipped - S3 not enabled")
+        return {"success": False, "error": "S3 not enabled"}
+
+    if not S3Service.is_configured():
+        logger.warning("Scheduled backup skipped - S3 not configured")
+        return {"success": False, "error": "S3 not configured"}
+
+    try:
+        # Create backup
+        backup_data = BackupService.create_backup(
+            include_runs=settings.s3_backup_include_runs,
+            max_runs=settings.s3_backup_max_runs,
+            include_package_operations=False,
+            include_datastores=settings.s3_backup_include_datastores,
+            created_by_user=None,  # System backup
+        )
+
+        # Serialize to gzip
+        file_bytes, _ = BackupService.serialize_backup(
+            backup_data,
+            format=BackupService.FORMAT_GZIP,
+        )
+
+        # Generate S3 key
+        key = S3Service.generate_backup_key()
+
+        # Upload to S3
+        result = S3Service.upload_file(file_bytes, key)
+
+        if result["success"]:
+            # Update tracking
+            settings.s3_backup_last_run_at = timezone.now()
+            settings.s3_backup_last_status = "success"
+            settings.s3_backup_last_error = ""
+            settings.s3_backup_last_size = result["size"]
+            settings.save(update_fields=[
+                "s3_backup_last_run_at",
+                "s3_backup_last_status",
+                "s3_backup_last_error",
+                "s3_backup_last_size",
+            ])
+
+            # Apply retention cleanup
+            deleted = BackupScheduleService.apply_retention()
+
+            logger.info(f"Scheduled backup completed: {key} ({result['size']} bytes)")
+
+            return {
+                "success": True,
+                "key": key,
+                "size": result["size"],
+                "retention_deleted": deleted,
+            }
+        else:
+            # Update tracking with error
+            settings.s3_backup_last_run_at = timezone.now()
+            settings.s3_backup_last_status = "failed"
+            settings.s3_backup_last_error = result.get("error", "Unknown error")
+            settings.save(update_fields=[
+                "s3_backup_last_run_at",
+                "s3_backup_last_status",
+                "s3_backup_last_error",
+            ])
+
+            logger.error(f"Scheduled backup failed: {result.get('error')}")
+            return {"success": False, "error": result.get("error")}
+
+    except Exception as e:
+        # Update tracking with error
+        settings.s3_backup_last_run_at = timezone.now()
+        settings.s3_backup_last_status = "failed"
+        settings.s3_backup_last_error = str(e)
+        settings.save(update_fields=[
+            "s3_backup_last_run_at",
+            "s3_backup_last_status",
+            "s3_backup_last_error",
+        ])
+
+        logger.exception("Scheduled backup task failed")
+        return {"success": False, "error": str(e)}

@@ -163,3 +163,158 @@ class S3Service:
             "path_style": settings.s3_path_style,
             "last_tested": settings.s3_last_tested_at,
         }
+
+    @classmethod
+    def upload_file(cls, file_bytes: bytes, key: str) -> dict:
+        """
+        Upload a file to S3.
+
+        Args:
+            file_bytes: File content as bytes
+            key: S3 object key (path)
+
+        Returns:
+            dict: Upload result with 'success', 'key', 'size', optional 'error'
+        """
+        settings = GlobalSettings.get_settings()
+
+        try:
+            client = cls.get_client()
+            client.put_object(
+                Bucket=settings.s3_bucket_name,
+                Key=key,
+                Body=file_bytes,
+                ContentType="application/gzip",
+            )
+
+            return {
+                "success": True,
+                "key": key,
+                "size": len(file_bytes),
+            }
+        except S3ServiceError as e:
+            logger.error(f"S3 upload failed for key {key}: {e}")
+            return {
+                "success": False,
+                "key": key,
+                "error": str(e),
+            }
+        except Exception as e:
+            logger.exception(f"S3 upload failed for key {key}")
+            return {
+                "success": False,
+                "key": key,
+                "error": str(e),
+            }
+
+    @classmethod
+    def list_files(cls, prefix: str = "") -> list[dict]:
+        """
+        List files in S3 bucket with optional prefix.
+
+        Args:
+            prefix: Key prefix to filter results
+
+        Returns:
+            list: List of dicts with 'key', 'size', 'last_modified'
+        """
+        settings = GlobalSettings.get_settings()
+
+        try:
+            client = cls.get_client()
+            response = client.list_objects_v2(
+                Bucket=settings.s3_bucket_name,
+                Prefix=prefix,
+            )
+
+            files = []
+            for obj in response.get("Contents", []):
+                files.append({
+                    "key": obj["Key"],
+                    "size": obj["Size"],
+                    "last_modified": obj["LastModified"],
+                })
+
+            return files
+        except S3ServiceError as e:
+            logger.error(f"S3 list failed for prefix {prefix}: {e}")
+            return []
+        except Exception as e:
+            logger.exception(f"S3 list failed for prefix {prefix}")
+            return []
+
+    @classmethod
+    def delete_file(cls, key: str) -> bool:
+        """
+        Delete a file from S3.
+
+        Args:
+            key: S3 object key to delete
+
+        Returns:
+            bool: True if deleted successfully
+        """
+        settings = GlobalSettings.get_settings()
+
+        try:
+            client = cls.get_client()
+            client.delete_object(
+                Bucket=settings.s3_bucket_name,
+                Key=key,
+            )
+            return True
+        except Exception as e:
+            logger.exception(f"S3 delete failed for key {key}")
+            return False
+
+    @classmethod
+    def delete_files(cls, keys: list[str]) -> int:
+        """
+        Delete multiple files from S3.
+
+        Args:
+            keys: List of S3 object keys to delete
+
+        Returns:
+            int: Number of files deleted
+        """
+        settings = GlobalSettings.get_settings()
+
+        if not keys:
+            return 0
+
+        try:
+            client = cls.get_client()
+            response = client.delete_objects(
+                Bucket=settings.s3_bucket_name,
+                Delete={
+                    "Objects": [{"Key": key} for key in keys],
+                },
+            )
+            return len(response.get("Deleted", []))
+        except Exception as e:
+            logger.exception("S3 bulk delete failed")
+            return 0
+
+    @classmethod
+    def generate_backup_key(cls, timestamp=None) -> str:
+        """
+        Generate a unique S3 key for a backup file.
+
+        Args:
+            timestamp: Optional datetime, defaults to now
+
+        Returns:
+            str: S3 key like "pyrunner-backups/backup_20240315_143022.json.gz"
+        """
+        from django.utils import timezone
+
+        settings = GlobalSettings.get_settings()
+
+        if timestamp is None:
+            timestamp = timezone.now()
+
+        prefix = settings.s3_backup_prefix.rstrip("/")
+        filename = f"backup_{timestamp.strftime('%Y%m%d_%H%M%S')}.json.gz"
+
+        return f"{prefix}/{filename}" if prefix else filename

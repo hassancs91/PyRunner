@@ -244,6 +244,77 @@ class GlobalSettings(models.Model):
         help_text="When S3 connection was last successfully tested",
     )
 
+    # S3 Scheduled Backup Configuration
+    class S3BackupSchedule(models.TextChoices):
+        DISABLED = "disabled", "Disabled"
+        DAILY = "daily", "Daily"
+        WEEKLY = "weekly", "Weekly"
+
+    s3_backup_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable scheduled backups to S3",
+    )
+    s3_backup_schedule = models.CharField(
+        max_length=20,
+        choices=S3BackupSchedule.choices,
+        default=S3BackupSchedule.DISABLED,
+        help_text="Backup schedule frequency",
+    )
+    s3_backup_time = models.TimeField(
+        default="02:00",
+        help_text="Time of day to run backup (in instance timezone)",
+    )
+    s3_backup_day = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Day of week for weekly backups (0=Monday, 6=Sunday)",
+    )
+    s3_backup_prefix = models.CharField(
+        max_length=255,
+        blank=True,
+        default="pyrunner-backups/",
+        help_text="S3 key prefix for backup files",
+    )
+    s3_backup_retention_count = models.PositiveIntegerField(
+        default=7,
+        help_text="Number of backups to keep in S3 (0 = keep all)",
+    )
+
+    # Backup content options
+    s3_backup_include_runs = models.BooleanField(
+        default=False,
+        help_text="Include run history in scheduled backups",
+    )
+    s3_backup_max_runs = models.PositiveIntegerField(
+        default=1000,
+        help_text="Maximum runs to include in backup",
+    )
+    s3_backup_include_datastores = models.BooleanField(
+        default=True,
+        help_text="Include datastores in scheduled backups",
+    )
+
+    # Backup tracking fields
+    s3_backup_last_run_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the last scheduled backup ran",
+    )
+    s3_backup_last_status = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Status of last backup (success/failed)",
+    )
+    s3_backup_last_error = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message from last failed backup",
+    )
+    s3_backup_last_size = models.PositiveIntegerField(
+        default=0,
+        help_text="Size of last backup in bytes",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"

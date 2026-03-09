@@ -659,6 +659,159 @@
                     <div id="upload-status" class="hidden mb-4"></div>
                 </form>
             </div>
+
+            <!-- Scheduled S3 Backups Section -->
+            <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl mt-6">
+                <h3 class="text-lg font-semibold text-code-text mb-4">☁️ Scheduled S3 Backups</h3>
+                <p class="text-sm text-code-muted mb-4">
+                    Automatically backup your PyRunner instance to S3-compatible storage on a schedule.
+                </p>
+
+                {% if not backup_schedule_status.s3_enabled or not backup_schedule_status.s3_configured %}
+                <div class="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+                    <p class="text-sm text-yellow-300">
+                        ⚠ <strong>S3 Not Configured:</strong> You must first configure and enable S3 storage in the
+                        <a href="{% url 'cpanel:services' %}" class="underline hover:text-yellow-200">Services</a> page.
+                    </p>
+                </div>
+                {% endif %}
+
+                <form method="post" action="{% url 'cpanel:backup_schedule_settings' %}" id="backup-schedule-form">
+                    {% csrf_token %}
+                    <div class="space-y-4 mb-6">
+                        <!-- Enable Scheduled Backups -->
+                        <div class="flex items-center">
+                            {{ backup_schedule_form.s3_backup_enabled }}
+                            <label for="id_s3_backup_enabled" class="ml-3 text-sm text-code-text">
+                                {{ backup_schedule_form.s3_backup_enabled.label }}
+                            </label>
+                        </div>
+
+                        <!-- Schedule Frequency -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_schedule_form.s3_backup_schedule.label }}
+                            </label>
+                            {{ backup_schedule_form.s3_backup_schedule }}
+                        </div>
+
+                        <!-- Backup Time -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_schedule_form.s3_backup_time.label }}
+                            </label>
+                            {{ backup_schedule_form.s3_backup_time }}
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_schedule_form.s3_backup_time.help_text }}</p>
+                        </div>
+
+                        <!-- Day of Week (for weekly) -->
+                        <div id="weekly-day-container">
+                            <label class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_schedule_form.s3_backup_day.label }}
+                            </label>
+                            {{ backup_schedule_form.s3_backup_day }}
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_schedule_form.s3_backup_day.help_text }}</p>
+                        </div>
+
+                        <!-- S3 Path Prefix -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_schedule_form.s3_backup_prefix.label }}
+                            </label>
+                            {{ backup_schedule_form.s3_backup_prefix }}
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_schedule_form.s3_backup_prefix.help_text }}</p>
+                        </div>
+
+                        <!-- Retention Count -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_schedule_form.s3_backup_retention_count.label }}
+                            </label>
+                            {{ backup_schedule_form.s3_backup_retention_count }}
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_schedule_form.s3_backup_retention_count.help_text }}</p>
+                        </div>
+
+                        <!-- Backup Content Options -->
+                        <div class="pt-2 border-t border-code-border">
+                            <p class="text-sm font-medium text-code-text mb-3">Backup Contents</p>
+
+                            <div class="flex items-center mb-2">
+                                {{ backup_schedule_form.s3_backup_include_datastores }}
+                                <label for="id_s3_backup_include_datastores" class="ml-3 text-sm text-code-text">
+                                    {{ backup_schedule_form.s3_backup_include_datastores.label }}
+                                </label>
+                            </div>
+
+                            <div class="flex items-center mb-2">
+                                {{ backup_schedule_form.s3_backup_include_runs }}
+                                <label for="id_s3_backup_include_runs" class="ml-3 text-sm text-code-text">
+                                    {{ backup_schedule_form.s3_backup_include_runs.label }}
+                                </label>
+                            </div>
+
+                            <div class="ml-8">
+                                <label class="block text-sm font-medium text-code-text mb-2">
+                                    {{ backup_schedule_form.s3_backup_max_runs.label }}
+                                </label>
+                                {{ backup_schedule_form.s3_backup_max_runs }}
+                                <p class="mt-1 text-xs text-code-muted">{{ backup_schedule_form.s3_backup_max_runs.help_text }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button type="submit" class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors"
+                                {% if not backup_schedule_status.s3_configured %}disabled{% endif %}>
+                            Save Schedule
+                        </button>
+                        <button type="button" onclick="runBackupNow()"
+                                class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                                {% if not backup_schedule_status.s3_configured %}disabled{% endif %}>
+                            Run Backup Now
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Backup Status Display -->
+                {% if backup_schedule_status.last_run %}
+                <div class="mt-6 pt-4 border-t border-code-border">
+                    <h4 class="text-sm font-medium text-code-text mb-3">Last Backup Status</h4>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-code-muted">Last Run:</span>
+                            <span class="text-code-text ml-2">{{ backup_schedule_status.last_run|date:"Y-m-d H:i" }}</span>
+                        </div>
+                        <div>
+                            <span class="text-code-muted">Status:</span>
+                            {% if backup_schedule_status.last_status == "success" %}
+                            <span class="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">Success</span>
+                            {% elif backup_schedule_status.last_status == "failed" %}
+                            <span class="ml-2 px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">Failed</span>
+                            {% else %}
+                            <span class="ml-2 text-code-muted">-</span>
+                            {% endif %}
+                        </div>
+                        {% if backup_schedule_status.last_size %}
+                        <div>
+                            <span class="text-code-muted">Size:</span>
+                            <span class="text-code-text ml-2">{{ backup_schedule_status.last_size|filesizeformat }}</span>
+                        </div>
+                        {% endif %}
+                        {% if backup_schedule_status.next_run %}
+                        <div>
+                            <span class="text-code-muted">Next Run:</span>
+                            <span class="text-code-text ml-2">{{ backup_schedule_status.next_run|date:"Y-m-d H:i" }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if backup_schedule_status.last_status == "failed" and backup_schedule_status.last_error %}
+                    <div class="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <p class="text-sm text-red-300">{{ backup_schedule_status.last_error }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
         </div>
 
         <!-- API Tab -->
@@ -1114,6 +1267,51 @@ document.getElementById('restore-preview-modal').addEventListener('click', funct
         closeRestoreModal();
     }
 });
+
+// Scheduled Backup Functions
+function toggleWeeklyDayVisibility() {
+    const scheduleSelect = document.getElementById('id_s3_backup_schedule');
+    const weeklyDayContainer = document.getElementById('weekly-day-container');
+    if (scheduleSelect && weeklyDayContainer) {
+        weeklyDayContainer.style.display = scheduleSelect.value === 'weekly' ? 'block' : 'none';
+    }
+}
+
+// Initialize weekly day visibility
+document.addEventListener('DOMContentLoaded', function() {
+    toggleWeeklyDayVisibility();
+    const scheduleSelect = document.getElementById('id_s3_backup_schedule');
+    if (scheduleSelect) {
+        scheduleSelect.addEventListener('change', toggleWeeklyDayVisibility);
+    }
+});
+
+function runBackupNow() {
+    if (!confirm('Run a backup to S3 now?')) {
+        return;
+    }
+
+    fetch('{% url "cpanel:backup_run_now" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Backup task queued successfully! Check back shortly for the result.');
+            // Reload to show updated status
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
 
 // Check URL hash for tab navigation
 const hash = window.location.hash;

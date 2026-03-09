@@ -75,6 +75,9 @@ from core.views.backup import (
     backup_upload_view,
     backup_preview_view,
     backup_restore_view,
+    backup_schedule_settings_view,
+    backup_schedule_status_view,
+    backup_run_now_view,
 )
 from core.views.users import (
     user_list_view,
@@ -199,6 +202,9 @@ urlpatterns = [
     path("settings/backup/upload/", backup_upload_view, name="backup_upload"),
     path("settings/backup/preview/", backup_preview_view, name="backup_preview"),
     path("settings/backup/restore/", backup_restore_view, name="backup_restore"),
+    path("settings/backup/schedule/", backup_schedule_settings_view, name="backup_schedule_settings"),
+    path("settings/backup/schedule/status/", backup_schedule_status_view, name="backup_schedule_status"),
+    path("settings/backup/run-now/", backup_run_now_view, name="backup_run_now"),
 
     # User Management
     path("users/", user_list_view, name="user_list"),

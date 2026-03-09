@@ -22,6 +22,7 @@ from core.forms import (
     WorkerSettingsForm,
     BackupCreateForm,
     BackupRestoreForm,
+    S3BackupScheduleForm,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,8 @@ logger = logging.getLogger(__name__)
 @login_required
 def settings_view(request: HttpRequest) -> HttpResponse:
     """Display global settings."""
+    from core.services.backup_schedule_service import BackupScheduleService
+
     settings = GlobalSettings.get_settings()
     notification_form = NotificationSettingsForm(instance=settings)
     general_form = GeneralSettingsForm(instance=settings)
@@ -37,6 +40,9 @@ def settings_view(request: HttpRequest) -> HttpResponse:
     worker_form = WorkerSettingsForm(instance=settings)
     backup_create_form = BackupCreateForm()
     backup_restore_form = BackupRestoreForm()
+    backup_schedule_form = S3BackupScheduleForm(instance=settings)
+    backup_schedule_status = BackupScheduleService.get_schedule_status()
+
     return render(
         request,
         "cpanel/settings.html",
@@ -48,6 +54,8 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             "worker_form": worker_form,
             "backup_create_form": backup_create_form,
             "backup_restore_form": backup_restore_form,
+            "backup_schedule_form": backup_schedule_form,
+            "backup_schedule_status": backup_schedule_status,
         },
     )
 

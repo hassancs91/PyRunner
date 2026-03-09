@@ -1812,3 +1812,162 @@ class S3SettingsForm(forms.Form):
 
         instance.save()
         return instance
+
+
+class S3BackupScheduleForm(forms.Form):
+    """Form for S3 scheduled backup configuration."""
+
+    from core.models import GlobalSettings
+
+    WEEKDAY_CHOICES = [
+        (0, "Monday"),
+        (1, "Tuesday"),
+        (2, "Wednesday"),
+        (3, "Thursday"),
+        (4, "Friday"),
+        (5, "Saturday"),
+        (6, "Sunday"),
+    ]
+
+    s3_backup_enabled = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Enable Scheduled Backups",
+    )
+
+    s3_backup_schedule = forms.ChoiceField(
+        choices=GlobalSettings.S3BackupSchedule.choices,
+        initial=GlobalSettings.S3BackupSchedule.DISABLED,
+        widget=forms.Select(
+            attrs={
+                "class": INPUT_CLASS,
+            }
+        ),
+        label="Schedule Frequency",
+    )
+
+    s3_backup_time = forms.TimeField(
+        initial="02:00",
+        widget=forms.TimeInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "type": "time",
+            }
+        ),
+        label="Backup Time",
+        help_text="Time to run backups (in instance timezone)",
+    )
+
+    s3_backup_day = forms.ChoiceField(
+        choices=WEEKDAY_CHOICES,
+        initial=0,
+        widget=forms.Select(
+            attrs={
+                "class": INPUT_CLASS,
+            }
+        ),
+        label="Day of Week",
+        help_text="For weekly backups",
+    )
+
+    s3_backup_prefix = forms.CharField(
+        required=False,
+        max_length=255,
+        initial="pyrunner-backups/",
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "pyrunner-backups/",
+            }
+        ),
+        label="S3 Path Prefix",
+        help_text="Path prefix for backup files in the bucket",
+    )
+
+    s3_backup_retention_count = forms.IntegerField(
+        min_value=0,
+        initial=7,
+        widget=forms.NumberInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "min": "0",
+            }
+        ),
+        label="Retention Count",
+        help_text="Keep the last N backups (0 = keep all)",
+    )
+
+    s3_backup_include_runs = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Include Run History",
+    )
+
+    s3_backup_max_runs = forms.IntegerField(
+        min_value=0,
+        initial=1000,
+        widget=forms.NumberInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "min": "0",
+            }
+        ),
+        label="Max Runs",
+        help_text="Maximum runs to include (0 = all)",
+    )
+
+    s3_backup_include_datastores = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Include DataStores",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["s3_backup_enabled"].initial = instance.s3_backup_enabled
+            self.fields["s3_backup_schedule"].initial = instance.s3_backup_schedule
+            self.fields["s3_backup_time"].initial = instance.s3_backup_time
+            self.fields["s3_backup_day"].initial = instance.s3_backup_day
+            self.fields["s3_backup_prefix"].initial = instance.s3_backup_prefix or "pyrunner-backups/"
+            self.fields["s3_backup_retention_count"].initial = instance.s3_backup_retention_count
+            self.fields["s3_backup_include_runs"].initial = instance.s3_backup_include_runs
+            self.fields["s3_backup_max_runs"].initial = instance.s3_backup_max_runs
+            self.fields["s3_backup_include_datastores"].initial = instance.s3_backup_include_datastores
+
+    def save(self, instance):
+        """Save the backup schedule settings."""
+        from core.services.backup_schedule_service import BackupScheduleService
+
+        instance.s3_backup_enabled = self.cleaned_data.get("s3_backup_enabled", False)
+        instance.s3_backup_schedule = self.cleaned_data.get("s3_backup_schedule")
+        instance.s3_backup_time = self.cleaned_data.get("s3_backup_time")
+        instance.s3_backup_day = int(self.cleaned_data.get("s3_backup_day", 0))
+        instance.s3_backup_prefix = self.cleaned_data.get("s3_backup_prefix") or "pyrunner-backups/"
+        instance.s3_backup_retention_count = self.cleaned_data.get("s3_backup_retention_count", 7)
+        instance.s3_backup_include_runs = self.cleaned_data.get("s3_backup_include_runs", False)
+        instance.s3_backup_max_runs = self.cleaned_data.get("s3_backup_max_runs", 1000)
+        instance.s3_backup_include_datastores = self.cleaned_data.get("s3_backup_include_datastores", True)
+
+        instance.save()
+
+        # Sync the django-q2 schedule
+        BackupScheduleService.sync_schedule()
+
+        return instance

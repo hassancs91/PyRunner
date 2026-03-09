@@ -244,3 +244,77 @@ def backup_restore_view(request):
         messages.error(request, f"Restore failed: {str(e)}")
 
     return redirect("cpanel:dashboard")
+
+
+@login_required
+@superuser_required
+@require_POST
+def backup_schedule_settings_view(request):
+    """
+    Save backup schedule settings.
+    """
+    from core.forms import S3BackupScheduleForm
+    from core.models import GlobalSettings
+
+    settings = GlobalSettings.get_settings()
+    form = S3BackupScheduleForm(request.POST, instance=settings)
+
+    if form.is_valid():
+        form.save(settings)
+        messages.success(request, "Backup schedule settings saved successfully.")
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
+
+    return redirect("cpanel:settings")
+
+
+@login_required
+@superuser_required
+def backup_schedule_status_view(request):
+    """
+    Get backup schedule status (AJAX endpoint).
+    """
+    from core.services.backup_schedule_service import BackupScheduleService
+
+    status = BackupScheduleService.get_schedule_status()
+    return JsonResponse({"success": True, "status": status})
+
+
+@login_required
+@superuser_required
+@require_POST
+def backup_run_now_view(request):
+    """
+    Trigger an immediate backup to S3.
+    """
+    from django_q.tasks import async_task
+    from core.services.s3_service import S3Service
+    from core.models import GlobalSettings
+
+    settings = GlobalSettings.get_settings()
+
+    # Validate S3 is configured
+    if not settings.s3_enabled:
+        return JsonResponse({
+            "success": False,
+            "error": "S3 storage is not enabled",
+        })
+
+    if not S3Service.is_configured():
+        return JsonResponse({
+            "success": False,
+            "error": "S3 is not properly configured",
+        })
+
+    task_id = async_task(
+        "core.tasks.scheduled_backup_task",
+        task_name="manual-s3-backup",
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": "Backup task queued",
+        "task_id": task_id,
+    })
