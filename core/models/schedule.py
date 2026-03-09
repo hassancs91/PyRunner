@@ -20,6 +20,8 @@ class ScriptSchedule(models.Model):
         MANUAL = "manual", "Manual"
         INTERVAL = "interval", "Interval"
         DAILY = "daily", "Daily"
+        WEEKLY = "weekly", "Weekly"
+        MONTHLY = "monthly", "Monthly"
 
     class IntervalChoice(models.IntegerChoices):
         FIVE_MINUTES = 5, "Every 5 minutes"
@@ -62,11 +64,35 @@ class ScriptSchedule(models.Model):
         help_text='List of times in HH:MM format, e.g., ["09:00", "18:00"]',
     )
 
-    # Timezone for daily schedules
+    # Timezone for scheduled runs
     timezone = models.CharField(
         max_length=50,
         default="UTC",
-        help_text="Timezone for daily schedules (e.g., 'America/New_York')",
+        help_text="Timezone for scheduled runs (e.g., 'America/New_York')",
+    )
+
+    # Weekly mode configuration
+    weekly_days = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Days of week [0-6] where 0=Monday, e.g., [0, 2, 4] for Mon/Wed/Fri',
+    )
+    weekly_times = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of times in HH:MM format for weekly mode',
+    )
+
+    # Monthly mode configuration
+    monthly_days = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Days of month [1-31], e.g., [1, 15] for 1st and 15th',
+    )
+    monthly_times = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of times in HH:MM format for monthly mode',
     )
 
     # Schedule state
@@ -119,6 +145,8 @@ class ScriptSchedule(models.Model):
         """Check if this script has an active schedule (not manual)."""
         return self.run_mode != self.RunMode.MANUAL and self.is_active
 
+    DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
     @property
     def schedule_display(self) -> str:
         """Human-readable schedule description."""
@@ -133,6 +161,14 @@ class ScriptSchedule(models.Model):
         elif self.run_mode == self.RunMode.DAILY:
             times = ", ".join(self.daily_times) if self.daily_times else "No times set"
             return f"Daily at {times} ({self.timezone})"
+        elif self.run_mode == self.RunMode.WEEKLY:
+            days = ", ".join(self.DAY_NAMES[d] for d in sorted(self.weekly_days)) if self.weekly_days else "No days set"
+            times = ", ".join(self.weekly_times) if self.weekly_times else "No times set"
+            return f"Weekly on {days} at {times} ({self.timezone})"
+        elif self.run_mode == self.RunMode.MONTHLY:
+            days = ", ".join(str(d) for d in sorted(self.monthly_days)) if self.monthly_days else "No days set"
+            times = ", ".join(self.monthly_times) if self.monthly_times else "No times set"
+            return f"Monthly on day {days} at {times} ({self.timezone})"
         return "Unknown"
 
 

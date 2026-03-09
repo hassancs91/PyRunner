@@ -144,6 +144,70 @@
                 </div>
             </div>
 
+            <!-- Weekly Options -->
+            <div id="weekly-options" class="space-y-4 {% if schedule_form.instance.run_mode != 'weekly' %}hidden{% endif %}">
+                <div>
+                    <label class="block text-sm font-medium text-code-text mb-2">Days of Week</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        {% for checkbox in schedule_form.weekly_days_input %}
+                        <label class="flex items-center p-2 border border-code-border rounded-lg cursor-pointer hover:border-code-accent/50 transition-colors {% if checkbox.data.selected %}border-code-accent bg-code-accent/10{% endif %}">
+                            <input type="checkbox" name="weekly_days_input" value="{{ checkbox.data.value }}" {% if checkbox.data.selected %}checked{% endif %} class="w-4 h-4 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2 mr-2">
+                            <span class="text-sm text-code-text">{{ checkbox.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% if schedule_form.weekly_days_input.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.weekly_days_input.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="id_weekly_times_input" class="block text-sm font-medium text-code-text mb-2">
+                        {{ schedule_form.weekly_times_input.label }}
+                    </label>
+                    {{ schedule_form.weekly_times_input }}
+                    <p class="mt-1 text-xs text-code-muted">{{ schedule_form.weekly_times_input.help_text }}</p>
+                    {% if schedule_form.weekly_times_input.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.weekly_times_input.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-code-text mb-2">Timezone</label>
+                    {{ schedule_form.timezone }}
+                </div>
+            </div>
+
+            <!-- Monthly Options -->
+            <div id="monthly-options" class="space-y-4 {% if schedule_form.instance.run_mode != 'monthly' %}hidden{% endif %}">
+                <div>
+                    <label class="block text-sm font-medium text-code-text mb-2">Days of Month</label>
+                    <div class="grid grid-cols-7 gap-1">
+                        {% for checkbox in schedule_form.monthly_days_input %}
+                        <label class="flex items-center justify-center p-2 border border-code-border rounded cursor-pointer hover:border-code-accent/50 transition-colors text-center {% if checkbox.data.selected %}border-code-accent bg-code-accent/10{% endif %}">
+                            <input type="checkbox" name="monthly_days_input" value="{{ checkbox.data.value }}" {% if checkbox.data.selected %}checked{% endif %} class="sr-only">
+                            <span class="text-xs text-code-text">{{ checkbox.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% if schedule_form.monthly_days_input.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.monthly_days_input.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="id_monthly_times_input" class="block text-sm font-medium text-code-text mb-2">
+                        {{ schedule_form.monthly_times_input.label }}
+                    </label>
+                    {{ schedule_form.monthly_times_input }}
+                    <p class="mt-1 text-xs text-code-muted">{{ schedule_form.monthly_times_input.help_text }}</p>
+                    {% if schedule_form.monthly_times_input.errors %}
+                    <p class="mt-1 text-sm text-code-red">{{ schedule_form.monthly_times_input.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-code-text mb-2">Timezone</label>
+                    {{ schedule_form.timezone }}
+                </div>
+            </div>
+
             <!-- Schedule Active Toggle -->
             <div class="flex items-center space-x-3 pt-3 border-t border-code-border">
                 {{ schedule_form.is_active }}

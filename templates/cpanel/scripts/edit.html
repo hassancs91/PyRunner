@@ -62,12 +62,20 @@ function toggleSection(sectionId) {
 function toggleScheduleOptions(mode) {
     const intervalOptions = document.getElementById('interval-options');
     const dailyOptions = document.getElementById('daily-options');
+    const weeklyOptions = document.getElementById('weekly-options');
+    const monthlyOptions = document.getElementById('monthly-options');
 
     if (intervalOptions) {
         intervalOptions.classList.toggle('hidden', mode !== 'interval');
     }
     if (dailyOptions) {
         dailyOptions.classList.toggle('hidden', mode !== 'daily');
+    }
+    if (weeklyOptions) {
+        weeklyOptions.classList.toggle('hidden', mode !== 'weekly');
+    }
+    if (monthlyOptions) {
+        monthlyOptions.classList.toggle('hidden', mode !== 'monthly');
     }
 
     // Update radio button styles

@@ -60,6 +60,10 @@ class ScheduleService:
             q_schedule_ids = cls._create_interval_schedule(script_schedule)
         elif script_schedule.run_mode == ScriptSchedule.RunMode.DAILY:
             q_schedule_ids = cls._create_daily_schedules(script_schedule)
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.WEEKLY:
+            q_schedule_ids = cls._create_weekly_schedules(script_schedule)
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.MONTHLY:
+            q_schedule_ids = cls._create_monthly_schedules(script_schedule)
 
         # Update the ScriptSchedule with new IDs and next_run
         script_schedule.q_schedule_ids = q_schedule_ids
@@ -116,6 +120,83 @@ class ScheduleService:
         return q_schedule_ids
 
     @classmethod
+    def _create_weekly_schedules(cls, script_schedule) -> list[int]:
+        """
+        Create CRON type django-q2 schedules for weekly execution.
+        Creates one schedule per time, with days combined in cron expression.
+        """
+        q_schedule_ids = []
+
+        if not script_schedule.weekly_days or not script_schedule.weekly_times:
+            return q_schedule_ids
+
+        # Convert Python weekdays (0=Mon) to cron weekdays (0=Sun in standard cron, but django-q uses 1=Mon)
+        # django-q2 uses standard cron: 0=Sunday, 1=Monday, ..., 6=Saturday
+        # Our model uses: 0=Monday, ..., 6=Sunday
+        # Convert: add 1 and mod 7 (Mon=0 -> 1, Sun=6 -> 0)
+        cron_days = [(d + 1) % 7 for d in script_schedule.weekly_days]
+        days_str = ",".join(str(d) for d in sorted(cron_days))
+
+        for time_str in script_schedule.weekly_times:
+            hour, minute = map(int, time_str.split(":"))
+
+            # Cron format: minute hour * * day_of_week
+            cron_expr = f"{minute} {hour} * * {days_str}"
+
+            q_schedule = QSchedule.objects.create(
+                name=f"pyrunner-{script_schedule.script.id}-weekly-{time_str.replace(':', '')}",
+                func=cls.TASK_FUNC,
+                args=f"'{script_schedule.script.id}'",
+                schedule_type=QSchedule.CRON,
+                cron=cron_expr,
+                repeats=-1,
+                next_run=timezone.now(),
+            )
+            q_schedule_ids.append(q_schedule.id)
+            logger.info(
+                f"Created weekly schedule {q_schedule.id} for script {script_schedule.script.name} "
+                f"on days {days_str} at {time_str}"
+            )
+
+        return q_schedule_ids
+
+    @classmethod
+    def _create_monthly_schedules(cls, script_schedule) -> list[int]:
+        """
+        Create CRON type django-q2 schedules for monthly execution.
+        Creates one schedule per time, with days combined in cron expression.
+        """
+        q_schedule_ids = []
+
+        if not script_schedule.monthly_days or not script_schedule.monthly_times:
+            return q_schedule_ids
+
+        days_str = ",".join(str(d) for d in sorted(script_schedule.monthly_days))
+
+        for time_str in script_schedule.monthly_times:
+            hour, minute = map(int, time_str.split(":"))
+
+            # Cron format: minute hour day_of_month * *
+            cron_expr = f"{minute} {hour} {days_str} * *"
+
+            q_schedule = QSchedule.objects.create(
+                name=f"pyrunner-{script_schedule.script.id}-monthly-{time_str.replace(':', '')}",
+                func=cls.TASK_FUNC,
+                args=f"'{script_schedule.script.id}'",
+                schedule_type=QSchedule.CRON,
+                cron=cron_expr,
+                repeats=-1,
+                next_run=timezone.now(),
+            )
+            q_schedule_ids.append(q_schedule.id)
+            logger.info(
+                f"Created monthly schedule {q_schedule.id} for script {script_schedule.script.name} "
+                f"on days {days_str} at {time_str}"
+            )
+
+        return q_schedule_ids
+
+    @classmethod
     def delete_q_schedules(cls, script_schedule) -> int:
         """Delete all django-q2 schedules associated with a ScriptSchedule."""
         if not script_schedule.q_schedule_ids:
@@ -157,6 +238,88 @@ class ScheduleService:
                     # Already passed today, use tomorrow
                     candidate += timedelta(days=1)
                 candidates.append(candidate)
+
+            return min(candidates) if candidates else None
+
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.WEEKLY:
+            # Calculate next occurrence from weekly_days and weekly_times
+            if not script_schedule.weekly_days or not script_schedule.weekly_times:
+                return None
+
+            candidates = []
+            current_weekday = now.weekday()  # 0=Monday, 6=Sunday
+
+            for day in script_schedule.weekly_days:
+                for time_str in script_schedule.weekly_times:
+                    hour, minute = map(int, time_str.split(":"))
+
+                    # Calculate days until this weekday
+                    days_ahead = day - current_weekday
+                    if days_ahead < 0:
+                        days_ahead += 7
+
+                    candidate = now.replace(
+                        hour=hour, minute=minute, second=0, microsecond=0
+                    ) + timedelta(days=days_ahead)
+
+                    # If it's today but already passed, add a week
+                    if candidate <= now:
+                        candidate += timedelta(days=7)
+
+                    candidates.append(candidate)
+
+            return min(candidates) if candidates else None
+
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.MONTHLY:
+            # Calculate next occurrence from monthly_days and monthly_times
+            if not script_schedule.monthly_days or not script_schedule.monthly_times:
+                return None
+
+            candidates = []
+
+            for day in script_schedule.monthly_days:
+                for time_str in script_schedule.monthly_times:
+                    hour, minute = map(int, time_str.split(":"))
+
+                    # Try this month first
+                    try:
+                        candidate = now.replace(
+                            day=day, hour=hour, minute=minute, second=0, microsecond=0
+                        )
+                        if candidate <= now:
+                            # Already passed this month, try next month
+                            if now.month == 12:
+                                candidate = candidate.replace(year=now.year + 1, month=1)
+                            else:
+                                candidate = candidate.replace(month=now.month + 1)
+                    except ValueError:
+                        # Day doesn't exist in this month (e.g., 31st in Feb)
+                        # Try next month
+                        try:
+                            if now.month == 12:
+                                candidate = now.replace(
+                                    year=now.year + 1,
+                                    month=1,
+                                    day=day,
+                                    hour=hour,
+                                    minute=minute,
+                                    second=0,
+                                    microsecond=0,
+                                )
+                            else:
+                                candidate = now.replace(
+                                    month=now.month + 1,
+                                    day=day,
+                                    hour=hour,
+                                    minute=minute,
+                                    second=0,
+                                    microsecond=0,
+                                )
+                        except ValueError:
+                            # Day doesn't exist in next month either, skip
+                            continue
+
+                    candidates.append(candidate)
 
             return min(candidates) if candidates else None
 
@@ -203,7 +366,12 @@ class ScheduleService:
         count = 0
         for schedule in ScriptSchedule.objects.filter(
             is_active=True,
-            run_mode__in=[ScriptSchedule.RunMode.INTERVAL, ScriptSchedule.RunMode.DAILY],
+            run_mode__in=[
+                ScriptSchedule.RunMode.INTERVAL,
+                ScriptSchedule.RunMode.DAILY,
+                ScriptSchedule.RunMode.WEEKLY,
+                ScriptSchedule.RunMode.MONTHLY,
+            ],
         ).select_related("script"):
             ids = cls.sync_schedule(schedule)
             count += len(ids)

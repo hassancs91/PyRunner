@@ -201,8 +201,68 @@ class TagForm(forms.ModelForm):
 class ScheduleForm(forms.ModelForm):
     """Form for configuring script schedules."""
 
+    WEEKDAY_CHOICES = [
+        (0, "Monday"),
+        (1, "Tuesday"),
+        (2, "Wednesday"),
+        (3, "Thursday"),
+        (4, "Friday"),
+        (5, "Saturday"),
+        (6, "Sunday"),
+    ]
+
+    MONTHDAY_CHOICES = [(i, str(i)) for i in range(1, 32)]
+
     # Custom field for daily times (comma-separated input)
     daily_times_input = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50",
+                "placeholder": "09:00, 18:00",
+            }
+        ),
+        label="Run Times",
+        help_text="Comma-separated times in HH:MM format (24-hour)",
+    )
+
+    # Weekly mode fields
+    weekly_days_input = forms.MultipleChoiceField(
+        required=False,
+        choices=WEEKDAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple(
+            attrs={
+                "class": "sr-only peer",
+            }
+        ),
+        label="Days of Week",
+    )
+
+    weekly_times_input = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50",
+                "placeholder": "09:00, 18:00",
+            }
+        ),
+        label="Run Times",
+        help_text="Comma-separated times in HH:MM format (24-hour)",
+    )
+
+    # Monthly mode fields
+    monthly_days_input = forms.MultipleChoiceField(
+        required=False,
+        choices=MONTHDAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple(
+            attrs={
+                "class": "sr-only peer",
+            }
+        ),
+        label="Days of Month",
+    )
+
+    monthly_times_input = forms.CharField(
         required=False,
         widget=forms.TextInput(
             attrs={
@@ -259,9 +319,34 @@ class ScheduleForm(forms.ModelForm):
                 self.instance.daily_times
             )
 
-    def clean_daily_times_input(self):
-        """Parse and validate daily times input."""
-        value = self.cleaned_data.get("daily_times_input", "").strip()
+        # Populate weekly fields from instance
+        if self.instance and self.instance.pk:
+            if self.instance.weekly_days:
+                self.fields["weekly_days_input"].initial = [
+                    str(d) for d in self.instance.weekly_days
+                ]
+            if self.instance.weekly_times:
+                self.fields["weekly_times_input"].initial = ", ".join(
+                    self.instance.weekly_times
+                )
+
+        # Populate monthly fields from instance
+        if self.instance and self.instance.pk:
+            if self.instance.monthly_days:
+                self.fields["monthly_days_input"].initial = [
+                    str(d) for d in self.instance.monthly_days
+                ]
+            if self.instance.monthly_times:
+                self.fields["monthly_times_input"].initial = ", ".join(
+                    self.instance.monthly_times
+                )
+
+    def _parse_times(self, value):
+        """Parse and validate comma-separated times input."""
+        if not value:
+            return []
+
+        value = value.strip()
         if not value:
             return []
 
@@ -287,6 +372,18 @@ class ScheduleForm(forms.ModelForm):
 
         return times
 
+    def clean_daily_times_input(self):
+        """Parse and validate daily times input."""
+        return self._parse_times(self.cleaned_data.get("daily_times_input", ""))
+
+    def clean_weekly_times_input(self):
+        """Parse and validate weekly times input."""
+        return self._parse_times(self.cleaned_data.get("weekly_times_input", ""))
+
+    def clean_monthly_times_input(self):
+        """Parse and validate monthly times input."""
+        return self._parse_times(self.cleaned_data.get("monthly_times_input", ""))
+
     def clean(self):
         cleaned_data = super().clean()
         run_mode = cleaned_data.get("run_mode")
@@ -305,6 +402,34 @@ class ScheduleForm(forms.ModelForm):
                     "At least one time is required for daily mode.",
                 )
 
+        elif run_mode == ScriptSchedule.RunMode.WEEKLY:
+            weekly_days = cleaned_data.get("weekly_days_input", [])
+            weekly_times = cleaned_data.get("weekly_times_input", [])
+            if not weekly_days:
+                self.add_error(
+                    "weekly_days_input",
+                    "At least one day is required for weekly mode.",
+                )
+            if not weekly_times:
+                self.add_error(
+                    "weekly_times_input",
+                    "At least one time is required for weekly mode.",
+                )
+
+        elif run_mode == ScriptSchedule.RunMode.MONTHLY:
+            monthly_days = cleaned_data.get("monthly_days_input", [])
+            monthly_times = cleaned_data.get("monthly_times_input", [])
+            if not monthly_days:
+                self.add_error(
+                    "monthly_days_input",
+                    "At least one day is required for monthly mode.",
+                )
+            if not monthly_times:
+                self.add_error(
+                    "monthly_times_input",
+                    "At least one time is required for monthly mode.",
+                )
+
         return cleaned_data
 
     def save(self, commit=True):
@@ -312,6 +437,16 @@ class ScheduleForm(forms.ModelForm):
 
         # Set daily_times from parsed input
         instance.daily_times = self.cleaned_data.get("daily_times_input", [])
+
+        # Set weekly fields from parsed input
+        weekly_days = self.cleaned_data.get("weekly_days_input", [])
+        instance.weekly_days = [int(d) for d in weekly_days] if weekly_days else []
+        instance.weekly_times = self.cleaned_data.get("weekly_times_input", [])
+
+        # Set monthly fields from parsed input
+        monthly_days = self.cleaned_data.get("monthly_days_input", [])
+        instance.monthly_days = [int(d) for d in monthly_days] if monthly_days else []
+        instance.monthly_times = self.cleaned_data.get("monthly_times_input", [])
 
         if commit:
             instance.save()
