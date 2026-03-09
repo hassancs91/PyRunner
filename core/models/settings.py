@@ -201,6 +201,49 @@ class GlobalSettings(models.Model):
         help_text="Allow new users to register without an invite (auto-disabled after first user)",
     )
 
+    # S3 Storage Configuration
+    s3_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable S3-compatible storage for backups",
+    )
+    s3_endpoint_url = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="S3 endpoint URL (leave empty for AWS S3)",
+    )
+    s3_region = models.CharField(
+        max_length=50,
+        blank=True,
+        default="us-east-1",
+        help_text="S3 region",
+    )
+    s3_bucket_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="S3 bucket name",
+    )
+    s3_access_key_encrypted = models.TextField(
+        blank=True,
+        help_text="S3 access key (encrypted)",
+    )
+    s3_secret_key_encrypted = models.TextField(
+        blank=True,
+        help_text="S3 secret key (encrypted)",
+    )
+    s3_use_ssl = models.BooleanField(
+        default=True,
+        help_text="Use SSL/TLS for S3 connections",
+    )
+    s3_path_style = models.BooleanField(
+        default=False,
+        help_text="Use path-style addressing (required for MinIO)",
+    )
+    s3_last_tested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When S3 connection was last successfully tested",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"

@@ -1671,3 +1671,144 @@ class AdminSetupForm(forms.Form):
         if password and confirm and password != confirm:
             raise forms.ValidationError("Passwords do not match.")
         return cleaned_data
+
+
+# =============================================================================
+# Services Forms
+# =============================================================================
+
+
+class S3SettingsForm(forms.Form):
+    """Form for S3 storage configuration."""
+
+    s3_enabled = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Enable S3 Storage",
+    )
+
+    s3_endpoint_url = forms.CharField(
+        required=False,
+        max_length=500,
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "https://s3.amazonaws.com or https://minio.example.com:9000",
+            }
+        ),
+        label="Endpoint URL",
+        help_text="Leave empty for AWS S3. Required for MinIO, DigitalOcean Spaces, etc.",
+    )
+
+    s3_region = forms.CharField(
+        required=False,
+        max_length=50,
+        initial="us-east-1",
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "us-east-1",
+            }
+        ),
+        label="Region",
+    )
+
+    s3_bucket_name = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "my-backup-bucket",
+            }
+        ),
+        label="Bucket Name",
+    )
+
+    s3_access_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Access Key",
+    )
+
+    s3_secret_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Secret Key",
+    )
+
+    s3_use_ssl = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Use SSL/TLS",
+        help_text="Recommended for security. Disable only for local development.",
+    )
+
+    s3_path_style = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Path-style addressing",
+        help_text="Required for MinIO and some S3-compatible providers.",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["s3_enabled"].initial = instance.s3_enabled
+            self.fields["s3_endpoint_url"].initial = instance.s3_endpoint_url
+            self.fields["s3_region"].initial = instance.s3_region or "us-east-1"
+            self.fields["s3_bucket_name"].initial = instance.s3_bucket_name
+            self.fields["s3_use_ssl"].initial = instance.s3_use_ssl
+            self.fields["s3_path_style"].initial = instance.s3_path_style
+
+    def save(self, instance):
+        """Save the S3 settings to the GlobalSettings instance."""
+        from core.services.encryption_service import EncryptionService
+
+        instance.s3_enabled = self.cleaned_data.get("s3_enabled", False)
+        instance.s3_endpoint_url = self.cleaned_data.get("s3_endpoint_url") or ""
+        instance.s3_region = self.cleaned_data.get("s3_region") or "us-east-1"
+        instance.s3_bucket_name = self.cleaned_data.get("s3_bucket_name") or ""
+        instance.s3_use_ssl = self.cleaned_data.get("s3_use_ssl", True)
+        instance.s3_path_style = self.cleaned_data.get("s3_path_style", False)
+
+        # Encrypt and save access key if provided
+        access_key = self.cleaned_data.get("s3_access_key")
+        if access_key:
+            instance.s3_access_key_encrypted = EncryptionService.encrypt(access_key)
+
+        # Encrypt and save secret key if provided
+        secret_key = self.cleaned_data.get("s3_secret_key")
+        if secret_key:
+            instance.s3_secret_key_encrypted = EncryptionService.encrypt(secret_key)
+
+        instance.save()
+        return instance

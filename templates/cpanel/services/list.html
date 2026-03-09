@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block title %}Services - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold text-code-text">Services</h1>
+            <p class="text-code-muted">Configure external service integrations</p>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-code-red/10 border border-code-red text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border border-code-green text-code-green{% else %}bg-code-accent/10 border border-code-accent text-code-accent{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- S3 Storage Service Card -->
+        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden mb-6">
+            <!-- Card Header -->
+            <div class="p-6 border-b border-code-border">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <!-- S3 Icon -->
+                        <div class="w-12 h-12 bg-code-accent/20 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-code-text">S3 Storage</h2>
+                            <p class="text-sm text-code-muted">S3-compatible storage for scheduled backups</p>
+                        </div>
+                    </div>
+
+                    <!-- Status Badge -->
+                    <div class="flex items-center space-x-3">
+                        {% if s3_status.enabled and s3_status.configured %}
+                        <span class="px-3 py-1 bg-code-green/20 text-code-green text-sm font-medium rounded-full flex items-center">
+                            <span class="w-2 h-2 bg-code-green rounded-full mr-2"></span>
+                            Active
+                        </span>
+                        {% elif s3_status.configured %}
+                        <span class="px-3 py-1 bg-code-yellow/20 text-code-yellow text-sm font-medium rounded-full flex items-center">
+                            <span class="w-2 h-2 bg-code-yellow rounded-full mr-2"></span>
+                            Configured (Disabled)
+                        </span>
+                        {% else %}
+                        <span class="px-3 py-1 bg-code-muted/20 text-code-muted text-sm font-medium rounded-full flex items-center">
+                            <span class="w-2 h-2 bg-code-muted rounded-full mr-2"></span>
+                            Not Configured
+                        </span>
+                        {% endif %}
+
+                        <!-- Expand/Collapse Button -->
+                        <button type="button"
+                                onclick="toggleS3Config()"
+                                id="s3-toggle-btn"
+                                class="p-2 text-code-muted hover:text-code-text transition-colors">
+                            <svg id="s3-chevron" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Status Info -->
+                {% if s3_status.configured %}
+                <div class="mt-4 flex flex-wrap gap-4 text-sm">
+                    <div class="flex items-center text-code-muted">
+                        <span class="font-medium mr-1">Bucket:</span>
+                        <span class="font-mono">{{ s3_status.bucket }}</span>
+                    </div>
+                    <div class="flex items-center text-code-muted">
+                        <span class="font-medium mr-1">Endpoint:</span>
+                        <span class="font-mono">{{ s3_status.endpoint }}</span>
+                    </div>
+                    {% if s3_status.last_tested %}
+                    <div class="flex items-center text-code-muted">
+                        <span class="font-medium mr-1">Last tested:</span>
+                        <span>{{ s3_status.last_tested|timesince }} ago</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Expandable Configuration Form -->
+            <div id="s3-config" class="hidden">
+                <form method="post" action="{% url 'cpanel:s3_settings' %}" class="p-6">
+                    {% csrf_token %}
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <!-- Endpoint URL -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_endpoint_url.label }}</label>
+                            {{ s3_form.s3_endpoint_url }}
+                            <p class="mt-1 text-xs text-code-muted">{{ s3_form.s3_endpoint_url.help_text }}</p>
+                        </div>
+
+                        <!-- Region -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_region.label }}</label>
+                            {{ s3_form.s3_region }}
+                        </div>
+
+                        <!-- Bucket Name -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_bucket_name.label }}</label>
+                            {{ s3_form.s3_bucket_name }}
+                            {% if s3_form.s3_bucket_name.errors %}
+                            <p class="mt-1 text-sm text-code-red">{{ s3_form.s3_bucket_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Access Key -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_access_key.label }}</label>
+                            {{ s3_form.s3_access_key }}
+                            {% if settings.s3_access_key_encrypted %}
+                            <p class="mt-1 text-xs text-code-green">Access key is configured</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Secret Key -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_secret_key.label }}</label>
+                            {{ s3_form.s3_secret_key }}
+                            {% if settings.s3_secret_key_encrypted %}
+                            <p class="mt-1 text-xs text-code-green">Secret key is configured</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="flex flex-wrap gap-6 mb-6 p-4 bg-code-bg rounded-lg">
+                        <label class="flex items-center cursor-pointer">
+                            {{ s3_form.s3_use_ssl }}
+                            <span class="ml-2 text-sm text-code-text">{{ s3_form.s3_use_ssl.label }}</span>
+                        </label>
+
+                        <label class="flex items-center cursor-pointer">
+                            {{ s3_form.s3_path_style }}
+                            <span class="ml-2 text-sm text-code-text">{{ s3_form.s3_path_style.label }}</span>
+                        </label>
+
+                        <label class="flex items-center cursor-pointer">
+                            {{ s3_form.s3_enabled }}
+                            <span class="ml-2 text-sm text-code-text">{{ s3_form.s3_enabled.label }}</span>
+                        </label>
+                    </div>
+
+                    <!-- Provider Presets -->
+                    <div class="mb-6 p-4 bg-code-bg rounded-lg">
+                        <p class="text-sm font-medium text-code-text mb-3">Quick Setup Presets</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" onclick="setPreset('aws')"
+                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                AWS S3
+                            </button>
+                            <button type="button" onclick="setPreset('minio')"
+                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                MinIO
+                            </button>
+                            <button type="button" onclick="setPreset('digitalocean')"
+                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                DigitalOcean Spaces
+                            </button>
+                            <button type="button" onclick="setPreset('backblaze')"
+                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                Backblaze B2
+                            </button>
+                            <button type="button" onclick="setPreset('cloudflare')"
+                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
+                                Cloudflare R2
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center space-x-4">
+                        <button type="submit" class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
+                            Save Settings
+                        </button>
+                        <button type="button"
+                                onclick="testS3Connection()"
+                                id="test-s3-btn"
+                                class="px-6 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
+                            Test Connection
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Test Result -->
+                <div id="s3-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
+            </div>
+        </div>
+
+        <!-- Future Services Placeholder -->
+        <div class="bg-code-surface/50 border border-code-border border-dashed rounded-xl p-8 text-center">
+            <div class="w-12 h-12 bg-code-muted/10 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+            </div>
+            <h3 class="text-code-muted font-medium mb-2">More Services Coming Soon</h3>
+            <p class="text-sm text-code-muted/70">Additional integrations like SMTP, webhooks, and more will be added here.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function toggleS3Config() {
+    const config = document.getElementById('s3-config');
+    const chevron = document.getElementById('s3-chevron');
+
+    config.classList.toggle('hidden');
+    chevron.classList.toggle('rotate-180');
+}
+
+function testS3Connection() {
+    const btn = document.getElementById('test-s3-btn');
+    const resultDiv = document.getElementById('s3-test-result');
+
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+    resultDiv.classList.add('hidden');
+
+    fetch('{% url "cpanel:s3_test_connection" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultDiv.classList.remove('hidden');
+        if (data.success) {
+            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-code-green/10 border border-code-green text-code-green';
+            resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
+        } else {
+            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+            resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
+        }
+    })
+    .catch(error => {
+        resultDiv.classList.remove('hidden');
+        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+        resultDiv.textContent = 'Error: ' + escapeHtml(error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Test Connection';
+    });
+}
+
+function setPreset(provider) {
+    const endpoint = document.querySelector('[name="s3_endpoint_url"]');
+    const region = document.querySelector('[name="s3_region"]');
+    const useSSL = document.querySelector('[name="s3_use_ssl"]');
+    const pathStyle = document.querySelector('[name="s3_path_style"]');
+
+    switch(provider) {
+        case 'aws':
+            endpoint.value = '';
+            region.value = 'us-east-1';
+            useSSL.checked = true;
+            pathStyle.checked = false;
+            break;
+        case 'minio':
+            endpoint.value = 'http://localhost:9000';
+            region.value = 'us-east-1';
+            useSSL.checked = false;
+            pathStyle.checked = true;
+            break;
+        case 'digitalocean':
+            endpoint.value = 'https://nyc3.digitaloceanspaces.com';
+            region.value = 'nyc3';
+            useSSL.checked = true;
+            pathStyle.checked = false;
+            break;
+        case 'backblaze':
+            endpoint.value = 'https://s3.us-west-002.backblazeb2.com';
+            region.value = 'us-west-002';
+            useSSL.checked = true;
+            pathStyle.checked = false;
+            break;
+        case 'cloudflare':
+            endpoint.value = 'https://<account_id>.r2.cloudflarestorage.com';
+            region.value = 'auto';
+            useSSL.checked = true;
+            pathStyle.checked = false;
+            break;
+    }
+}
+
+// Auto-expand if form has errors or if not configured
+document.addEventListener('DOMContentLoaded', function() {
+    {% if s3_form.errors or not s3_status.configured %}
+    toggleS3Config();
+    {% endif %}
+});
+</script>
+{% endblock %}

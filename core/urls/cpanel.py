@@ -101,6 +101,11 @@ from core.views.tasks import (
     task_cancel_view,
     task_force_stop_view,
 )
+from core.views.services import (
+    services_view,
+    s3_settings_view,
+    s3_test_connection_view,
+)
 
 app_name = "cpanel"
 
@@ -213,4 +218,9 @@ urlpatterns = [
     path("settings/api-tokens/<uuid:pk>/created/", api_token_created_view, name="api_token_created"),
     path("settings/api-tokens/<uuid:pk>/revoke/", api_token_revoke_view, name="api_token_revoke"),
     path("settings/api-tokens/<uuid:pk>/toggle/", api_token_toggle_view, name="api_token_toggle"),
+
+    # Services
+    path("services/", services_view, name="services"),
+    path("services/s3/", s3_settings_view, name="s3_settings"),
+    path("services/s3/test/", s3_test_connection_view, name="s3_test_connection"),
 ]
