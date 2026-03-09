@@ -1,17 +1,21 @@
 """
 Service for creating and restoring PyRunner backups.
 """
+import gzip
 import hashlib
+import io
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from core.models import (
+    DataStore,
+    DataStoreEntry,
     Environment,
     GlobalSettings,
     PackageOperation,
@@ -32,8 +36,13 @@ class BackupService:
     Service for creating and restoring PyRunner backups.
     """
 
-    BACKUP_VERSION = "1.0.0"
+    BACKUP_VERSION = "1.1.0"
     MAX_BACKUP_SIZE_MB = 100
+
+    # Backup format constants
+    FORMAT_JSON = "json"
+    FORMAT_GZIP = "gzip"
+    SUPPORTED_FORMATS = [FORMAT_JSON, FORMAT_GZIP]
 
     @classmethod
     def create_backup(
@@ -41,6 +50,7 @@ class BackupService:
         include_runs: bool = True,
         max_runs: int = 1000,
         include_package_operations: bool = False,
+        include_datastores: bool = True,
         created_by_user=None,
     ) -> dict:
         """
@@ -50,6 +60,7 @@ class BackupService:
             include_runs: Include run history in backup
             max_runs: Maximum number of runs to include (0 = all, default 1000)
             include_package_operations: Include package operation history
+            include_datastores: Include datastores and their entries
             created_by_user: User creating the backup (for metadata)
 
         Returns:
@@ -84,6 +95,11 @@ class BackupService:
             backup_data["package_operations"] = cls._export_package_operations()
         else:
             backup_data["package_operations"] = []
+
+        if include_datastores:
+            backup_data["datastores"] = cls._export_datastores()
+        else:
+            backup_data["datastores"] = []
 
         return backup_data
 
@@ -270,6 +286,32 @@ class BackupService:
         return operations
 
     @classmethod
+    def _export_datastores(cls) -> List[dict]:
+        """Export DataStores and their entries."""
+        datastores = []
+        for ds in DataStore.objects.select_related("created_by").all().order_by("created_at"):
+            entries = []
+            for entry in ds.entries.all().order_by("key"):
+                entries.append({
+                    "id": str(entry.id),
+                    "key": entry.key,
+                    "value_json": entry.value_json,
+                    "created_at": cls._serialize_datetime(entry.created_at),
+                    "updated_at": cls._serialize_datetime(entry.updated_at),
+                })
+
+            datastores.append({
+                "id": str(ds.id),
+                "name": ds.name,
+                "description": ds.description,
+                "created_at": cls._serialize_datetime(ds.created_at),
+                "updated_at": cls._serialize_datetime(ds.updated_at),
+                "created_by_email": ds.created_by.email if ds.created_by else None,
+                "entries": entries,
+            })
+        return datastores
+
+    @classmethod
     def _calculate_encryption_key_hash(cls) -> str:
         """Calculate SHA256 hash of current ENCRYPTION_KEY."""
         if not EncryptionService.is_configured():
@@ -291,6 +333,77 @@ class BackupService:
         if not dt_str:
             return None
         return datetime.fromisoformat(dt_str)
+
+    # =====================================================================
+    # SERIALIZATION METHODS
+    # =====================================================================
+
+    @classmethod
+    def serialize_backup(cls, backup_data: dict, format: str = FORMAT_GZIP) -> Tuple[bytes, str]:
+        """
+        Serialize backup data to bytes.
+
+        Args:
+            backup_data: The backup dict to serialize
+            format: "json" or "gzip" (default: gzip)
+
+        Returns:
+            tuple: (bytes_data, content_type)
+        """
+        json_str = json.dumps(backup_data, indent=2)
+
+        if format == cls.FORMAT_GZIP:
+            # Compress with gzip
+            buffer = io.BytesIO()
+            with gzip.GzipFile(fileobj=buffer, mode="wb") as gz:
+                gz.write(json_str.encode("utf-8"))
+            return buffer.getvalue(), "application/gzip"
+        else:
+            return json_str.encode("utf-8"), "application/json"
+
+    @classmethod
+    def deserialize_backup(cls, data: bytes, filename: str = "") -> dict:
+        """
+        Deserialize backup data from bytes.
+        Auto-detects format based on magic bytes or filename.
+
+        Args:
+            data: Raw bytes from backup file
+            filename: Original filename (helps with detection)
+
+        Returns:
+            dict: Parsed backup data
+
+        Raises:
+            ValueError: If format is unrecognized or parsing fails
+        """
+        # Detect gzip by magic bytes (1f 8b)
+        is_gzip = data[:2] == b"\x1f\x8b"
+
+        # Also check filename as fallback
+        if not is_gzip and filename.endswith(".gz"):
+            is_gzip = True
+
+        if is_gzip:
+            try:
+                with gzip.GzipFile(fileobj=io.BytesIO(data)) as gz:
+                    json_str = gz.read().decode("utf-8")
+            except Exception as e:
+                raise ValueError(f"Failed to decompress gzip backup: {e}")
+        else:
+            json_str = data.decode("utf-8")
+
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in backup: {e}")
+
+    @classmethod
+    def get_file_extension(cls, format: str) -> str:
+        """Return appropriate file extension for format."""
+        if format == cls.FORMAT_GZIP:
+            return ".json.gz"
+        return ".json"
 
     # =====================================================================
     # VALIDATION METHODS
@@ -431,6 +544,7 @@ class BackupService:
                 f"Backup version ({metadata.get('version')}) differs from current version ({cls.BACKUP_VERSION})"
             )
 
+        datastores = backup_data.get("datastores", [])
         counts = {
             "scripts": len(backup_data.get("scripts", [])),
             "environments": len(backup_data.get("environments", [])),
@@ -439,6 +553,8 @@ class BackupService:
             "schedules": len(backup_data.get("script_schedules", [])),
             "users": len(backup_data.get("users", [])),
             "package_operations": len(backup_data.get("package_operations", [])),
+            "datastores": len(datastores),
+            "datastore_entries": sum(len(ds.get("entries", [])) for ds in datastores),
         }
 
         return {
@@ -488,6 +604,8 @@ class BackupService:
             Script.objects.all().delete()
             Secret.objects.all().delete()
             Environment.objects.all().delete()
+            DataStoreEntry.objects.all().delete()
+            DataStore.objects.all().delete()
             # Note: We don't delete User objects to preserve authentication
             # GlobalSettings is singleton, so we update rather than delete
 
@@ -505,6 +623,7 @@ class BackupService:
                 cls._import_runs(backup_data.get("runs", []), script_map, user_map, current_user)
 
             cls._import_package_operations(backup_data.get("package_operations", []), env_map, user_map, current_user)
+            ds_map = cls._import_datastores(backup_data.get("datastores", []), user_map, current_user)
 
             # Regenerate django-q2 schedules
             schedules_created = cls._regenerate_all_schedules()
@@ -516,6 +635,8 @@ class BackupService:
                 "runs": Run.objects.count() if restore_runs else 0,
                 "schedules": ScriptSchedule.objects.count(),
                 "schedules_regenerated": schedules_created,
+                "datastores": len(ds_map),
+                "datastore_entries": DataStoreEntry.objects.count(),
             }
 
             return {"success": True, "counts": counts, "errors": []}
@@ -753,6 +874,38 @@ class BackupService:
                 completed_at=cls._deserialize_datetime(op_data.get("completed_at")),
                 created_by=created_by,
             )
+
+    @classmethod
+    def _import_datastores(cls, datastores_data: List[dict], user_map: dict, current_user) -> dict:
+        """Import DataStores and their entries."""
+        ds_map = {}
+
+        for ds_data in datastores_data:
+            old_id = ds_data["id"]
+            created_by = user_map.get(ds_data.get("created_by_email"), current_user)
+
+            datastore = DataStore.objects.create(
+                id=old_id,  # Preserve UUID
+                name=ds_data["name"],
+                description=ds_data.get("description", ""),
+                created_at=cls._deserialize_datetime(ds_data.get("created_at")),
+                updated_at=cls._deserialize_datetime(ds_data.get("updated_at")),
+                created_by=created_by,
+            )
+            ds_map[old_id] = datastore
+
+            # Import entries for this datastore
+            for entry_data in ds_data.get("entries", []):
+                DataStoreEntry.objects.create(
+                    id=entry_data["id"],  # Preserve UUID
+                    datastore=datastore,
+                    key=entry_data["key"],
+                    value_json=entry_data["value_json"],
+                    created_at=cls._deserialize_datetime(entry_data.get("created_at")),
+                    updated_at=cls._deserialize_datetime(entry_data.get("updated_at")),
+                )
+
+        return ds_map
 
     @classmethod
     def _regenerate_all_schedules(cls) -> int:

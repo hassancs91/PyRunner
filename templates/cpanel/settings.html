@@ -562,6 +562,29 @@
                 <form method="post" action="{% url 'cpanel:backup_create' %}" id="backup-create-form">
                     {% csrf_token %}
                     <div class="space-y-4 mb-6">
+                        <!-- Backup Format -->
+                        <div>
+                            <label class="block text-sm font-medium text-code-text mb-2">
+                                {{ backup_create_form.backup_format.label }}
+                            </label>
+                            <div class="space-y-2">
+                                {% for radio in backup_create_form.backup_format %}
+                                <label class="flex items-center">
+                                    {{ radio.tag }}
+                                    <span class="ml-3 text-sm text-code-text">{{ radio.choice_label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            <p class="mt-1 text-xs text-code-muted">{{ backup_create_form.backup_format.help_text }}</p>
+                        </div>
+
+                        <div class="flex items-center">
+                            {{ backup_create_form.include_datastores }}
+                            <label for="id_include_datastores" class="ml-3 text-sm text-code-text">
+                                {{ backup_create_form.include_datastores.label }}
+                            </label>
+                        </div>
+
                         <div class="flex items-center">
                             {{ backup_create_form.include_runs }}
                             <label for="id_include_runs" class="ml-3 text-sm text-code-text">
@@ -615,7 +638,7 @@
                             <input type="file"
                                    id="id_backup_file"
                                    name="backup_file"
-                                   accept=".json"
+                                   accept=".json,.json.gz,.gz"
                                    class="block w-full text-sm text-code-text file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-opacity-90"
                                    onchange="handleBackupUpload(event)">
                             <p class="mt-1 text-xs text-code-muted">{{ backup_restore_form.backup_file.help_text }}</p>
@@ -999,6 +1022,8 @@ function showRestorePreview(preview, warnings) {
     html += '<div>• Runs: <strong>' + escapeHtml(String(preview.counts.runs)) + '</strong></div>';
     html += '<div>• Schedules: <strong>' + escapeHtml(String(preview.counts.schedules)) + '</strong></div>';
     html += '<div>• Users: <strong>' + escapeHtml(String(preview.counts.users)) + '</strong></div>';
+    html += '<div>• DataStores: <strong>' + escapeHtml(String(preview.counts.datastores || 0)) + '</strong></div>';
+    html += '<div>• DataStore Entries: <strong>' + escapeHtml(String(preview.counts.datastore_entries || 0)) + '</strong></div>';
     html += '</div>';
     html += '</div>';
 

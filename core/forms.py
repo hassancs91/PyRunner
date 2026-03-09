@@ -1284,6 +1284,33 @@ class WorkerSettingsForm(forms.Form):
 class BackupCreateForm(forms.Form):
     """Form for configuring backup creation."""
 
+    backup_format = forms.ChoiceField(
+        choices=[
+            ("gzip", "Compressed (recommended) - .json.gz"),
+            ("json", "Plain JSON - .json"),
+        ],
+        initial="gzip",
+        widget=forms.RadioSelect(
+            attrs={
+                "class": "w-4 h-4 text-code-accent bg-code-bg border-code-border focus:ring-code-accent",
+            }
+        ),
+        label="Backup format",
+        help_text="Compressed backups are 80-95% smaller",
+    )
+
+    include_datastores = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+            }
+        ),
+        label="Include DataStores",
+        help_text="Include all DataStores and their key-value entries",
+    )
+
     include_runs = forms.BooleanField(
         required=False,
         initial=True,
@@ -1330,11 +1357,11 @@ class BackupRestoreForm(forms.Form):
         widget=forms.FileInput(
             attrs={
                 "class": "block w-full text-sm text-code-text file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-opacity-90",
-                "accept": ".json",
+                "accept": ".json,.json.gz,.gz",
             }
         ),
         label="Backup file",
-        help_text="JSON backup file (.json)",
+        help_text="JSON or compressed backup file (.json or .json.gz)",
     )
 
     restore_runs = forms.BooleanField(

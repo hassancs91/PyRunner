@@ -1,7 +1,6 @@
 """
 Views for backup and restore functionality.
 """
-import json
 from datetime import datetime
 
 from django.contrib import messages
@@ -30,23 +29,31 @@ def backup_create_view(request):
         form = BackupCreateForm(request.POST)
         if form.is_valid():
             try:
+                # Get format preference
+                backup_format = form.cleaned_data.get("backup_format", BackupService.FORMAT_GZIP)
+
                 # Create backup
                 backup_data = BackupService.create_backup(
                     include_runs=form.cleaned_data.get("include_runs", True),
                     max_runs=form.cleaned_data.get("max_runs", 1000),
                     include_package_operations=form.cleaned_data.get("include_package_operations", False),
+                    include_datastores=form.cleaned_data.get("include_datastores", True),
                     created_by_user=request.user,
+                )
+
+                # Serialize with selected format
+                file_bytes, content_type = BackupService.serialize_backup(
+                    backup_data,
+                    format=backup_format,
                 )
 
                 # Generate filename with timestamp
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"pyrunner_backup_{timestamp}.json"
+                extension = BackupService.get_file_extension(backup_format)
+                filename = f"pyrunner_backup_{timestamp}{extension}"
 
-                # Create JSON response
-                response = HttpResponse(
-                    json.dumps(backup_data, indent=2),
-                    content_type="application/json",
-                )
+                # Create response
+                response = HttpResponse(file_bytes, content_type=content_type)
                 response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
                 return response
@@ -65,6 +72,7 @@ def backup_create_view(request):
 def backup_upload_view(request):
     """
     Upload backup file and return validation results.
+    Supports both JSON and gzip-compressed formats.
     AJAX endpoint for file upload.
     """
     try:
@@ -83,13 +91,17 @@ def backup_upload_view(request):
                 "error": f"File too large (max {BackupService.MAX_BACKUP_SIZE_MB}MB)",
             })
 
-        # Parse JSON
+        # Read raw bytes and deserialize (auto-detects format)
+        raw_data = backup_file.read()
         try:
-            backup_data = json.load(backup_file)
-        except json.JSONDecodeError as e:
+            backup_data = BackupService.deserialize_backup(
+                raw_data,
+                filename=backup_file.name,
+            )
+        except ValueError as e:
             return JsonResponse({
                 "success": False,
-                "error": f"Invalid JSON file: {str(e)}",
+                "error": str(e),
             })
 
         # Validate backup
@@ -178,23 +190,28 @@ def backup_restore_view(request):
                 include_runs=True,
                 max_runs=1000,
                 include_package_operations=False,
+                include_datastores=True,
                 created_by_user=request.user,
             )
 
-            # Save automatic backup to file
+            # Save automatic backup to file (compressed)
             import os
-            from django.conf import settings
+            from django.conf import settings as django_settings
 
-            backup_dir = os.path.join(settings.BASE_DIR, "data", "backups", "auto")
+            backup_dir = os.path.join(django_settings.BASE_DIR, "data", "backups", "auto")
             os.makedirs(backup_dir, exist_ok=True)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            auto_backup_path = os.path.join(backup_dir, f"auto_backup_{timestamp}.json")
+            auto_backup_bytes, _ = BackupService.serialize_backup(
+                auto_backup_data,
+                format=BackupService.FORMAT_GZIP,
+            )
+            auto_backup_path = os.path.join(backup_dir, f"auto_backup_{timestamp}.json.gz")
 
-            with open(auto_backup_path, "w") as f:
-                json.dump(auto_backup_data, f, indent=2)
+            with open(auto_backup_path, "wb") as f:
+                f.write(auto_backup_bytes)
 
-            messages.info(request, f"Automatic backup created: auto_backup_{timestamp}.json")
+            messages.info(request, f"Automatic backup created: auto_backup_{timestamp}.json.gz")
 
         except Exception as e:
             messages.warning(request, f"Failed to create automatic backup: {str(e)}")
