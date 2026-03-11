@@ -93,7 +93,7 @@ class ScriptForm(forms.ModelForm):
                 attrs={
                     "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
                     "min": 1,
-                    "max": 3600,
+                    "max": 86400,
                 }
             ),
             "is_enabled": forms.CheckboxInput(
@@ -138,7 +138,7 @@ class ScriptForm(forms.ModelForm):
             "notify_webhook_enabled": "Enable Webhook",
         }
         help_texts = {
-            "timeout_seconds": "Maximum execution time (1-3600 seconds)",
+            "timeout_seconds": "Maximum execution time (1 second to 24 hours)",
             "notify_email": "Leave empty to use global default",
             "notify_webhook_url": "URL to POST notifications to when script completes",
         }
@@ -156,8 +156,8 @@ class ScriptForm(forms.ModelForm):
 
     def clean_timeout_seconds(self):
         timeout = self.cleaned_data.get("timeout_seconds")
-        if timeout is not None and (timeout < 1 or timeout > 3600):
-            raise forms.ValidationError("Timeout must be between 1 and 3600 seconds.")
+        if timeout is not None and (timeout < 1 or timeout > 86400):
+            raise forms.ValidationError("Timeout must be between 1 and 86400 seconds (24 hours).")
         return timeout
 
 

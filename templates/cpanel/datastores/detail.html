@@ -168,6 +168,164 @@ del store["my_key"]
 for key in store.keys():
     print(key, store[key])</code>
         </div>
+
+        <!-- REST API Access -->
+        <div class="mt-6 p-4 bg-code-bg border border-code-border rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-medium text-code-text">REST API Access</h3>
+                <button type="button"
+                        id="api-toggle-btn"
+                        onclick="toggleApiExamples()"
+                        class="text-xs text-code-accent hover:underline">
+                    Show curl examples
+                </button>
+            </div>
+
+            <p class="text-sm text-code-muted">
+                Access this datastore via the REST API using an
+                <a href="{% url 'cpanel:api_token_list' %}" class="text-code-accent hover:underline">API token</a>.
+            </p>
+
+            <div id="api-examples" class="hidden mt-4 space-y-4">
+                <!-- Authentication Methods -->
+                <div>
+                    <h4 class="text-xs text-code-muted uppercase tracking-wider mb-2">Authentication</h4>
+                    <p class="text-sm text-code-muted mb-2">Include your token in the request header:</p>
+                    <code class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text whitespace-pre">Authorization: Bearer YOUR_API_TOKEN
+# or
+X-API-Key: YOUR_API_TOKEN</code>
+                </div>
+
+                <!-- Endpoint 1: Get Datastore Metadata -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <h4 class="text-xs text-code-muted uppercase tracking-wider">Get Datastore Info</h4>
+                        <button type="button" onclick="copyCode('curl-ds-info')"
+                                class="text-xs text-code-accent hover:underline">Copy</button>
+                    </div>
+                    <code id="curl-ds-info" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+  "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/{{ datastore.name }}/"</code>
+                    <details class="mt-2">
+                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
+                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+  "name": "{{ datastore.name }}",
+  "description": "{{ datastore.description|default:"" }}",
+  "entry_count": {{ entries.count }},
+  "created_at": "{{ datastore.created_at|date:"c" }}",
+  "updated_at": "{{ datastore.updated_at|date:"c" }}"
+}</code>
+                    </details>
+                </div>
+
+                <!-- Endpoint 2: List All Entries -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <h4 class="text-xs text-code-muted uppercase tracking-wider">List Entries (paginated)</h4>
+                        <button type="button" onclick="copyCode('curl-entries')"
+                                class="text-xs text-code-accent hover:underline">Copy</button>
+                    </div>
+                    <code id="curl-entries" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+  "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/{{ datastore.name }}/entries/?page=1&page_size=50"</code>
+                    <details class="mt-2">
+                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
+                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+  "entries": [
+    {
+      "key": "example_key",
+      "value": {"any": "json data"},
+      "created_at": "2026-01-20T08:00:00Z",
+      "updated_at": "2026-02-01T12:00:00Z"
+    }
+  ],
+  "count": {{ entries.count }},
+  "page": 1,
+  "page_size": 50,
+  "total_pages": 1
+}</code>
+                    </details>
+                </div>
+
+                <!-- Endpoint 3: Get Single Entry -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <h4 class="text-xs text-code-muted uppercase tracking-wider">Get Single Entry</h4>
+                        <button type="button" onclick="copyCode('curl-entry')"
+                                class="text-xs text-code-accent hover:underline">Copy</button>
+                    </div>
+                    <code id="curl-entry" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+  "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/{{ datastore.name }}/entries/YOUR_KEY/"</code>
+                    <details class="mt-2">
+                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
+                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+  "key": "example_key",
+  "value": {"any": "json data"},
+  "created_at": "2026-01-20T08:00:00Z",
+  "updated_at": "2026-02-01T12:00:00Z"
+}</code>
+                    </details>
+                </div>
+
+                <!-- Endpoint 4: List All Datastores -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <h4 class="text-xs text-code-muted uppercase tracking-wider">List All Datastores</h4>
+                        <button type="button" onclick="copyCode('curl-list')"
+                                class="text-xs text-code-accent hover:underline">Copy</button>
+                    </div>
+                    <code id="curl-list" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+  "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/"</code>
+                    <details class="mt-2">
+                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
+                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+  "datastores": [
+    {
+      "name": "{{ datastore.name }}",
+      "description": "{{ datastore.description|default:"" }}",
+      "entry_count": {{ entries.count }}
+    }
+  ],
+  "count": 1
+}</code>
+                    </details>
+                </div>
+
+                <!-- Rate Limiting Info -->
+                <div class="pt-3 border-t border-code-border">
+                    <h4 class="text-xs text-code-muted uppercase tracking-wider mb-2">Rate Limits & Pagination</h4>
+                    <ul class="text-xs text-code-muted space-y-1">
+                        <li>• Rate limit: 60 requests per minute per token</li>
+                        <li>• Default page size: 50 entries (max: 100)</li>
+                        <li>• Pagination params: <code class="px-1 bg-code-surface rounded">page</code>, <code class="px-1 bg-code-surface rounded">page_size</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+function toggleApiExamples() {
+    const examples = document.getElementById('api-examples');
+    const toggleBtn = document.getElementById('api-toggle-btn');
+    if (examples.classList.contains('hidden')) {
+        examples.classList.remove('hidden');
+        toggleBtn.textContent = 'Hide curl examples';
+    } else {
+        examples.classList.add('hidden');
+        toggleBtn.textContent = 'Show curl examples';
+    }
+}
+
+function copyCode(elementId) {
+    const codeElement = document.getElementById(elementId);
+    if (codeElement) {
+        navigator.clipboard.writeText(codeElement.textContent.trim()).then(() => {
+            const btn = event.currentTarget;
+            const original = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = original; }, 1500);
+        });
+    }
+}
+</script>
 {% endblock %}

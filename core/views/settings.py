@@ -4,7 +4,7 @@ Settings views for the control panel.
 import logging
 
 from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.decorators.http import require_POST
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -28,7 +28,13 @@ from core.forms import (
 logger = logging.getLogger(__name__)
 
 
+def superuser_required(view_func):
+    """Decorator to require superuser status for settings operations."""
+    return user_passes_test(lambda u: u.is_superuser, login_url="auth:login")(view_func)
+
+
 @login_required
+@superuser_required
 def settings_view(request: HttpRequest) -> HttpResponse:
     """Display global settings."""
     from core.services.backup_schedule_service import BackupScheduleService

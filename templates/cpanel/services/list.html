@@ -75,19 +75,19 @@
 
                 <!-- Quick Status Info -->
                 {% if s3_status.configured %}
-                <div class="mt-4 flex flex-wrap gap-4 text-sm">
-                    <div class="flex items-center text-code-muted">
-                        <span class="font-medium mr-1">Bucket:</span>
-                        <span class="font-mono">{{ s3_status.bucket }}</span>
+                <div class="mt-4 flex flex-wrap gap-3">
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-code-border/30 rounded-lg">
+                        <span class="text-code-muted text-xs uppercase tracking-wide">Bucket</span>
+                        <span class="text-code-text font-mono text-sm">{{ s3_status.bucket }}</span>
                     </div>
-                    <div class="flex items-center text-code-muted">
-                        <span class="font-medium mr-1">Endpoint:</span>
-                        <span class="font-mono">{{ s3_status.endpoint }}</span>
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-code-border/30 rounded-lg">
+                        <span class="text-code-muted text-xs uppercase tracking-wide">Endpoint</span>
+                        <span class="text-code-text font-mono text-sm truncate max-w-xs">{{ s3_status.endpoint }}</span>
                     </div>
                     {% if s3_status.last_tested %}
-                    <div class="flex items-center text-code-muted">
-                        <span class="font-medium mr-1">Last tested:</span>
-                        <span>{{ s3_status.last_tested|timesince }} ago</span>
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-code-border/30 rounded-lg">
+                        <span class="text-code-muted text-xs uppercase tracking-wide">Last tested</span>
+                        <span class="text-code-text text-sm">{{ s3_status.last_tested|timesince }} ago</span>
                     </div>
                     {% endif %}
                 </div>
@@ -201,7 +201,7 @@
                 </form>
 
                 <!-- Test Result -->
-                <div id="s3-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
+                <div id="s3-test-result" class="hidden mx-8 mb-6 p-4 rounded-lg"></div>
             </div>
         </div>
 
@@ -241,27 +241,39 @@ function testS3Connection() {
     btn.textContent = 'Testing...';
     resultDiv.classList.add('hidden');
 
+    // Collect form data to test without saving
+    const formData = {
+        s3_endpoint_url: document.querySelector('[name="s3_endpoint_url"]').value,
+        s3_region: document.querySelector('[name="s3_region"]').value,
+        s3_bucket_name: document.querySelector('[name="s3_bucket_name"]').value,
+        s3_access_key: document.querySelector('[name="s3_access_key"]').value,
+        s3_secret_key: document.querySelector('[name="s3_secret_key"]').value,
+        s3_use_ssl: document.querySelector('[name="s3_use_ssl"]').checked,
+        s3_path_style: document.querySelector('[name="s3_path_style"]').checked,
+    };
+
     fetch('{% url "cpanel:s3_test_connection" %}', {
         method: 'POST',
         headers: {
             'X-CSRFToken': '{{ csrf_token }}',
             'Content-Type': 'application/json',
         },
+        body: JSON.stringify(formData),
     })
     .then(response => response.json())
     .then(data => {
         resultDiv.classList.remove('hidden');
         if (data.success) {
-            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-code-green/10 border border-code-green text-code-green';
+            resultDiv.className = 'mx-8 mb-6 p-4 rounded-lg bg-code-green/10 border border-code-green text-code-green';
             resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
         } else {
-            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+            resultDiv.className = 'mx-8 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
             resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
         }
     })
     .catch(error => {
         resultDiv.classList.remove('hidden');
-        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+        resultDiv.className = 'mx-8 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
         resultDiv.textContent = 'Error: ' + escapeHtml(error.message);
     })
     .finally(() => {

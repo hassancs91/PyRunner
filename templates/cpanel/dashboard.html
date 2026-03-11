@@ -157,8 +157,8 @@
         <div class="mb-8">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-code-text">System Resources</h2>
-                <button id="toggleAutoRefresh" class="text-xs px-2 py-1 bg-code-surface border border-code-border rounded hover:border-code-accent transition-colors text-code-muted" title="Toggle auto-refresh">
-                    <span id="autoRefreshStatus">Auto-refresh: OFF</span>
+                <button id="toggleAutoRefresh" class="text-xs px-2 py-1 bg-code-surface border border-code-border rounded hover:border-code-accent transition-colors border-code-green text-code-green" title="Toggle auto-refresh">
+                    <span id="autoRefreshStatus">Auto-refresh: ON</span>
                 </button>
             </div>
             <div id="systemResourcesContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -476,7 +476,7 @@
 {% block extra_scripts %}
 <script>
 (function() {
-    let autoRefreshEnabled = false;
+    let autoRefreshEnabled = true;
     let refreshInterval = null;
     const REFRESH_RATE = 30000;
 
@@ -564,6 +564,8 @@
 
     if (toggleBtn) {
         toggleBtn.addEventListener('click', toggleAutoRefresh);
+        // Start auto-refresh on page load
+        refreshInterval = setInterval(fetchResources, REFRESH_RATE);
     }
 })();
 </script>

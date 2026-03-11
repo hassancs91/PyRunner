@@ -840,6 +840,19 @@
                     </svg>
                     Manage API Tokens
                 </a>
+
+                <div class="mt-4 pt-4 border-t border-code-border">
+                    <p class="text-sm text-code-muted mb-2">
+                        Each datastore has API documentation with curl examples on its detail page.
+                    </p>
+                    <a href="{% url 'cpanel:datastore_list' %}"
+                       class="text-sm text-code-accent hover:underline inline-flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
+                        </svg>
+                        View Datastores
+                    </a>
+                </div>
             </div>
         </div>
     </div>

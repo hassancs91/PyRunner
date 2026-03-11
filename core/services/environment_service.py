@@ -200,7 +200,8 @@ class EnvironmentService:
             return False
 
         # Check for shell metacharacters and null bytes
-        dangerous_chars = [";", "&", "|", "`", "$", "(", ")", "{", "}", "<", ">", "\n", "\r", "\0"]
+        # Note: < and > are allowed for version specifiers (>=, <=, etc.)
+        dangerous_chars = [";", "&", "|", "`", "$", "(", ")", "{", "}", "\n", "\r", "\0"]
         if any(char in spec for char in dangerous_chars):
             return False
 

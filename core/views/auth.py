@@ -180,7 +180,7 @@ def verify_view(request: HttpRequest, token: str) -> HttpResponse:
             "message": str(e)
         })
 
-    login(request, user)
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     messages.success(request, f"Welcome back, {user.email}!")
 
     return redirect("cpanel:dashboard")
@@ -339,7 +339,7 @@ def reset_password_view(request: HttpRequest, token: str) -> HttpResponse:
             user.set_password(form.cleaned_data["password"])
             user.save()
 
-            login(request, user)
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             messages.success(request, "Password has been reset successfully.")
             return redirect("cpanel:dashboard")
     else:
