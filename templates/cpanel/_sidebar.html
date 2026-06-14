@@ -122,15 +122,6 @@
 
     <!-- Footer (Fixed at bottom) -->
     <div class="flex-shrink-0 border-t border-line p-3 space-y-2">
-        <!-- What's new -->
-        <a href="{% url 'cpanel:changelog' %}"
-           class="relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors {% if request.resolver_match.url_name == 'changelog' %}font-medium text-ok bg-ok/10{% else %}text-muted hover:text-text hover:bg-panel-hi{% endif %}">
-            {% if request.resolver_match.url_name == 'changelog' %}<span class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-ok"></span>{% endif %}
-            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-4.51 2.51a6 6 0 01-3.42-3.42 6 6 0 014.32-7.7m-1.27 9.65l2.45-2.45m-2.45 2.45l.01.01"/></svg>
-            <span>What's new</span>
-            <span class="ml-auto text-[10px] font-mono text-faint">v{{ pyrunner_version }}</span>
-        </a>
-
         <!-- Developer Links -->
         <div class="flex items-center gap-2 text-xs">
             <span class="text-faint">Developer:</span>
