@@ -89,7 +89,7 @@
                     {% if user.is_authenticated %}
                     <a href="{% url 'cpanel:changelog' %}" title="What's new"
                        class="w-9 h-9 grid place-items-center rounded-lg border transition-colors {% if request.resolver_match.url_name == 'changelog' %}border-ok/40 text-ok bg-ok/10{% else %}border-line text-muted hover:text-text hover:border-faint{% endif %}">
-                        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+                        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-4.51 2.51a6 6 0 01-3.42-3.42 6 6 0 014.32-7.7m-1.27 9.65l2.45-2.45m-2.45 2.45l.01.01"/></svg>
                     </a>
                     {% endif %}
                     <button type="button" onclick="toggleTheme()" class="w-9 h-9 grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="Toggle theme" aria-label="Toggle theme">
