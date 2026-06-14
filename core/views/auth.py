@@ -1,6 +1,8 @@
 """
 Authentication views supporting both password and magic link login.
 """
+import logging
+
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -15,6 +17,9 @@ from core.models import MagicToken, User, UserInvite, PasswordResetToken
 from core.models.settings import GlobalSettings
 from core.email import send_magic_link_email, send_password_reset_email
 from core.forms import PasswordLoginForm, SetPasswordForm
+from core.services import RecaptchaService, EncryptionService, EncryptionError
+
+logger = logging.getLogger(__name__)
 
 
 @csrf_protect
@@ -30,6 +35,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
 
     settings = GlobalSettings.get_settings()
     email_enabled = settings.email_backend != GlobalSettings.EmailBackend.DISABLED
+    recaptcha_active = settings.recaptcha_active()
 
     password_form = PasswordLoginForm()
     error_message = None
@@ -37,7 +43,10 @@ def login_view(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         action = request.POST.get("action", "password")
 
-        if action == "password":
+        if recaptcha_active and not _verify_recaptcha(request, settings):
+            # Bot protection: reject before processing any login action.
+            error_message = "reCAPTCHA verification failed. Please try again."
+        elif action == "password":
             # Password authentication
             password_form = PasswordLoginForm(request.POST)
             if password_form.is_valid():
@@ -71,7 +80,20 @@ def login_view(request: HttpRequest) -> HttpResponse:
         "password_form": password_form,
         "email_enabled": email_enabled,
         "error_message": error_message,
+        "recaptcha_active": recaptcha_active,
+        "recaptcha_site_key": settings.recaptcha_site_key,
     })
+
+
+def _verify_recaptcha(request: HttpRequest, settings: GlobalSettings) -> bool:
+    """Verify the reCAPTCHA token submitted with the login form."""
+    token = request.POST.get("g-recaptcha-response", "")
+    try:
+        secret = EncryptionService.decrypt(settings.recaptcha_secret_key_encrypted)
+    except EncryptionError:
+        logger.error("Could not decrypt reCAPTCHA secret key for login verification")
+        return False
+    return RecaptchaService.verify(secret, token, get_client_ip(request))
 
 
 def _handle_magic_link_request(request: HttpRequest) -> HttpResponse:

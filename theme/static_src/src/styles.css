@@ -2,63 +2,154 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+/* ============================================================
+   Design tokens — theme-aware via CSS custom properties.
+   Values are space-separated RGB channels so Tailwind can apply
+   alpha (e.g. bg-ok/10). Default (:root) = light, .dark = dark.
+   ============================================================ */
+:root {
+    /* Console tokens (light) */
+    --ink: 247 248 250;
+    --panel: 255 255 255;
+    --panel-hi: 245 247 250;
+    --line: 226 230 237;
+    --line-soft: 237 240 245;
+    --text: 16 21 28;
+    --muted: 90 100 115;
+    --faint: 150 159 173;
+    --ok: 22 163 87;
+    --warn: 193 124 18;
+    --fail: 216 64 70;
+    --info: 41 102 226;
+    --accent: 22 163 87;
+
+    /* Legacy code-* tokens (light) */
+    --code-bg: 255 255 255;
+    --code-surface: 246 248 250;
+    --code-border: 216 222 228;
+    --code-text: 31 35 40;
+    --code-muted: 101 109 118;
+    --code-accent: 9 105 218;
+    --code-green: 26 127 55;
+    --code-yellow: 154 103 0;
+    --code-red: 207 34 46;
+    --code-purple: 130 80 223;
 }
 
-::-webkit-scrollbar-track {
-    background: #161b22;
+.dark {
+    /* Console tokens (dark) — the refined console palette */
+    --ink: 9 11 16;
+    --panel: 16 19 27;
+    --panel-hi: 22 26 36;
+    --line: 34 41 54;
+    --line-soft: 26 31 41;
+    --text: 232 236 243;
+    --muted: 138 147 165;
+    --faint: 89 97 111;
+    --ok: 52 211 153;
+    --warn: 245 181 68;
+    --fail: 251 110 114;
+    --info: 91 156 255;
+    --accent: 52 211 153;
+
+    /* Legacy code-* tokens (dark) — identical to the original values */
+    --code-bg: 13 17 23;
+    --code-surface: 22 27 34;
+    --code-border: 48 54 61;
+    --code-text: 201 209 217;
+    --code-muted: 139 148 158;
+    --code-accent: 88 166 255;
+    --code-green: 63 185 80;
+    --code-yellow: 210 153 34;
+    --code-red: 248 81 73;
+    --code-purple: 163 113 247;
 }
 
-::-webkit-scrollbar-thumb {
-    background: #30363d;
-    border-radius: 4px;
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+body {
+    background-color: rgb(var(--ink));
+    color: rgb(var(--text));
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: #484f58;
-}
+/* ============================================================
+   Scrollbars
+   ============================================================ */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--faint)); }
 
-/* Font settings */
+.scrollbar-thin::-webkit-scrollbar { width: 5px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 3px; }
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
+
+/* ============================================================
+   Typography helpers
+   ============================================================ */
 .font-mono {
-    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-family: 'JetBrains Mono', ui-monospace, 'Consolas', monospace;
 }
 
-/* Custom utility classes */
+@layer components {
+    /* Monospace caps label used for eyebrows / section headers */
+    .eyebrow {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10.5px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+    }
+}
+
 @layer utilities {
+    .tnum { font-variant-numeric: tabular-nums; }
+
     .gradient-text {
-        background: linear-gradient(135deg, #58a6ff 0%, #3fb950 100%);
+        background: linear-gradient(135deg, rgb(var(--info)) 0%, rgb(var(--ok)) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
 
     .glow-accent {
-        box-shadow: 0 0 20px rgba(88, 166, 255, 0.3);
+        box-shadow: 0 0 20px rgb(var(--info) / 0.3);
     }
 }
 
-/* Toast notification animations */
+/* ============================================================
+   Signature: run-pulse ribbon
+   ============================================================ */
+.pulse-bar {
+    width: 6px;
+    border-radius: 2px;
+    transition: transform .15s ease, opacity .15s ease;
+    transform-origin: bottom;
+}
+.pulse-bar:hover { transform: scaleY(1.12); opacity: 1 !important; }
+
+/* ============================================================
+   Live status motion
+   ============================================================ */
+@keyframes pr-livedot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.live-dot { animation: pr-livedot 1.6s ease-in-out infinite; }
+
+@keyframes pr-ring { 0% { transform: scale(.6); opacity: .6; } 100% { transform: scale(2.2); opacity: 0; } }
+.live-ring { animation: pr-ring 1.8s ease-out infinite; }
+
+/* ============================================================
+   Toast notification animations
+   ============================================================ */
 @keyframes toastSlideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes toastSlideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
 }
 
-@keyframes toastSlideOut {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(100%);
-        opacity: 0;
-    }
+@media (prefers-reduced-motion: reduce) {
+    .live-dot, .live-ring, .animate-pulse { animation: none !important; }
+    .pulse-bar { transition: none; }
 }

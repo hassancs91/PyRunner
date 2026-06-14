@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Edit {{ script.name }} - PyRunner{% endblock %}
 
@@ -6,37 +7,42 @@
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
-    <div class="flex-1 p-8">
-        <!-- Header -->
-        <div class="mb-8">
-            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
-                <a href="{% url 'cpanel:script_list' %}" class="hover:text-code-accent">Scripts</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-                <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="hover:text-code-accent">{{ script.name }}</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-                <span class="text-code-text">Edit</span>
-            </nav>
-            <h1 class="text-2xl font-bold text-code-text">Edit Script</h1>
-            <p class="text-code-muted">Update {{ script.name }}</p>
-        </div>
-
-        <!-- Form with Two-Column Layout -->
+    <div class="flex-1 min-w-0">
         <form method="post">
             {% csrf_token %}
 
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <!-- Main Column: Name, Description, Code Editor -->
-                <div class="lg:col-span-7">
-                    {% include "cpanel/scripts/_form_main.html" %}
+            <!-- Sticky action header -->
+            <div class="sticky top-16 z-20 bg-ink/85 backdrop-blur border-b border-line">
+                <div class="px-5 lg:px-8 py-3.5 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
+                    <div class="min-w-0">
+                        <nav class="flex items-center gap-1.5 eyebrow text-faint mb-1">
+                            <a href="{% url 'cpanel:script_list' %}" class="hover:text-text transition-colors">Scripts</a>
+                            <span>/</span>
+                            <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="hover:text-text transition-colors truncate max-w-[12rem]">{{ script.name }}</a>
+                            <span>/</span>
+                            <span class="text-muted">Edit</span>
+                        </nav>
+                        <h1 class="text-lg font-semibold tracking-tight truncate">Edit script</h1>
+                    </div>
+                    <div class="flex items-center gap-2.5 flex-shrink-0">
+                        <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</a>
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            Save changes
+                        </button>
+                    </div>
                 </div>
+            </div>
 
-                <!-- Sidebar: Properties and Settings -->
-                <div class="lg:col-span-5">
-                    {% include "cpanel/scripts/_form_sidebar.html" %}
+            <!-- Body -->
+            <div class="px-5 lg:px-8 py-6 max-w-[1440px] mx-auto">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="lg:col-span-2">
+                        {% include "cpanel/scripts/_form_main.html" %}
+                    </div>
+                    <div class="lg:col-span-1">
+                        {% include "cpanel/scripts/_form_sidebar.html" %}
+                    </div>
                 </div>
             </div>
         </form>
@@ -46,115 +52,5 @@
 
 {% block extra_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
-<script>
-// Collapsible sections toggle
-function toggleSection(sectionId) {
-    const content = document.getElementById(sectionId + '-content');
-    const chevron = document.getElementById(sectionId + '-chevron');
-
-    if (content && chevron) {
-        content.classList.toggle('hidden');
-        chevron.classList.toggle('rotate-180');
-    }
-}
-
-// Schedule options toggle
-function toggleScheduleOptions(mode) {
-    const intervalOptions = document.getElementById('interval-options');
-    const dailyOptions = document.getElementById('daily-options');
-    const weeklyOptions = document.getElementById('weekly-options');
-    const monthlyOptions = document.getElementById('monthly-options');
-
-    if (intervalOptions) {
-        intervalOptions.classList.toggle('hidden', mode !== 'interval');
-    }
-    if (dailyOptions) {
-        dailyOptions.classList.toggle('hidden', mode !== 'daily');
-    }
-    if (weeklyOptions) {
-        weeklyOptions.classList.toggle('hidden', mode !== 'weekly');
-    }
-    if (monthlyOptions) {
-        monthlyOptions.classList.toggle('hidden', mode !== 'monthly');
-    }
-
-    // Update radio button styles
-    document.querySelectorAll('input[name="run_mode"]').forEach(radio => {
-        const label = radio.closest('label');
-        const dot = label.querySelector('span > span');
-
-        if (radio.checked) {
-            label.classList.add('border-code-accent', 'bg-code-accent/10');
-            label.classList.remove('border-code-border');
-            label.querySelector('span').classList.add('border-code-accent');
-            label.querySelector('span').classList.remove('border-code-border');
-            if (!dot) {
-                const indicator = label.querySelector('span.w-4');
-                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-code-accent"></span>';
-            }
-        } else {
-            label.classList.remove('border-code-accent', 'bg-code-accent/10');
-            label.classList.add('border-code-border');
-            label.querySelector('span').classList.remove('border-code-accent');
-            label.querySelector('span').classList.add('border-code-border');
-            const indicator = label.querySelector('span.w-4');
-            indicator.innerHTML = '';
-        }
-    });
-}
-
-// Monaco Editor initialization
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
-
-require(['vs/editor/editor.main'], function () {
-    const textarea = document.getElementById('id_code');
-    const container = document.getElementById('code-editor-container');
-
-    if (!textarea || !container) {
-        console.error('Editor elements not found');
-        return;
-    }
-
-    textarea.style.display = 'none';
-
-    const editor = monaco.editor.create(container, {
-        value: textarea.value,
-        language: 'python',
-        theme: 'vs-dark',
-        fontSize: 14,
-        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        lineNumbers: 'on',
-        tabSize: 4,
-        insertSpaces: true,
-        automaticLayout: true
-    });
-
-    editor.onDidChangeModelContent(function () {
-        textarea.value = editor.getValue();
-    });
-});
-
-// Tag selection handling
-document.querySelectorAll('.tag-label').forEach(label => {
-    label.addEventListener('click', function(e) {
-        if (e.target.tagName === 'INPUT') return;
-        e.preventDefault();  // Prevent browser's default toggle (input is inside label)
-        const checkbox = this.querySelector('input[type="checkbox"]');
-        checkbox.checked = !checkbox.checked;
-        updateTagStyle(this, checkbox.checked);
-    });
-});
-
-function updateTagStyle(label, isChecked) {
-    if (isChecked) {
-        label.classList.add('border-code-accent', 'bg-code-accent/20');
-        label.classList.remove('border-code-border', 'bg-code-bg');
-    } else {
-        label.classList.remove('border-code-accent', 'bg-code-accent/20');
-        label.classList.add('border-code-border', 'bg-code-bg');
-    }
-}
-</script>
+<script src="{% static 'js/script_form.js' %}"></script>
 {% endblock %}

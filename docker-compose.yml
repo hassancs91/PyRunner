@@ -15,6 +15,10 @@ services:
       # Django settings - SECRET_KEY is also required (no default)
       - SECRET_KEY=${SECRET_KEY:-}
       - DEBUG=${DEBUG:-False}
+      # When DEBUG=False, settings.py enables SECURE_SSL_REDIRECT by default,
+      # which would 301 http->https and break a plain-http local/proxied run.
+      # Default it off here (edge/proxy terminates TLS, as on Coolify).
+      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT:-False}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
 
       # Email settings (optional)

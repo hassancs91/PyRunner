@@ -7,9 +7,25 @@
     <title>{% block title %}PyRunner{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{% static 'fav.ico' %}">
 
+    {# Set theme before paint to avoid a flash of the wrong theme #}
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('pyrunner-theme') || 'dark';
+                document.documentElement.classList.toggle('dark', t === 'dark');
+            } catch (e) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="{% static 'css/dist/styles.css' %}">
 
-    <!-- Tag color styles -->
+    <!-- Tag color styles (semantic chips, theme-independent) -->
     <style>
         .tag-gray { background-color: rgba(107, 114, 128, 0.2); color: rgb(156, 163, 175); }
         .tag-red { background-color: rgba(239, 68, 68, 0.2); color: rgb(248, 113, 113); }
@@ -20,7 +36,6 @@
         .tag-purple { background-color: rgba(168, 85, 247, 0.2); color: rgb(192, 132, 252); }
         .tag-pink { background-color: rgba(236, 72, 153, 0.2); color: rgb(244, 114, 182); }
 
-        /* Tag color dots */
         .tag-dot-gray { background-color: rgb(107, 114, 128); }
         .tag-dot-red { background-color: rgb(239, 68, 68); }
         .tag-dot-orange { background-color: rgb(249, 115, 22); }
@@ -29,57 +44,84 @@
         .tag-dot-blue { background-color: rgb(59, 130, 246); }
         .tag-dot-purple { background-color: rgb(168, 85, 247); }
         .tag-dot-pink { background-color: rgb(236, 72, 153); }
-
-        /* Mini scrollbar for sidebar */
-        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
-        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
-        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
-        .scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.1) transparent; }
     </style>
 
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-code-bg text-code-text min-h-screen flex flex-col">
+<body class="bg-ink text-text font-sans antialiased min-h-screen flex flex-col">
     {% block header %}
-    <header class="border-b border-code-border bg-code-surface/50 backdrop-blur-sm sticky top-0 z-50">
+    <header class="border-b border-line bg-ink/80 backdrop-blur sticky top-0 z-50">
         <div class="px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <a href="/" class="flex items-center space-x-3">
-                    <div class="w-8 h-8 bg-code-accent/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-5 h-5 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                    </div>
-                    <span class="text-xl font-bold gradient-text">PyRunner</span>
-                </a>
-
-                <nav class="flex items-center space-x-4">
-                    <a href="https://discord.gg/BjkmTn7XSd" target="_blank" rel="noopener noreferrer"
-                       class="flex items-center space-x-1 text-code-muted hover:text-code-text transition-colors text-sm">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-                        </svg>
-                        <span class="hidden sm:inline">Discord</span>
-                    </a>
-                    <a href="https://pyrunner.dev/docs/" target="_blank" rel="noopener noreferrer"
-                       class="flex items-center space-x-1 text-code-muted hover:text-code-text transition-colors text-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                        </svg>
-                        <span class="hidden sm:inline">Docs</span>
-                    </a>
-                    <a href="https://github.com/hassancs91/PyRunner" target="_blank" rel="noopener noreferrer"
-                       class="flex items-center space-x-1 text-code-muted hover:text-code-text transition-colors text-sm">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                        </svg>
-                        <span class="hidden sm:inline">GitHub</span>
+                <div class="flex items-center gap-2">
+                    {% if user.is_authenticated %}
+                    <button type="button" onclick="toggleSidebar()" class="lg:hidden w-9 h-9 grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors flex-shrink-0" aria-label="Open menu" aria-controls="app-sidebar">
+                        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    </button>
+                    {% endif %}
+                    <a href="/" class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-ok/15 grid place-items-center">
+                            <svg class="w-[18px] h-[18px] text-ok" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/>
+                            </svg>
+                        </span>
+                        <span class="text-[17px] font-semibold tracking-tight text-text">PyRunner</span>
                     </a>
                     {% if user.is_authenticated %}
-                        <form method="post" action="{% url 'auth:logout' %}"">
+                    <a href="{% url 'cpanel:changelog' %}" title="What's new in PyRunner"
+                       class="text-xs font-mono text-faint hover:text-text transition-colors hidden sm:inline">v{{ pyrunner_version }}</a>
+                    {% else %}
+                    <span class="text-xs font-mono text-faint hidden sm:inline">v{{ pyrunner_version }}</span>
+                    {% endif %}
+                    {# Update-available pill — rendered when the server-side update check finds a newer release tag on GitHub #}
+                    {% if update_available %}
+                    <a href="https://github.com/hassancs91/PyRunner/tags"
+                       target="_blank" rel="noopener noreferrer"
+                       title="PyRunner {{ update_latest_version }} is available — you are running v{{ pyrunner_version }}"
+                       class="inline-flex items-center gap-1 rounded-full bg-warn/10 border border-warn/30 text-warn text-[10px] font-medium px-2 py-0.5 leading-none hover:bg-warn/20 transition-colors">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6"/></svg>
+                        <span>Update to {{ update_latest_version }}</span>
+                    </a>
+                    {% endif %}
+                </div>
+
+                <nav class="flex items-center gap-1.5">
+                    <button type="button" onclick="toggleTheme()" class="w-9 h-9 grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="Toggle theme" aria-label="Toggle theme">
+                        <svg class="w-[18px] h-[18px] hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2m0 16v2M4 12H2m20 0h-2m-2.9-7.1l-1.4 1.4M7.3 16.7l-1.4 1.4m12.8 0l-1.4-1.4M7.3 7.3 5.9 5.9"/></svg>
+                        <svg class="w-[18px] h-[18px] block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                    </button>
+                    <a href="https://discord.gg/BjkmTn7XSd" target="_blank" rel="noopener noreferrer"
+                       class="w-9 h-9 hidden md:grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="Discord">
+                        <svg class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                        </svg>
+                    </a>
+                    <a href="https://pyrunner.dev/docs/" target="_blank" rel="noopener noreferrer"
+                       class="w-9 h-9 hidden md:grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="Docs">
+                        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.25v13M12 6.25C10.83 5.48 9.25 5 7.5 5S4.17 5.48 3 6.25v13C4.17 18.48 5.75 18 7.5 18s3.33.48 4.5 1.25m0-13C13.17 5.48 14.75 5 16.5 5S19.83 5.48 21 6.25v13C19.83 18.48 18.25 18 16.5 18s-3.33.48-4.5 1.25"/>
+                        </svg>
+                    </a>
+                    <a href="https://github.com/hassancs91/PyRunner" target="_blank" rel="noopener noreferrer"
+                       class="w-9 h-9 hidden md:grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="GitHub">
+                        <svg class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                    </a>
+                    {# Sponsor button — hidden until GitHub Sponsors is approved. Remove these comment tags to re-enable. #}
+                    {% comment %}
+                    <a href="https://github.com/sponsors/hassancs91" target="_blank" rel="noopener noreferrer"
+                       class="w-9 h-9 grid place-items-center rounded-lg border border-line text-muted hover:text-pink-400 hover:border-pink-400 transition-colors" title="Sponsor">
+                        <svg class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                        </svg>
+                    </a>
+                    {% endcomment %}
+                    {% if user.is_authenticated %}
+                        <span class="w-px h-6 bg-line mx-1.5"></span>
+                        <form method="post" action="{% url 'auth:logout' %}">
                             {% csrf_token %}
-                            <button type="submit" class="text-code-muted hover:text-code-text transition-colors text-sm">
+                            <button type="submit" class="text-sm text-muted hover:text-text transition-colors px-2 py-1.5">
                                 Logout
                             </button>
                         </form>
@@ -116,6 +158,62 @@
     {% block footer %}{% endblock %}
 
     <script src="{% static 'js/toast.js' %}"></script>
+    <script>
+        function toggleTheme() {
+            var isDark = document.documentElement.classList.toggle('dark');
+            try { localStorage.setItem('pyrunner-theme', isDark ? 'dark' : 'light'); } catch (e) {}
+        }
+
+        // Mobile navigation drawer (no-op on pages without a sidebar, e.g. auth/setup)
+        (function () {
+            function sidebar() { return document.getElementById('app-sidebar'); }
+            function overlay() { return document.getElementById('sidebar-overlay'); }
+
+            window.openSidebar = function () {
+                var s = sidebar(), o = overlay();
+                if (!s) return;
+                s.classList.remove('-translate-x-full');
+                if (o) o.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            };
+            window.closeSidebar = function () {
+                var s = sidebar(), o = overlay();
+                if (!s) return;
+                s.classList.add('-translate-x-full');
+                if (o) o.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            };
+            window.toggleSidebar = function () {
+                var s = sidebar();
+                if (!s) return;
+                if (s.classList.contains('-translate-x-full')) window.openSidebar();
+                else window.closeSidebar();
+            };
+
+            // Close on Escape
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') window.closeSidebar();
+            });
+            // Close when a drawer link is tapped (so navigation feels natural on mobile)
+            document.addEventListener('DOMContentLoaded', function () {
+                var s = sidebar();
+                if (!s) return;
+                s.querySelectorAll('a').forEach(function (a) {
+                    a.addEventListener('click', function () {
+                        if (window.matchMedia('(max-width: 1023px)').matches) window.closeSidebar();
+                    });
+                });
+            });
+            // Reset drawer state when crossing into desktop so it never stays "open"
+            window.matchMedia('(min-width: 1024px)').addEventListener('change', function (e) {
+                if (e.matches) {
+                    var o = overlay();
+                    if (o) o.classList.add('hidden');
+                    document.body.classList.remove('overflow-hidden');
+                }
+            });
+        })();
+    </script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

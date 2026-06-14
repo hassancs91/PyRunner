@@ -404,3 +404,28 @@ class ScheduleService:
         )
         logger.info("Created worker heartbeat schedule")
         return True
+
+    @classmethod
+    def ensure_update_check_schedule(cls) -> bool:
+        """
+        Ensure the daily update-check schedule exists.
+        Creates the schedule if it doesn't exist.
+
+        Returns:
+            bool: True if schedule was created, False if it already exists
+        """
+        UPDATE_SCHEDULE_NAME = "pyrunner-update-check"
+        UPDATE_TASK_FUNC = "core.tasks.check_for_updates_task"
+
+        if QSchedule.objects.filter(name=UPDATE_SCHEDULE_NAME).exists():
+            return False
+
+        QSchedule.objects.create(
+            name=UPDATE_SCHEDULE_NAME,
+            func=UPDATE_TASK_FUNC,
+            schedule_type=QSchedule.DAILY,
+            repeats=-1,  # Run forever
+            next_run=timezone.now(),  # Runs on first worker tick, then daily
+        )
+        logger.info("Created update check schedule")
+        return True

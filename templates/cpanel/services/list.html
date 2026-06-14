@@ -6,214 +6,248 @@
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
-    <div class="flex-1 p-8">
-        <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-2xl font-bold text-code-text">Services</h1>
-            <p class="text-code-muted">Configure external service integrations</p>
-        </div>
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
 
-        <!-- Messages -->
-        {% if messages %}
-        <div class="mb-6 space-y-2">
-            {% for message in messages %}
-            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-code-red/10 border border-code-red text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border border-code-green text-code-green{% else %}bg-code-accent/10 border border-code-accent text-code-accent{% endif %}">
-                {{ message }}
+            <!-- Header -->
+            <div>
+                <h1 class="text-[22px] font-semibold tracking-tight">Services</h1>
+                <p class="text-sm text-muted mt-1">Configure external service integrations</p>
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
 
-        <!-- S3 Storage Service Card -->
-        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden mb-6">
-            <!-- Card Header -->
-            <div class="p-6 border-b border-code-border">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-4">
-                        <!-- S3 Icon -->
-                        <div class="w-12 h-12 bg-code-accent/20 rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
-                            </svg>
+            <!-- S3 Storage Service Card -->
+            <div class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="p-6 border-b border-line-soft">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-12 h-12 rounded-lg bg-info/10 grid place-items-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-lg font-semibold text-text">S3 Storage</h2>
+                                <p class="text-sm text-muted">S3-compatible storage for scheduled backups</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 class="text-lg font-semibold text-code-text">S3 Storage</h2>
-                            <p class="text-sm text-code-muted">S3-compatible storage for scheduled backups</p>
+
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            {% if s3_status.enabled and s3_status.configured %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Active</span>
+                            {% elif s3_status.configured %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-warn/10 text-warn"><span class="w-1.5 h-1.5 rounded-full bg-warn"></span>Configured (disabled)</span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-panel-hi text-faint"><span class="w-1.5 h-1.5 rounded-full bg-faint"></span>Not configured</span>
+                            {% endif %}
+
+                            <button type="button" onclick="toggleS3Config()" id="s3-toggle-btn" class="p-2 text-muted hover:text-text transition-colors">
+                                <svg id="s3-chevron" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Status Badge -->
-                    <div class="flex items-center space-x-3">
-                        {% if s3_status.enabled and s3_status.configured %}
-                        <span class="px-3 py-1 bg-code-green/20 text-code-green text-sm font-medium rounded-full flex items-center">
-                            <span class="w-2 h-2 bg-code-green rounded-full mr-2"></span>
-                            Active
-                        </span>
-                        {% elif s3_status.configured %}
-                        <span class="px-3 py-1 bg-code-yellow/20 text-code-yellow text-sm font-medium rounded-full flex items-center">
-                            <span class="w-2 h-2 bg-code-yellow rounded-full mr-2"></span>
-                            Configured (Disabled)
-                        </span>
-                        {% else %}
-                        <span class="px-3 py-1 bg-code-muted/20 text-code-muted text-sm font-medium rounded-full flex items-center">
-                            <span class="w-2 h-2 bg-code-muted rounded-full mr-2"></span>
-                            Not Configured
-                        </span>
+                    {% if s3_status.configured %}
+                    <div class="mt-4 flex flex-wrap gap-2.5">
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
+                            <span class="eyebrow text-faint">Bucket</span>
+                            <span class="text-text font-mono text-sm">{{ s3_status.bucket }}</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
+                            <span class="eyebrow text-faint">Endpoint</span>
+                            <span class="text-text font-mono text-sm truncate max-w-xs">{{ s3_status.endpoint }}</span>
+                        </div>
+                        {% if s3_status.last_tested %}
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
+                            <span class="eyebrow text-faint">Last tested</span>
+                            <span class="text-text text-sm">{{ s3_status.last_tested|timesince }} ago</span>
+                        </div>
                         {% endif %}
-
-                        <!-- Expand/Collapse Button -->
-                        <button type="button"
-                                onclick="toggleS3Config()"
-                                id="s3-toggle-btn"
-                                class="p-2 text-code-muted hover:text-code-text transition-colors">
-                            <svg id="s3-chevron" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Quick Status Info -->
-                {% if s3_status.configured %}
-                <div class="mt-4 flex flex-wrap gap-3">
-                    <div class="flex items-center gap-2 px-3 py-1.5 bg-code-border/30 rounded-lg">
-                        <span class="text-code-muted text-xs uppercase tracking-wide">Bucket</span>
-                        <span class="text-code-text font-mono text-sm">{{ s3_status.bucket }}</span>
-                    </div>
-                    <div class="flex items-center gap-2 px-3 py-1.5 bg-code-border/30 rounded-lg">
-                        <span class="text-code-muted text-xs uppercase tracking-wide">Endpoint</span>
-                        <span class="text-code-text font-mono text-sm truncate max-w-xs">{{ s3_status.endpoint }}</span>
-                    </div>
-                    {% if s3_status.last_tested %}
-                    <div class="flex items-center gap-2 px-3 py-1.5 bg-code-border/30 rounded-lg">
-                        <span class="text-code-muted text-xs uppercase tracking-wide">Last tested</span>
-                        <span class="text-code-text text-sm">{{ s3_status.last_tested|timesince }} ago</span>
                     </div>
                     {% endif %}
                 </div>
-                {% endif %}
+
+                <div id="s3-config" class="hidden">
+                    <form method="post" action="{% url 'cpanel:s3_settings' %}" class="p-6">
+                        {% csrf_token %}
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                            <div class="md:col-span-2">
+                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_endpoint_url.label }}</label>
+                                {{ s3_form.s3_endpoint_url }}
+                                <p class="mt-1.5 text-xs text-faint">{{ s3_form.s3_endpoint_url.help_text }}</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_region.label }}</label>
+                                {{ s3_form.s3_region }}
+                            </div>
+
+                            <div>
+                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_bucket_name.label }}</label>
+                                {{ s3_form.s3_bucket_name }}
+                                {% if s3_form.s3_bucket_name.errors %}<p class="mt-1.5 text-xs text-fail">{{ s3_form.s3_bucket_name.errors.0 }}</p>{% endif %}
+                            </div>
+
+                            <div>
+                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_access_key.label }}</label>
+                                {{ s3_form.s3_access_key }}
+                                {% if settings.s3_access_key_encrypted %}<p class="mt-1.5 text-xs text-ok">Access key is configured</p>{% endif %}
+                            </div>
+
+                            <div>
+                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_secret_key.label }}</label>
+                                {{ s3_form.s3_secret_key }}
+                                {% if settings.s3_secret_key_encrypted %}<p class="mt-1.5 text-xs text-ok">Secret key is configured</p>{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                            <label class="flex items-center gap-2 cursor-pointer">{{ s3_form.s3_use_ssl }}<span class="text-sm text-muted">{{ s3_form.s3_use_ssl.label }}</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer">{{ s3_form.s3_path_style }}<span class="text-sm text-muted">{{ s3_form.s3_path_style.label }}</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer">{{ s3_form.s3_enabled }}<span class="text-sm text-muted">{{ s3_form.s3_enabled.label }}</span></label>
+                        </div>
+
+                        <div class="mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                            <p class="text-[13px] font-medium text-text mb-3">Quick setup presets</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="setPreset('aws')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">AWS S3</button>
+                                <button type="button" onclick="setPreset('minio')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">MinIO</button>
+                                <button type="button" onclick="setPreset('digitalocean')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">DigitalOcean Spaces</button>
+                                <button type="button" onclick="setPreset('backblaze')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Backblaze B2</button>
+                                <button type="button" onclick="setPreset('cloudflare')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cloudflare R2</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
+                            <button type="button" onclick="testS3Connection()" id="test-s3-btn" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test connection</button>
+                        </div>
+                    </form>
+
+                    <div id="s3-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
+                </div>
             </div>
 
-            <!-- Expandable Configuration Form -->
-            <div id="s3-config" class="hidden">
-                <form method="post" action="{% url 'cpanel:s3_settings' %}" class="p-6">
-                    {% csrf_token %}
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <!-- Endpoint URL -->
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_endpoint_url.label }}</label>
-                            {{ s3_form.s3_endpoint_url }}
-                            <p class="mt-1 text-xs text-code-muted">{{ s3_form.s3_endpoint_url.help_text }}</p>
+            <!-- Claude AI Service Card -->
+            <div class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="p-6 border-b border-line-soft">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-12 h-12 rounded-lg bg-accent/10 grid place-items-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-lg font-semibold text-text">Claude AI</h2>
+                                <p class="text-sm text-muted">Use Claude in your scripts (web search, fetch &amp; more) via your subscription or API key</p>
+                            </div>
                         </div>
 
-                        <!-- Region -->
-                        <div>
-                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_region.label }}</label>
-                            {{ s3_form.s3_region }}
-                        </div>
-
-                        <!-- Bucket Name -->
-                        <div>
-                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_bucket_name.label }}</label>
-                            {{ s3_form.s3_bucket_name }}
-                            {% if s3_form.s3_bucket_name.errors %}
-                            <p class="mt-1 text-sm text-code-red">{{ s3_form.s3_bucket_name.errors.0 }}</p>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            {% if claude_status.enabled and claude_status.configured %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Active</span>
+                            {% elif claude_status.configured %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-warn/10 text-warn"><span class="w-1.5 h-1.5 rounded-full bg-warn"></span>Configured (disabled)</span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-panel-hi text-faint"><span class="w-1.5 h-1.5 rounded-full bg-faint"></span>Not configured</span>
                             {% endif %}
-                        </div>
 
-                        <!-- Access Key -->
-                        <div>
-                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_access_key.label }}</label>
-                            {{ s3_form.s3_access_key }}
-                            {% if settings.s3_access_key_encrypted %}
-                            <p class="mt-1 text-xs text-code-green">Access key is configured</p>
-                            {% endif %}
-                        </div>
-
-                        <!-- Secret Key -->
-                        <div>
-                            <label class="block text-sm font-medium text-code-text mb-2">{{ s3_form.s3_secret_key.label }}</label>
-                            {{ s3_form.s3_secret_key }}
-                            {% if settings.s3_secret_key_encrypted %}
-                            <p class="mt-1 text-xs text-code-green">Secret key is configured</p>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <!-- Options -->
-                    <div class="flex flex-wrap gap-6 mb-6 p-4 bg-code-bg rounded-lg">
-                        <label class="flex items-center cursor-pointer">
-                            {{ s3_form.s3_use_ssl }}
-                            <span class="ml-2 text-sm text-code-text">{{ s3_form.s3_use_ssl.label }}</span>
-                        </label>
-
-                        <label class="flex items-center cursor-pointer">
-                            {{ s3_form.s3_path_style }}
-                            <span class="ml-2 text-sm text-code-text">{{ s3_form.s3_path_style.label }}</span>
-                        </label>
-
-                        <label class="flex items-center cursor-pointer">
-                            {{ s3_form.s3_enabled }}
-                            <span class="ml-2 text-sm text-code-text">{{ s3_form.s3_enabled.label }}</span>
-                        </label>
-                    </div>
-
-                    <!-- Provider Presets -->
-                    <div class="mb-6 p-4 bg-code-bg rounded-lg">
-                        <p class="text-sm font-medium text-code-text mb-3">Quick Setup Presets</p>
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" onclick="setPreset('aws')"
-                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
-                                AWS S3
-                            </button>
-                            <button type="button" onclick="setPreset('minio')"
-                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
-                                MinIO
-                            </button>
-                            <button type="button" onclick="setPreset('digitalocean')"
-                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
-                                DigitalOcean Spaces
-                            </button>
-                            <button type="button" onclick="setPreset('backblaze')"
-                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
-                                Backblaze B2
-                            </button>
-                            <button type="button" onclick="setPreset('cloudflare')"
-                                    class="px-3 py-1.5 text-xs bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
-                                Cloudflare R2
+                            <button type="button" onclick="toggleClaudeConfig()" id="claude-toggle-btn" class="p-2 text-muted hover:text-text transition-colors">
+                                <svg id="claude-chevron" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                             </button>
                         </div>
                     </div>
 
-                    <!-- Actions -->
-                    <div class="flex items-center space-x-4">
-                        <button type="submit" class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
-                            Save Settings
-                        </button>
-                        <button type="button"
-                                onclick="testS3Connection()"
-                                id="test-s3-btn"
-                                class="px-6 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
-                            Test Connection
-                        </button>
+                    {% if claude_status.configured %}
+                    <div class="mt-4 flex flex-wrap gap-2.5">
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
+                            <span class="eyebrow text-faint">Auth</span>
+                            <span class="text-text text-sm">{{ claude_status.auth_method_label }}</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
+                            <span class="eyebrow text-faint">Model</span>
+                            <span class="text-text font-mono text-sm">{{ claude_status.model }}</span>
+                        </div>
+                        {% if claude_status.last_tested %}
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
+                            <span class="eyebrow text-faint">Last tested</span>
+                            <span class="text-text text-sm">{{ claude_status.last_tested|timesince }} ago</span>
+                        </div>
+                        {% endif %}
+                        <a href="{% url 'cpanel:claude_usage' %}" class="flex items-center gap-2 px-3 py-1.5 bg-accent/10 border border-accent/30 rounded-lg text-accent hover:bg-accent/20 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            <span class="text-sm font-medium">View usage</span>
+                        </a>
                     </div>
-                </form>
+                    {% endif %}
 
-                <!-- Test Result -->
-                <div id="s3-test-result" class="hidden mx-8 mb-6 p-4 rounded-lg"></div>
+                    {% if not claude_status.cli_available %}
+                    <div class="mt-4 p-3 rounded-lg bg-warn/10 border border-warn/30 text-warn text-sm">
+                        The Claude Code CLI was not found on the server. It ships with the current PyRunner Docker image &mdash; rebuild/pull the latest image to enable Claude.
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div id="claude-config" class="hidden">
+                    <form method="post" action="{% url 'cpanel:claude_settings' %}" class="p-6">
+                        {% csrf_token %}
+
+                        <div class="mb-5">
+                            <label class="block text-[13px] font-medium text-text mb-1.5">{{ claude_form.claude_auth_method.label }}</label>
+                            {{ claude_form.claude_auth_method }}
+                        </div>
+
+                        <div id="claude-subscription-field" class="mb-5">
+                            <label class="block text-[13px] font-medium text-text mb-1.5">{{ claude_form.claude_oauth_token.label }}</label>
+                            {{ claude_form.claude_oauth_token }}
+                            <p class="mt-1.5 text-xs text-faint">{{ claude_form.claude_oauth_token.help_text }}</p>
+                            {% if settings.claude_oauth_token_encrypted %}<p class="mt-1.5 text-xs text-ok">A subscription token is saved.</p>{% endif %}
+                        </div>
+
+                        <div id="claude-apikey-field" class="mb-5">
+                            <label class="block text-[13px] font-medium text-text mb-1.5">{{ claude_form.claude_api_key.label }}</label>
+                            {{ claude_form.claude_api_key }}
+                            <p class="mt-1.5 text-xs text-faint">{{ claude_form.claude_api_key.help_text }}</p>
+                            {% if settings.claude_api_key_encrypted %}<p class="mt-1.5 text-xs text-ok">An API key is saved.</p>{% endif %}
+                        </div>
+
+                        <div class="mb-5">
+                            <label class="block text-[13px] font-medium text-text mb-1.5">{{ claude_form.claude_default_model.label }}</label>
+                            {{ claude_form.claude_default_model }}
+                            <p class="mt-1.5 text-xs text-faint">{{ claude_form.claude_default_model.help_text }}</p>
+                        </div>
+
+                        <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                            <label class="flex items-center gap-2 cursor-pointer">{{ claude_form.claude_enabled }}<span class="text-sm text-muted">{{ claude_form.claude_enabled.label }}</span></label>
+                        </div>
+
+                        <div class="mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg text-sm text-muted">
+                            <p class="text-text font-medium mb-2">How to use in a script</p>
+                            <p class="mb-2">Install <span class="font-mono text-text">claude-agent-sdk</span> in the script's Environment, then:</p>
+                            <pre class="bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto text-text"><code>from pyrunner_ai import ask_claude
+
+answer = ask_claude("Search the web for today's AI news and summarize it")
+print(answer)</code></pre>
+                            <p class="mt-3">For a subscription token, run <span class="font-mono text-text">claude setup-token</span> on your own machine (logged into Claude). Paste the authorization code from the browser back into that terminal, then copy the token it prints (starts with <span class="font-mono text-text">sk-ant-oat01-</span>) into the field above &mdash; not the browser code itself.</p>
+                            <p class="mt-3"><a href="{% url 'cpanel:script_create' %}?template=ai" class="text-info hover:underline transition">Create an example AI script &rarr;</a></p>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
+                            <button type="button" onclick="testClaudeConnection()" id="test-claude-btn" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test connection</button>
+                        </div>
+                    </form>
+
+                    <div id="claude-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
+                </div>
             </div>
-        </div>
 
-        <!-- Future Services Placeholder -->
-        <div class="bg-code-surface/50 border border-code-border border-dashed rounded-xl p-8 text-center">
-            <div class="w-12 h-12 bg-code-muted/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg class="w-6 h-6 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                </svg>
+            <!-- Future services placeholder -->
+            <div class="rounded-2xl border border-dashed border-line bg-panel/50 p-8 text-center">
+                <div class="w-12 h-12 rounded-lg bg-panel-hi grid place-items-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                </div>
+                <h3 class="text-muted font-medium mb-1">More services coming soon</h3>
+                <p class="text-sm text-faint">Additional integrations like SMTP, webhooks, and more will be added here.</p>
             </div>
-            <h3 class="text-code-muted font-medium mb-2">More Services Coming Soon</h3>
-            <p class="text-sm text-code-muted/70">Additional integrations like SMTP, webhooks, and more will be added here.</p>
+
         </div>
     </div>
 </div>
@@ -264,21 +298,21 @@ function testS3Connection() {
     .then(data => {
         resultDiv.classList.remove('hidden');
         if (data.success) {
-            resultDiv.className = 'mx-8 mb-6 p-4 rounded-lg bg-code-green/10 border border-code-green text-code-green';
+            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-ok/10 border border-ok/30 text-ok';
             resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
         } else {
-            resultDiv.className = 'mx-8 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
             resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
         }
     })
     .catch(error => {
         resultDiv.classList.remove('hidden');
-        resultDiv.className = 'mx-8 mb-6 p-4 rounded-lg bg-code-red/10 border border-code-red text-code-red';
+        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
         resultDiv.textContent = 'Error: ' + escapeHtml(error.message);
     })
     .finally(() => {
         btn.disabled = false;
-        btn.textContent = 'Test Connection';
+        btn.textContent = 'Test connection';
     });
 }
 
@@ -322,10 +356,84 @@ function setPreset(provider) {
     }
 }
 
+// ---- Claude AI card ----
+function toggleClaudeConfig() {
+    document.getElementById('claude-config').classList.toggle('hidden');
+    document.getElementById('claude-chevron').classList.toggle('rotate-180');
+}
+
+function toggleClaudeAuthFields() {
+    const method = document.querySelector('[name="claude_auth_method"]').value;
+    const sub = document.getElementById('claude-subscription-field');
+    const api = document.getElementById('claude-apikey-field');
+    if (method === 'api_key') {
+        sub.classList.add('hidden');
+        api.classList.remove('hidden');
+    } else {
+        sub.classList.remove('hidden');
+        api.classList.add('hidden');
+    }
+}
+
+function testClaudeConnection() {
+    const btn = document.getElementById('test-claude-btn');
+    const resultDiv = document.getElementById('claude-test-result');
+
+    btn.disabled = true;
+    btn.textContent = 'Testing (web search)...';
+    resultDiv.classList.add('hidden');
+
+    const payload = {
+        claude_auth_method: document.querySelector('[name="claude_auth_method"]').value,
+        claude_oauth_token: document.querySelector('[name="claude_oauth_token"]').value,
+        claude_api_key: document.querySelector('[name="claude_api_key"]').value,
+        claude_default_model: document.querySelector('[name="claude_default_model"]').value,
+    };
+
+    fetch('{% url "cpanel:claude_test_connection" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultDiv.classList.remove('hidden');
+        if (data.success) {
+            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-ok/10 border border-ok/30 text-ok';
+            resultDiv.innerHTML = '<div class="flex items-start"><svg class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
+        } else {
+            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
+            resultDiv.innerHTML = '<div class="flex items-start"><svg class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
+        }
+    })
+    .catch(error => {
+        resultDiv.classList.remove('hidden');
+        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
+        resultDiv.textContent = 'Error: ' + escapeHtml(error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Test connection';
+    });
+}
+
 // Auto-expand if form has errors or if not configured
 document.addEventListener('DOMContentLoaded', function() {
     {% if s3_form.errors or not s3_status.configured %}
     toggleS3Config();
+    {% endif %}
+
+    // Claude: wire auth-method toggle and set initial field visibility
+    const claudeAuth = document.querySelector('[name="claude_auth_method"]');
+    if (claudeAuth) {
+        claudeAuth.addEventListener('change', toggleClaudeAuthFields);
+        toggleClaudeAuthFields();
+    }
+    {% if claude_form.errors %}
+    toggleClaudeConfig();
     {% endif %}
 });
 </script>

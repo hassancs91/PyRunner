@@ -315,6 +315,68 @@ class GlobalSettings(models.Model):
         help_text="Size of last backup in bytes",
     )
 
+    # Claude AI Integration
+    class ClaudeAuthMethod(models.TextChoices):
+        SUBSCRIPTION = "subscription", "Claude subscription (OAuth token)"
+        API_KEY = "api_key", "Anthropic API key"
+
+    claude_enabled = models.BooleanField(
+        default=False,
+        help_text="Make Claude AI available to scripts (via the pyrunner_ai helper)",
+    )
+    claude_auth_method = models.CharField(
+        max_length=20,
+        choices=ClaudeAuthMethod.choices,
+        default=ClaudeAuthMethod.SUBSCRIPTION,
+        help_text="Authenticate with a Claude subscription token or an Anthropic API key",
+    )
+    claude_oauth_token_encrypted = models.TextField(
+        blank=True,
+        help_text="Claude Code OAuth token from `claude setup-token` (encrypted)",
+    )
+    claude_api_key_encrypted = models.TextField(
+        blank=True,
+        help_text="Anthropic API key (encrypted)",
+    )
+    claude_default_model = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional default model id (e.g. claude-sonnet-4-6). Blank = account default.",
+    )
+    claude_last_tested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the Claude connection was last successfully tested",
+    )
+
+    # Update check (compares running version against the latest GitHub release tag)
+    update_latest_version = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Latest PyRunner version seen on GitHub (populated by the update check)",
+    )
+    update_checked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the update check last ran successfully",
+    )
+
+    # Google reCAPTCHA v2 (login protection)
+    recaptcha_enabled = models.BooleanField(
+        default=False,
+        help_text="Require Google reCAPTCHA v2 on the login page",
+    )
+    recaptcha_site_key = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="reCAPTCHA v2 site key (public)",
+    )
+    recaptcha_secret_key_encrypted = models.TextField(
+        blank=True,
+        help_text="reCAPTCHA v2 secret key (encrypted)",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"
@@ -340,3 +402,11 @@ class GlobalSettings(models.Model):
         if not self.worker_settings_updated_at or not self.worker_heartbeat_at:
             return False
         return self.worker_settings_updated_at > self.worker_heartbeat_at
+
+    def recaptcha_active(self) -> bool:
+        """True when reCAPTCHA is enabled and both keys are configured."""
+        return bool(
+            self.recaptcha_enabled
+            and self.recaptcha_site_key
+            and self.recaptcha_secret_key_encrypted
+        )

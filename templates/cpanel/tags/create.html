@@ -6,72 +6,54 @@
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
-    <div class="flex-1 p-8">
-        <!-- Header -->
-        <div class="mb-8">
-            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
-                <a href="{% url 'cpanel:tag_list' %}" class="hover:text-code-accent">Tags</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-                <span class="text-code-text">Create Tag</span>
-            </nav>
-            <h1 class="text-2xl font-bold text-code-text">Create New Tag</h1>
-            <p class="text-code-muted">Add a tag to organize and categorize your scripts</p>
-        </div>
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-2xl mx-auto space-y-5">
 
-        <!-- Form -->
-        <div class="bg-code-surface border border-code-border rounded-xl p-6 max-w-2xl">
-            <form method="post">
+            <!-- Header -->
+            <div>
+                <nav class="flex items-center gap-1.5 eyebrow text-faint mb-3">
+                    <a href="{% url 'cpanel:tag_list' %}" class="hover:text-text transition-colors">Tags</a>
+                    <span>/</span>
+                    <span class="text-muted">Create</span>
+                </nav>
+                <h1 class="text-[22px] font-semibold tracking-tight">Create tag</h1>
+                <p class="text-sm text-muted mt-1">Add a tag to organize and categorize your scripts</p>
+            </div>
+
+            <form method="post" class="rounded-2xl border border-line bg-panel p-6 space-y-5">
                 {% csrf_token %}
 
-                <!-- Tag Name -->
-                <div class="mb-6">
-                    <label for="id_name" class="block text-sm font-medium text-code-text mb-2">
-                        {{ form.name.label }}
-                    </label>
+                <div>
+                    <label for="id_name" class="block text-[13px] font-medium text-text mb-1.5">{{ form.name.label }}</label>
                     {{ form.name }}
-                    {% if form.name.errors %}
-                    <p class="mt-1 text-sm text-code-red">{{ form.name.errors.0 }}</p>
-                    {% endif %}
+                    {% if form.name.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.name.errors.0 }}</p>{% endif %}
                 </div>
 
-                <!-- Color -->
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-code-text mb-2">
-                        {{ form.color.label }}
-                    </label>
+                <div>
+                    <label class="block text-[13px] font-medium text-text mb-2">{{ form.color.label }}</label>
                     <input type="hidden" name="color" id="id_color" value="gray">
-                    <div class="flex items-center gap-3">
-                        <button type="button" data-color="gray" class="color-circle w-8 h-8 rounded-full ring-2 ring-white ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(107, 114, 128);"></button>
-                        <button type="button" data-color="red" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(239, 68, 68);"></button>
-                        <button type="button" data-color="orange" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(249, 115, 22);"></button>
-                        <button type="button" data-color="yellow" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(234, 179, 8);"></button>
-                        <button type="button" data-color="green" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(34, 197, 94);"></button>
-                        <button type="button" data-color="blue" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(59, 130, 246);"></button>
-                        <button type="button" data-color="purple" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(168, 85, 247);"></button>
-                        <button type="button" data-color="pink" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-code-surface transition-all hover:scale-110" style="background-color: rgb(236, 72, 153);"></button>
+                    <div class="flex items-center flex-wrap gap-3">
+                        <button type="button" data-color="gray" class="color-circle w-8 h-8 rounded-full ring-2 ring-text ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(107, 114, 128);"></button>
+                        <button type="button" data-color="red" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(239, 68, 68);"></button>
+                        <button type="button" data-color="orange" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(249, 115, 22);"></button>
+                        <button type="button" data-color="yellow" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(234, 179, 8);"></button>
+                        <button type="button" data-color="green" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(34, 197, 94);"></button>
+                        <button type="button" data-color="blue" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(59, 130, 246);"></button>
+                        <button type="button" data-color="purple" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(168, 85, 247);"></button>
+                        <button type="button" data-color="pink" class="color-circle w-8 h-8 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-panel transition-all hover:scale-110" style="background-color: rgb(236, 72, 153);"></button>
                     </div>
-                    <div class="mt-3">
-                        <span class="text-sm text-code-muted mr-2">Preview:</span>
-                        <span id="tag-preview" class="inline-flex items-center px-3 py-1 text-sm rounded-full tag-gray">
-                            Sample Tag
-                        </span>
+                    <div class="mt-4 flex items-center gap-2">
+                        <span class="eyebrow text-faint">Preview</span>
+                        <span id="tag-preview" class="inline-flex items-center px-3 py-1 text-sm rounded-full tag-gray">Sample Tag</span>
                     </div>
                 </div>
 
-                <!-- Actions -->
-                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-code-border">
-                    <a href="{% url 'cpanel:tag_list' %}"
-                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
-                        Cancel
-                    </a>
-                    <button type="submit"
-                            class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors">
-                        Create Tag
-                    </button>
+                <div class="flex items-center justify-end gap-2.5 pt-4 border-t border-line-soft">
+                    <a href="{% url 'cpanel:tag_list' %}" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</a>
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Create tag</button>
                 </div>
             </form>
+
         </div>
     </div>
 </div>
@@ -98,9 +80,9 @@ document.addEventListener('DOMContentLoaded', function() {
         colorCircles.forEach(circle => {
             if (circle.dataset.color === color) {
                 circle.classList.remove('ring-transparent');
-                circle.classList.add('ring-white');
+                circle.classList.add('ring-text');
             } else {
-                circle.classList.remove('ring-white');
+                circle.classList.remove('ring-text');
                 circle.classList.add('ring-transparent');
             }
         });

@@ -8,6 +8,7 @@ It is designed to be called from django-q2 async tasks.
 import json
 import logging
 import os
+import signal
 import subprocess
 import tempfile
 import traceback
@@ -17,12 +18,43 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.models import Run, Secret
-from core.services import EncryptionService
+from core.services import ClaudeService, EncryptionService
 
 logger = logging.getLogger(__name__)
 
 # Maximum output size (1MB) to prevent database bloat
 MAX_OUTPUT_BYTES = 1_000_000
+
+
+def _kill_process_tree(pid: int) -> None:
+    """
+    Kill a script job's entire process tree.
+
+    This targets *only* the child process the executor spawned (the user's
+    Python script and anything it spawned) — never the long-lived django-q
+    worker. The child is launched in its own process group/session (see
+    ``execute_run``) so the kill is isolated from the worker.
+
+    Args:
+        pid: PID of the spawned script subprocess (the process-group leader).
+    """
+    if not pid:
+        return
+    try:
+        if os.name == "nt":
+            # /T kills the whole tree (children too), /F forces it.
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True,
+                check=False,
+            )
+        else:
+            # Child was started with start_new_session=True, so it leads its own
+            # process group; killing the group takes out the script + children.
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+    except (ProcessLookupError, OSError) as e:
+        # Process already gone (or PID reused/invalid) — nothing to do.
+        logger.warning(f"Could not kill process tree {pid}: {e}")
 
 
 def _get_secrets_env() -> dict:
@@ -51,7 +83,9 @@ def _get_secrets_env() -> dict:
     return secrets_env
 
 
-def _build_script_environment(webhook_data: dict | None = None) -> dict:
+def _build_script_environment(
+    webhook_data: dict | None = None, run: "Run | None" = None
+) -> dict:
     """
     Build the environment dict for script execution.
 
@@ -61,6 +95,7 @@ def _build_script_environment(webhook_data: dict | None = None) -> dict:
 
     Args:
         webhook_data: Optional webhook data from HTTP request
+        run: Optional Run being executed (used for Claude usage attribution)
 
     Returns:
         Environment dict to pass to subprocess
@@ -83,6 +118,25 @@ def _build_script_environment(webhook_data: dict | None = None) -> dict:
 
         if "body_json" in webhook_data:
             env["WEBHOOK_BODY_JSON"] = json.dumps(webhook_data["body_json"])
+
+    # Add Claude AI support (Services -> Claude AI). Injects the configured
+    # credential + config dir so the pyrunner_ai helper works in scripts.
+    # Empty dict when Claude is disabled/unconfigured.
+    claude_env = ClaudeService.get_script_env()
+    if claude_env:
+        # Remove any stray host credential for the *other* auth method so it
+        # can't override the configured one.
+        for key in ClaudeService.conflicting_env_keys():
+            env.pop(key, None)
+        env.update(claude_env)
+
+        # Attribution so pyrunner_ai can record usage against this run/script.
+        # Use .hex to match Django's UUID storage on SQLite (no dashes).
+        if run is not None:
+            env["PYRUNNER_RUN_ID"] = run.id.hex
+            if run.script_id:
+                env["PYRUNNER_SCRIPT_ID"] = run.script.id.hex
+                env["PYRUNNER_SCRIPT_NAME"] = run.script.name
 
     # Add DataStore support
     # Set the database path for the pyrunner_datastore module
@@ -272,55 +326,77 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
             cmd = [python_path, script_file_path]
 
             # Build environment with secrets and webhook data injected
-            script_env = _build_script_environment(webhook_data)
+            script_env = _build_script_environment(webhook_data, run=run)
             secrets = _get_secrets_env()
 
-            # Subprocess kwargs
-            kwargs = {
-                "capture_output": True,
-                "timeout": run.script.timeout_seconds,
+            # Also mask the injected Claude credential in output, if any.
+            claude_env = ClaudeService.get_script_env()
+            for cred_key in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"):
+                if claude_env.get(cred_key):
+                    secrets[cred_key] = claude_env[cred_key]
+
+            # Launch the script in its own process group/session so the web
+            # process can later kill the whole job tree (force stop / timeout)
+            # without touching the django-q worker that spawned it.
+            popen_kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
                 "cwd": str(workdir),
                 "text": True,
                 "encoding": "utf-8",
                 "errors": "replace",
                 "env": script_env,
             }
-
-            # Windows-specific: prevent console window popup
             if os.name == "nt":
-                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-
-            result = subprocess.run(cmd, **kwargs)
-
-            # Process results - mask secrets in output
-            run.stdout = _truncate_output(_mask_secrets_in_output(result.stdout, secrets))
-            run.stderr = _truncate_output(_mask_secrets_in_output(result.stderr, secrets))
-            run.exit_code = result.returncode
-            run.status = (
-                Run.Status.SUCCESS if result.returncode == 0 else Run.Status.FAILED
-            )
-
-        except subprocess.TimeoutExpired as e:
-            # Handle timeout - process is automatically killed
-            run.status = Run.Status.TIMEOUT
-            # TimeoutExpired provides stdout/stderr as bytes even with text=True
-            # Decode them to strings for consistent processing
-            stdout_raw = ""
-            if e.stdout:
-                stdout_raw = e.stdout.decode("utf-8", errors="replace") if isinstance(e.stdout, bytes) else e.stdout
-            stderr_raw = ""
-            if e.stderr:
-                stderr_raw = e.stderr.decode("utf-8", errors="replace") if isinstance(e.stderr, bytes) else e.stderr
-            run.stdout = _truncate_output(_mask_secrets_in_output(stdout_raw, secrets))
-            run.stderr = _truncate_output(_mask_secrets_in_output(stderr_raw, secrets))
-            if run.stderr:
-                run.stderr += "\n\n[TIMEOUT: Script exceeded maximum execution time]"
-            else:
-                run.stderr = (
-                    f"[TIMEOUT: Script exceeded {run.script.timeout_seconds} seconds]"
+                # CREATE_NO_WINDOW: no console popup. CREATE_NEW_PROCESS_GROUP:
+                # isolate the child so signals/kills don't reach the worker.
+                popen_kwargs["creationflags"] = (
+                    subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
                 )
-            run.exit_code = -1
-            logger.warning(f"Run {run.id} timed out after {run.script.timeout_seconds}s")
+            else:
+                # Child becomes the leader of a new session/process group.
+                popen_kwargs["start_new_session"] = True
+
+            proc = subprocess.Popen(cmd, **popen_kwargs)
+
+            # Record the PID so the web process can kill this exact job tree.
+            run.pid = proc.pid
+            run.save(update_fields=["pid"])
+
+            try:
+                stdout, stderr = proc.communicate(timeout=run.script.timeout_seconds)
+                returncode = proc.returncode
+
+                # Process results - mask secrets in output
+                run.stdout = _truncate_output(_mask_secrets_in_output(stdout, secrets))
+                run.stderr = _truncate_output(_mask_secrets_in_output(stderr, secrets))
+                run.exit_code = returncode
+                run.status = (
+                    Run.Status.SUCCESS if returncode == 0 else Run.Status.FAILED
+                )
+
+            except subprocess.TimeoutExpired:
+                # Kill the whole job tree (not just the immediate child), then
+                # drain whatever output was buffered before the kill.
+                _kill_process_tree(proc.pid)
+                stdout, stderr = proc.communicate()
+                run.status = Run.Status.TIMEOUT
+                run.stdout = _truncate_output(
+                    _mask_secrets_in_output(stdout or "", secrets)
+                )
+                run.stderr = _truncate_output(
+                    _mask_secrets_in_output(stderr or "", secrets)
+                )
+                if run.stderr:
+                    run.stderr += "\n\n[TIMEOUT: Script exceeded maximum execution time]"
+                else:
+                    run.stderr = (
+                        f"[TIMEOUT: Script exceeded {run.script.timeout_seconds} seconds]"
+                    )
+                run.exit_code = -1
+                logger.warning(
+                    f"Run {run.id} timed out after {run.script.timeout_seconds}s"
+                )
 
         except subprocess.SubprocessError as e:
             # Handle other subprocess errors
@@ -342,8 +418,29 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
         if not run.ended_at:
             run.ended_at = timezone.now()
 
-        # Always save the run state
-        run.save()
+        # Persist results — but never clobber a CANCELLED status set externally
+        # by the web process when it killed this job (TaskService.force_stop_task).
+        # A plain refresh-then-save would leave a race window where a kill landing
+        # between the two could be overwritten, so use a conditional UPDATE that
+        # excludes CANCELLED. This is the documented gotcha for this feature.
+        updated = (
+            Run.objects.filter(pk=run.pk)
+            .exclude(status=Run.Status.CANCELLED)
+            .update(
+                status=run.status,
+                stdout=run.stdout,
+                stderr=run.stderr,
+                exit_code=run.exit_code,
+                ended_at=run.ended_at,
+                pid=None,
+            )
+        )
+        if not updated:
+            # Externally cancelled/killed — keep that terminal state; only make
+            # sure the now-dead PID is cleared so it can't be reused for a kill.
+            Run.objects.filter(pk=run.pk).update(pid=None)
+            run.status = Run.Status.CANCELLED
+        run.pid = None
 
         # Cleanup temporary file
         if script_file_path is not None:

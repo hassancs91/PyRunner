@@ -11,6 +11,8 @@ from .system_info_service import SystemInfoService
 from .datastore_service import DatastoreService
 from .s3_service import S3Service, S3ServiceError
 from .backup_schedule_service import BackupScheduleService
+from .claude_service import ClaudeService, ClaudeServiceError
+from .recaptcha_service import RecaptchaService
 
 __all__ = [
     "ScheduleService",
@@ -24,4 +26,7 @@ __all__ = [
     "S3Service",
     "S3ServiceError",
     "BackupScheduleService",
+    "ClaudeService",
+    "ClaudeServiceError",
+    "RecaptchaService",
 ]

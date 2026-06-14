@@ -3,7 +3,7 @@ Views for task management in cpanel.
 """
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
@@ -26,6 +26,9 @@ def tasks_view(request: HttpRequest) -> HttpResponse:
 
     # Get stuck tasks
     stuck_tasks = TaskService.get_stuck_tasks()
+
+    # Get currently running tasks (for the Stop button)
+    running_tasks = TaskService.get_running_tasks()
 
     # Get queued tasks
     queued_tasks = TaskService.get_queued_tasks()
@@ -50,6 +53,7 @@ def tasks_view(request: HttpRequest) -> HttpResponse:
     context = {
         "stats": stats,
         "stuck_tasks": stuck_tasks,
+        "running_tasks": running_tasks,
         "queued_tasks": queued_tasks,
         "completed_tasks": completed_tasks,
         "status_filter": status_filter,
@@ -127,3 +131,16 @@ def task_force_stop_view(request: HttpRequest, task_id: str) -> JsonResponse:
         return JsonResponse({"success": True, "message": message})
     else:
         return JsonResponse({"success": False, "error": message}, status=400)
+
+
+@login_required
+def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
+    """
+    Detail page for a single task (queued, completed/failed, or system task
+    with no linked Run).
+    """
+    task = TaskService.get_task_detail(task_id)
+    if task is None:
+        raise Http404("Task not found")
+
+    return render(request, "cpanel/tasks/detail.html", {"task": task})

@@ -94,6 +94,15 @@ class Run(models.Model):
         help_text="django-q2 task ID for tracking async execution",
     )
 
+    # OS process tracking (for force-kill). Set while the script subprocess is
+    # alive, cleared on completion. Used to kill the job's process tree without
+    # touching the django-q worker that spawned it.
+    pid = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="OS PID of the running script subprocess (for kill).",
+    )
+
     # How this run was triggered
     trigger_type = models.CharField(
         max_length=20,

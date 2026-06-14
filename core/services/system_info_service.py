@@ -295,7 +295,7 @@ class SystemInfoService:
         - used_display: Human-readable used
         """
         try:
-            disk = psutil.disk_usage(settings.BASE_DIR)
+            disk = psutil.disk_usage(str(settings.BASE_DIR))
             return {
                 "total": disk.total,
                 "used": disk.used,

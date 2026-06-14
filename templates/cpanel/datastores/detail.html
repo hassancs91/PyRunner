@@ -6,147 +6,108 @@
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
-    <div class="flex-1 p-8">
-        <!-- Header -->
-        <div class="mb-8">
-            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
-                <a href="{% url 'cpanel:datastore_list' %}" class="hover:text-code-accent">Data Stores</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-                <span class="text-code-text">{{ datastore.name }}</span>
-            </nav>
-            <div class="flex items-start justify-between">
-                <div>
-                    <h1 class="text-2xl font-bold text-code-text font-mono">{{ datastore.name }}</h1>
-                    <p class="text-code-muted">{{ datastore.description|default:"No description" }}</p>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <a href="{% url 'cpanel:datastore_entry_create' pk=datastore.pk %}"
-                       class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                        </svg>
-                        Add Entry
-                    </a>
-                    <a href="{% url 'cpanel:datastore_edit' pk=datastore.pk %}"
-                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
-                        Edit
-                    </a>
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
+
+            <!-- Header -->
+            <div>
+                <nav class="flex items-center gap-1.5 eyebrow text-faint mb-3">
+                    <a href="{% url 'cpanel:datastore_list' %}" class="hover:text-text transition-colors">Data Stores</a>
+                    <span>/</span>
+                    <span class="text-muted truncate max-w-[16rem]">{{ datastore.name }}</span>
+                </nav>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <h1 class="text-[22px] font-semibold tracking-tight font-mono truncate">{{ datastore.name }}</h1>
+                        <p class="text-sm text-muted mt-1">{{ datastore.description|default:"No description" }}</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <a href="{% url 'cpanel:datastore_entry_create' pk=datastore.pk %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                            Add entry
+                        </a>
+                        <a href="{% url 'cpanel:datastore_edit' pk=datastore.pk %}" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Edit</a>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Messages -->
-        {% if messages %}
-        <div class="mb-6 space-y-2">
-            {% for message in messages %}
-            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-code-red/10 border border-code-red/30 text-code-red{% elif message.tags == 'success' %}bg-code-green/10 border border-code-green/30 text-code-green{% else %}bg-code-accent/10 border border-code-accent/30 text-code-accent{% endif %}">
-                {{ message }}
+            <!-- Stats -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="rounded-2xl border border-line bg-panel p-4">
+                    <p class="eyebrow text-faint">Total entries</p>
+                    <p class="text-2xl font-semibold font-mono tnum text-text mt-1">{{ entries.count }}</p>
+                </div>
+                <div class="rounded-2xl border border-line bg-panel p-4">
+                    <p class="eyebrow text-faint">Created</p>
+                    <p class="text-lg text-text mt-1">{{ datastore.created_at|date:"M d, Y" }}</p>
+                </div>
+                <div class="rounded-2xl border border-line bg-panel p-4">
+                    <p class="eyebrow text-faint">Last updated</p>
+                    <p class="text-lg text-text mt-1">{{ datastore.updated_at|timesince }} ago</p>
+                </div>
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
 
-        <!-- Stats -->
-        <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-code-surface border border-code-border rounded-lg p-4">
-                <p class="text-sm text-code-muted">Total Entries</p>
-                <p class="text-2xl font-bold text-code-text">{{ entries.count }}</p>
-            </div>
-            <div class="bg-code-surface border border-code-border rounded-lg p-4">
-                <p class="text-sm text-code-muted">Created</p>
-                <p class="text-lg text-code-text">{{ datastore.created_at|date:"M d, Y" }}</p>
-            </div>
-            <div class="bg-code-surface border border-code-border rounded-lg p-4">
-                <p class="text-sm text-code-muted">Last Updated</p>
-                <p class="text-lg text-code-text">{{ datastore.updated_at|timesince }} ago</p>
-            </div>
-        </div>
+            <!-- Entries table -->
+            {% if entries %}
+            <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-6 py-3 border-b border-line-soft flex items-center justify-between">
+                    <h2 class="text-sm font-semibold text-text">Entries</h2>
+                    <form method="post" action="{% url 'cpanel:datastore_clear' pk=datastore.pk %}" onsubmit="return confirm('Are you sure you want to delete all {{ entries.count }} entries? This cannot be undone.');" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-[13px] px-3 py-1.5 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Clear all</button>
+                    </form>
+                </div>
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[640px]">
+                    <thead>
+                        <tr class="border-b border-line-soft text-left">
+                            <th class="px-6 py-3 eyebrow text-faint font-normal w-1/4">Key</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Value</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right w-32">Updated</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right w-40">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-line-soft">
+                        {% for entry in entries %}
+                        <tr class="group hover:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5 align-top"><span class="font-mono text-sm text-info">{{ entry.key }}</span></td>
+                            <td class="px-6 py-3.5">
+                                <code class="text-sm text-text bg-ink border border-line-soft px-2 py-1 rounded font-mono break-all">{{ entry.get_display_value }}</code>
+                            </td>
+                            <td class="px-6 py-3.5 text-right text-xs text-faint whitespace-nowrap align-top">{{ entry.updated_at|timesince }} ago</td>
+                            <td class="px-6 py-3.5 align-top">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{% url 'cpanel:datastore_entry_edit' pk=datastore.pk entry_pk=entry.pk %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Edit</a>
+                                    <form method="post" action="{% url 'cpanel:datastore_entry_delete' pk=datastore.pk entry_pk=entry.pk %}" onsubmit="return confirm('Delete entry &quot;{{ entry.key }}&quot;?');" class="inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="text-[13px] px-3 py-1.5 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </section>
+            {% else %}
+            <section class="rounded-2xl border border-line bg-panel px-6 py-16 text-center">
+                <div class="w-14 h-14 rounded-full bg-info/10 grid place-items-center mx-auto mb-4">
+                    <svg class="w-7 h-7 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                </div>
+                <h3 class="text-base font-semibold mb-1">No entries yet</h3>
+                <p class="text-sm text-muted mb-6">Add entries manually or let your scripts populate this data store.</p>
+                <a href="{% url 'cpanel:datastore_entry_create' pk=datastore.pk %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    Add entry
+                </a>
+            </section>
+            {% endif %}
 
-        <!-- Entries Table -->
-        {% if entries %}
-        <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-            <div class="bg-code-bg border-b border-code-border px-6 py-3 flex items-center justify-between">
-                <h2 class="text-sm font-semibold text-code-text">Entries</h2>
-                {% if entries.count > 0 %}
-                <form method="post" action="{% url 'cpanel:datastore_clear' pk=datastore.pk %}"
-                      onsubmit="return confirm('Are you sure you want to delete all {{ entries.count }} entries? This cannot be undone.');"
-                      class="inline">
-                    {% csrf_token %}
-                    <button type="submit"
-                            class="px-3 py-1 text-sm bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded transition-colors">
-                        Clear All
-                    </button>
-                </form>
-                {% endif %}
-            </div>
-            <table class="w-full">
-                <thead class="bg-code-bg border-b border-code-border">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-1/4">Key</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Value</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider w-32">Updated</th>
-                        <th class="px-6 py-3 text-right text-xs font-semibold text-code-muted uppercase tracking-wider w-40">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-code-border">
-                    {% for entry in entries %}
-                    <tr class="hover:bg-code-bg/50 transition-colors">
-                        <td class="px-6 py-4">
-                            <span class="font-mono text-code-accent">{{ entry.key }}</span>
-                        </td>
-                        <td class="px-6 py-4">
-                            <code class="text-sm text-code-text bg-code-bg px-2 py-1 rounded font-mono break-all">{{ entry.get_display_value }}</code>
-                        </td>
-                        <td class="px-6 py-4 text-code-muted text-sm">
-                            {{ entry.updated_at|timesince }} ago
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            <div class="flex items-center justify-end space-x-2">
-                                <a href="{% url 'cpanel:datastore_entry_edit' pk=datastore.pk entry_pk=entry.pk %}"
-                                   class="px-3 py-1.5 text-sm bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded transition-colors">
-                                    Edit
-                                </a>
-                                <form method="post" action="{% url 'cpanel:datastore_entry_delete' pk=datastore.pk entry_pk=entry.pk %}"
-                                      onsubmit="return confirm('Delete entry &quot;{{ entry.key }}&quot;?');"
-                                      class="inline">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="px-3 py-1.5 text-sm bg-code-red/10 border border-code-red/30 hover:bg-code-red/20 text-code-red rounded transition-colors">
-                                        Delete
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="bg-code-surface border border-code-border rounded-xl p-12 text-center">
-            <div class="w-16 h-16 bg-code-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-                </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-code-text mb-2">No entries yet</h3>
-            <p class="text-code-muted mb-6">Add entries manually or let your scripts populate this data store.</p>
-            <a href="{% url 'cpanel:datastore_entry_create' pk=datastore.pk %}"
-               class="px-6 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors inline-flex items-center">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                </svg>
-                Add Entry
-            </a>
-        </div>
-        {% endif %}
-
-        <!-- Usage Info -->
-        <div class="mt-6 p-4 bg-code-bg border border-code-border rounded-lg">
-            <h3 class="text-sm font-medium text-code-text mb-2">Using this Data Store in Scripts</h3>
-            <code class="block p-3 bg-code-surface rounded text-sm font-mono text-code-text whitespace-pre">from pyrunner_datastore import DataStore
+            <!-- Usage info -->
+            <div class="rounded-2xl border border-line bg-panel p-5">
+                <h3 class="text-sm font-medium text-text mb-2">Using this data store in scripts</h3>
+                <code class="block px-3 py-3 bg-ink border border-line-soft rounded-lg text-sm font-mono text-text whitespace-pre overflow-x-auto">from pyrunner_datastore import DataStore
 
 store = DataStore("{{ datastore.name }}")
 
@@ -167,68 +128,58 @@ del store["my_key"]
 # List all keys
 for key in store.keys():
     print(key, store[key])</code>
-        </div>
-
-        <!-- REST API Access -->
-        <div class="mt-6 p-4 bg-code-bg border border-code-border rounded-lg">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="text-sm font-medium text-code-text">REST API Access</h3>
-                <button type="button"
-                        id="api-toggle-btn"
-                        onclick="toggleApiExamples()"
-                        class="text-xs text-code-accent hover:underline">
-                    Show curl examples
-                </button>
             </div>
 
-            <p class="text-sm text-code-muted">
-                Access this datastore via the REST API using an
-                <a href="{% url 'cpanel:api_token_list' %}" class="text-code-accent hover:underline">API token</a>.
-            </p>
-
-            <div id="api-examples" class="hidden mt-4 space-y-4">
-                <!-- Authentication Methods -->
-                <div>
-                    <h4 class="text-xs text-code-muted uppercase tracking-wider mb-2">Authentication</h4>
-                    <p class="text-sm text-code-muted mb-2">Include your token in the request header:</p>
-                    <code class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text whitespace-pre">Authorization: Bearer YOUR_API_TOKEN
-# or
-X-API-Key: YOUR_API_TOKEN</code>
+            <!-- REST API access -->
+            <div class="rounded-2xl border border-line bg-panel p-5">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-text">REST API access</h3>
+                    <button type="button" id="api-toggle-btn" onclick="toggleApiExamples()" class="text-xs text-info hover:underline">Show curl examples</button>
                 </div>
 
-                <!-- Endpoint 1: Get Datastore Metadata -->
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <h4 class="text-xs text-code-muted uppercase tracking-wider">Get Datastore Info</h4>
-                        <button type="button" onclick="copyCode('curl-ds-info')"
-                                class="text-xs text-code-accent hover:underline">Copy</button>
+                <p class="text-sm text-muted">Access this datastore via the REST API using an <a href="{% url 'cpanel:api_token_list' %}" class="text-info hover:underline">API token</a>.</p>
+
+                <div id="api-examples" class="hidden mt-4 space-y-4">
+                    <!-- Authentication -->
+                    <div>
+                        <h4 class="eyebrow text-faint mb-2">Authentication</h4>
+                        <p class="text-sm text-muted mb-2">Include your token in the request header:</p>
+                        <code class="block p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-text whitespace-pre">Authorization: Bearer YOUR_API_TOKEN
+# or
+X-API-Key: YOUR_API_TOKEN</code>
                     </div>
-                    <code id="curl-ds-info" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+
+                    <!-- Get datastore info -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="eyebrow text-faint">Get datastore info</h4>
+                            <button type="button" onclick="copyCode('curl-ds-info')" class="text-xs text-info hover:underline">Copy</button>
+                        </div>
+                        <code id="curl-ds-info" class="block p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
   "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/{{ datastore.name }}/"</code>
-                    <details class="mt-2">
-                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
-                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+                        <details class="mt-2">
+                            <summary class="text-xs text-muted cursor-pointer hover:text-text">Sample response</summary>
+                            <code class="block mt-1 p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-muted overflow-x-auto whitespace-pre">{
   "name": "{{ datastore.name }}",
   "description": "{{ datastore.description|default:"" }}",
   "entry_count": {{ entries.count }},
   "created_at": "{{ datastore.created_at|date:"c" }}",
   "updated_at": "{{ datastore.updated_at|date:"c" }}"
 }</code>
-                    </details>
-                </div>
-
-                <!-- Endpoint 2: List All Entries -->
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <h4 class="text-xs text-code-muted uppercase tracking-wider">List Entries (paginated)</h4>
-                        <button type="button" onclick="copyCode('curl-entries')"
-                                class="text-xs text-code-accent hover:underline">Copy</button>
+                        </details>
                     </div>
-                    <code id="curl-entries" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+
+                    <!-- List entries -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="eyebrow text-faint">List entries (paginated)</h4>
+                            <button type="button" onclick="copyCode('curl-entries')" class="text-xs text-info hover:underline">Copy</button>
+                        </div>
+                        <code id="curl-entries" class="block p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
   "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/{{ datastore.name }}/entries/?page=1&page_size=50"</code>
-                    <details class="mt-2">
-                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
-                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+                        <details class="mt-2">
+                            <summary class="text-xs text-muted cursor-pointer hover:text-text">Sample response</summary>
+                            <code class="block mt-1 p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-muted overflow-x-auto whitespace-pre">{
   "entries": [
     {
       "key": "example_key",
@@ -242,41 +193,39 @@ X-API-Key: YOUR_API_TOKEN</code>
   "page_size": 50,
   "total_pages": 1
 }</code>
-                    </details>
-                </div>
-
-                <!-- Endpoint 3: Get Single Entry -->
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <h4 class="text-xs text-code-muted uppercase tracking-wider">Get Single Entry</h4>
-                        <button type="button" onclick="copyCode('curl-entry')"
-                                class="text-xs text-code-accent hover:underline">Copy</button>
+                        </details>
                     </div>
-                    <code id="curl-entry" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+
+                    <!-- Get single entry -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="eyebrow text-faint">Get single entry</h4>
+                            <button type="button" onclick="copyCode('curl-entry')" class="text-xs text-info hover:underline">Copy</button>
+                        </div>
+                        <code id="curl-entry" class="block p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
   "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/{{ datastore.name }}/entries/YOUR_KEY/"</code>
-                    <details class="mt-2">
-                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
-                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+                        <details class="mt-2">
+                            <summary class="text-xs text-muted cursor-pointer hover:text-text">Sample response</summary>
+                            <code class="block mt-1 p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-muted overflow-x-auto whitespace-pre">{
   "key": "example_key",
   "value": {"any": "json data"},
   "created_at": "2026-01-20T08:00:00Z",
   "updated_at": "2026-02-01T12:00:00Z"
 }</code>
-                    </details>
-                </div>
-
-                <!-- Endpoint 4: List All Datastores -->
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <h4 class="text-xs text-code-muted uppercase tracking-wider">List All Datastores</h4>
-                        <button type="button" onclick="copyCode('curl-list')"
-                                class="text-xs text-code-accent hover:underline">Copy</button>
+                        </details>
                     </div>
-                    <code id="curl-list" class="block p-2 bg-code-surface rounded text-xs font-mono text-code-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
+
+                    <!-- List all datastores -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="eyebrow text-faint">List all datastores</h4>
+                            <button type="button" onclick="copyCode('curl-list')" class="text-xs text-info hover:underline">Copy</button>
+                        </div>
+                        <code id="curl-list" class="block p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-text overflow-x-auto whitespace-pre">curl -H "Authorization: Bearer YOUR_TOKEN" \
   "{{ request.scheme }}://{{ request.get_host }}/api/v1/datastores/"</code>
-                    <details class="mt-2">
-                        <summary class="text-xs text-code-muted cursor-pointer hover:text-code-accent">Sample response</summary>
-                        <code class="block mt-1 p-2 bg-code-surface rounded text-xs font-mono text-code-muted overflow-x-auto whitespace-pre">{
+                        <details class="mt-2">
+                            <summary class="text-xs text-muted cursor-pointer hover:text-text">Sample response</summary>
+                            <code class="block mt-1 p-2 bg-ink border border-line-soft rounded-lg text-xs font-mono text-muted overflow-x-auto whitespace-pre">{
   "datastores": [
     {
       "name": "{{ datastore.name }}",
@@ -286,19 +235,21 @@ X-API-Key: YOUR_API_TOKEN</code>
   ],
   "count": 1
 }</code>
-                    </details>
-                </div>
+                        </details>
+                    </div>
 
-                <!-- Rate Limiting Info -->
-                <div class="pt-3 border-t border-code-border">
-                    <h4 class="text-xs text-code-muted uppercase tracking-wider mb-2">Rate Limits & Pagination</h4>
-                    <ul class="text-xs text-code-muted space-y-1">
-                        <li>• Rate limit: 60 requests per minute per token</li>
-                        <li>• Default page size: 50 entries (max: 100)</li>
-                        <li>• Pagination params: <code class="px-1 bg-code-surface rounded">page</code>, <code class="px-1 bg-code-surface rounded">page_size</code></li>
-                    </ul>
+                    <!-- Rate limits -->
+                    <div class="pt-3 border-t border-line-soft">
+                        <h4 class="eyebrow text-faint mb-2">Rate limits &amp; pagination</h4>
+                        <ul class="text-xs text-muted space-y-1">
+                            <li>• Rate limit: 60 requests per minute per token</li>
+                            <li>• Default page size: 50 entries (max: 100)</li>
+                            <li>• Pagination params: <code class="px-1 bg-ink border border-line-soft rounded font-mono text-info">page</code>, <code class="px-1 bg-ink border border-line-soft rounded font-mono text-info">page_size</code></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
+
         </div>
     </div>
 </div>

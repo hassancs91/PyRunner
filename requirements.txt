@@ -10,3 +10,4 @@ cryptography>=42.0.0
 python-dotenv>=1.0.0
 psutil>=5.9.0
 boto3>=1.34.0
+claude-agent-sdk>=0.2.101,<0.3.0

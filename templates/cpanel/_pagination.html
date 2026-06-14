@@ -1,0 +1,41 @@
+{% comment %}
+Reusable pagination control. Expects in context:
+  page_obj    - a django Page
+  page_range  - paginator.get_elided_page_range(page_obj.number, ...)
+  querystring - other GET params, urlencoded, without a leading '?' (may be empty)
+Renders nothing when there is only one page.
+{% endcomment %}
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="flex items-center justify-between gap-4 flex-wrap" aria-label="Pagination">
+    <p class="text-xs text-faint">
+        Showing <span class="font-mono tnum text-muted">{{ page_obj.start_index }}</span>–<span class="font-mono tnum text-muted">{{ page_obj.end_index }}</span>
+        of <span class="font-mono tnum text-muted">{{ page_obj.paginator.count }}</span>
+    </p>
+    <div class="inline-flex items-center gap-1">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}"
+           class="px-2.5 py-1.5 rounded-md border border-line text-sm text-muted hover:text-text hover:border-faint transition-colors">Prev</a>
+        {% else %}
+        <span class="px-2.5 py-1.5 rounded-md border border-line-soft text-sm text-faint/60 cursor-not-allowed select-none">Prev</span>
+        {% endif %}
+
+        {% for num in page_range %}
+            {% if num == page_obj.paginator.ELLIPSIS %}
+            <span class="px-1.5 text-sm text-faint select-none">{{ num }}</span>
+            {% elif num == page_obj.number %}
+            <span class="min-w-[2rem] text-center px-2 py-1.5 rounded-md bg-ok/10 text-ok font-medium text-sm font-mono tnum" aria-current="page">{{ num }}</span>
+            {% else %}
+            <a href="?page={{ num }}{% if querystring %}&{{ querystring }}{% endif %}"
+               class="min-w-[2rem] text-center px-2 py-1.5 rounded-md text-sm font-mono tnum text-muted hover:text-text hover:bg-panel-hi transition-colors">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}"
+           class="px-2.5 py-1.5 rounded-md border border-line text-sm text-muted hover:text-text hover:border-faint transition-colors">Next</a>
+        {% else %}
+        <span class="px-2.5 py-1.5 rounded-md border border-line-soft text-sm text-faint/60 cursor-not-allowed select-none">Next</span>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}

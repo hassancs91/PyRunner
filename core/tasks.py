@@ -210,6 +210,20 @@ def execute_package_operation(operation_id: str) -> dict:
         logger.error(f"Invalid operation_id format: {operation_id} - {e}")
         return {"success": False, "error": f"Invalid UUID format: {e}"}
 
+    # Don't re-run an operation that already reached a terminal state. A stale
+    # django-q2 re-queue (or a manual replay) must not flip a finished/reconciled
+    # operation back to "running" and repeat the pip install.
+    if operation.is_finished:
+        logger.info(
+            f"Package operation {operation_id} already {operation.status}; skipping re-run"
+        )
+        return {
+            "success": operation.is_successful,
+            "operation_id": operation_id,
+            "status": operation.status,
+            "skipped": True,
+        }
+
     # Update to running
     operation.status = PackageOperation.Status.RUNNING
     operation.started_at = timezone.now()
@@ -287,6 +301,26 @@ def cleanup_old_runs_task() -> dict:
         return {"success": True, "deleted_count": deleted_count}
     except Exception as e:
         logger.exception("Cleanup task failed")
+        return {"success": False, "error": str(e)}
+
+
+def check_for_updates_task() -> dict:
+    """
+    Check GitHub for a newer PyRunner release and store the result.
+    Called by django-q2 scheduler (daily) or manually.
+
+    Returns:
+        dict: Result with the latest version found, or an error message.
+    """
+    from core.services.update_service import UpdateService
+
+    try:
+        latest = UpdateService.refresh()
+        logger.info(f"Update check completed: latest version on GitHub is {latest}")
+        return {"success": True, "latest_version": latest}
+    except Exception as e:
+        # Network/rate-limit errors are non-fatal — just try again next run.
+        logger.warning(f"Update check failed: {e}")
         return {"success": False, "error": str(e)}
 
 

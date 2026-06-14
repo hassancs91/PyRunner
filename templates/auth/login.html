@@ -9,20 +9,18 @@
 <div class="min-h-screen flex items-center justify-center px-4 py-12">
     <div class="w-full max-w-md">
         <div class="text-center mb-10">
-            <div class="w-16 h-16 bg-code-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-6 glow-accent">
-                <svg class="w-8 h-8 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
+            <div class="w-16 h-16 bg-ok/10 rounded-2xl grid place-items-center mx-auto mb-6 glow-accent">
+                <svg class="w-8 h-8 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
             <h1 class="text-3xl font-bold gradient-text mb-6">PyRunner</h1>
         </div>
 
-        <div class="bg-code-surface border border-code-border rounded-xl p-8">
-            <h2 class="text-xl font-semibold text-code-text mb-6 text-center">Sign In</h2>
+        <div class="bg-panel border border-line rounded-2xl p-8">
+            <h2 class="text-xl font-semibold text-text mb-6 text-center">Sign in</h2>
 
             {% if error_message %}
-                <div class="mb-6 p-4 bg-code-red/10 border border-code-red/30 rounded-lg">
-                    <p class="text-sm text-code-red">{{ error_message }}</p>
+                <div class="mb-6 p-4 bg-fail/10 border border-fail/30 rounded-lg">
+                    <p class="text-sm text-fail">{{ error_message }}</p>
                 </div>
             {% endif %}
 
@@ -32,92 +30,54 @@
                 <input type="hidden" name="action" value="password">
 
                 <div>
-                    <label for="id_email" class="block text-sm font-medium text-code-muted mb-2">
-                        Email address
-                    </label>
+                    <label for="id_email" class="block text-[13px] font-medium text-muted mb-1.5">Email address</label>
                     {{ password_form.email }}
                 </div>
 
                 <div>
-                    <label for="id_password" class="block text-sm font-medium text-code-muted mb-2">
-                        Password
-                    </label>
+                    <label for="id_password" class="block text-[13px] font-medium text-muted mb-1.5">Password</label>
                     {{ password_form.password }}
                 </div>
 
-                <button
-                    type="submit"
-                    class="w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:ring-offset-2 focus:ring-offset-code-surface"
-                >
-                    Sign In
-                </button>
+                {% if recaptcha_active %}
+                <div class="flex justify-center">
+                    <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                </div>
+                {% endif %}
+
+                <button type="submit" class="w-full py-3 px-4 bg-ok text-ink font-semibold rounded-lg hover:opacity-90 transition focus:outline-none focus:ring-2 focus:ring-ok/40 focus:ring-offset-2 focus:ring-offset-panel">Sign in</button>
             </form>
 
             {% if email_enabled %}
-                <!-- Forgot Password Link -->
                 <div class="mt-4 text-center">
-                    <a href="{% url 'auth:forgot_password' %}" class="text-sm text-code-muted hover:text-code-accent transition-colors">
-                        Forgot your password?
-                    </a>
+                    <a href="{% url 'auth:forgot_password' %}" class="text-sm text-muted hover:text-text transition-colors">Forgot your password?</a>
                 </div>
 
-                <!-- Divider -->
                 <div class="relative my-6">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-code-border"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-4 bg-code-surface text-code-muted">or</span>
-                    </div>
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-line"></div></div>
+                    <div class="relative flex justify-center text-sm"><span class="px-4 bg-panel text-faint">or</span></div>
                 </div>
 
-                <!-- Magic Link Section -->
                 <div id="magic-link-section">
-                    <button
-                        type="button"
-                        onclick="toggleMagicLink()"
-                        id="magic-link-toggle"
-                        class="w-full py-3 px-4 bg-code-bg hover:bg-code-bg/80 text-code-text border border-code-border font-medium rounded-lg transition-colors flex items-center justify-center space-x-2"
-                    >
-                        <svg class="w-5 h-5 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
-                        <span>Use Magic Link Instead</span>
+                    <button type="button" onclick="toggleMagicLink()" id="magic-link-toggle" class="w-full py-3 px-4 bg-panel-hi/40 hover:border-faint text-text border border-line font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <span>Use magic link instead</span>
                     </button>
 
                     <form method="post" class="hidden mt-4 space-y-4" id="magic-link-form">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="magic_link">
-
                         <div>
-                            <label for="magic_email" class="block text-sm font-medium text-code-muted mb-2">
-                                Email address
-                            </label>
-                            <input
-                                type="email"
-                                id="magic_email"
-                                name="magic_email"
-                                required
-                                autocomplete="email"
-                                placeholder="you@example.com"
-                                class="w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent transition-all"
-                            >
+                            <label for="magic_email" class="block text-[13px] font-medium text-muted mb-1.5">Email address</label>
+                            <input type="email" id="magic_email" name="magic_email" required autocomplete="email" placeholder="you@example.com" class="w-full px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
                         </div>
-
-                        <button
-                            type="submit"
-                            class="w-full py-3 px-4 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors"
-                        >
-                            Send Magic Link
-                        </button>
-
-                        <button
-                            type="button"
-                            onclick="toggleMagicLink()"
-                            class="w-full py-2 text-sm text-code-muted hover:text-code-text transition-colors"
-                        >
-                            Back to password login
-                        </button>
+                        {% if recaptcha_active %}
+                        <div class="flex justify-center">
+                            <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+                        </div>
+                        {% endif %}
+                        <button type="submit" class="w-full py-3 px-4 bg-ok text-ink font-semibold rounded-lg hover:opacity-90 transition">Send magic link</button>
+                        <button type="button" onclick="toggleMagicLink()" class="w-full py-2 text-sm text-muted hover:text-text transition-colors">Back to password login</button>
                     </form>
                 </div>
             {% endif %}
@@ -142,4 +102,7 @@ function toggleMagicLink() {
     }
 }
 </script>
+{% if recaptcha_active %}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endif %}
 {% endblock %}

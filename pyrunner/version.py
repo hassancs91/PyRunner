@@ -2,7 +2,7 @@
 PyRunner version information.
 """
 
-__version__ = "1.8.2"
+__version__ = "1.9.0"
 VERSION = __version__
 
 

@@ -1,0 +1,5 @@
+{% comment %}Run status badge. Expects `run` in context.{% endcomment %}
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md {% if run.status == 'success' %}bg-ok/10 text-ok{% elif run.status == 'failed' or run.status == 'timeout' %}bg-fail/10 text-fail{% elif run.status == 'running' %}bg-warn/10 text-warn{% else %}bg-panel-hi text-muted{% endif %}">
+    <span class="w-1.5 h-1.5 rounded-full {% if run.status == 'success' %}bg-ok{% elif run.status == 'failed' or run.status == 'timeout' %}bg-fail{% elif run.status == 'running' %}bg-warn animate-pulse{% else %}bg-faint{% endif %}"></span>
+    {{ run.get_status_display }}
+</span>

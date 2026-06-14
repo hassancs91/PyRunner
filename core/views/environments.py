@@ -198,6 +198,10 @@ def environment_packages_view(request: HttpRequest, pk) -> HttpResponse:
     else:
         packages = sorted(packages, key=lambda p: p["name"].lower())
 
+    # Fail operations abandoned by a crashed/restarted worker, otherwise the
+    # page would poll (reload) forever waiting on a task that will never finish.
+    PackageOperation.reconcile_stale(environment)
+
     # Recent operations
     operations = environment.package_operations.all()[:10]
 

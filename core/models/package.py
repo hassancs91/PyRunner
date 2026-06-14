@@ -2,10 +2,12 @@
 Package operation model for tracking async pip operations.
 """
 
+import datetime
 import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class PackageOperation(models.Model):
@@ -77,6 +79,11 @@ class PackageOperation(models.Model):
         related_name="package_operations",
     )
 
+    # An operation should never legitimately stay pending/running this long.
+    # Past this, it almost certainly belongs to a worker that crashed/restarted
+    # mid-task or a task stuck in a django-q2 re-queue loop.
+    STALE_AFTER = datetime.timedelta(minutes=15)
+
     class Meta:
         db_table = "package_operations"
         ordering = ["-created_at"]
@@ -85,6 +92,34 @@ class PackageOperation(models.Model):
 
     def __str__(self):
         return f"{self.get_operation_display()} {self.package_spec[:50]} ({self.status})"
+
+    @classmethod
+    def reconcile_stale(cls, environment=None) -> int:
+        """Mark operations stuck past ``STALE_AFTER`` as failed.
+
+        A worker that crashes or is restarted mid-task leaves an operation in
+        ``pending``/``running`` forever. The packages page polls (reloads) while
+        any such operation exists, so without this it would reload indefinitely.
+
+        Returns the number of operations reconciled.
+        """
+        cutoff = timezone.now() - cls.STALE_AFTER
+        # Age off created_at, not started_at: a task caught in a re-queue loop
+        # keeps resetting started_at, so a started_at-based check would never
+        # fire. created_at is fixed at creation and reflects total elapsed time.
+        qs = cls.objects.filter(
+            status__in=[cls.Status.PENDING, cls.Status.RUNNING],
+            created_at__lt=cutoff,
+        )
+        if environment is not None:
+            qs = qs.filter(environment=environment)
+
+        return qs.update(
+            status=cls.Status.FAILED,
+            error="Operation did not complete — the worker may have stopped or "
+            "been restarted. Please retry.",
+            completed_at=timezone.now(),
+        )
 
     @property
     def is_finished(self) -> bool:

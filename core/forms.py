@@ -15,6 +15,24 @@ from core.services import EnvironmentService
 SECRET_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
+# Shared form-control classes (console design tokens — theme-aware via CSS variables)
+INPUT_CLASS = (
+    "w-full px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm "
+    "placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 "
+    "focus:border-ok/60 transition-colors"
+)
+CHECK_CLASS = "w-4 h-4 rounded text-ok bg-ink border-line focus:ring-ok/40 focus:ring-2"
+FILE_CLASS = (
+    "block w-full text-sm text-muted file:mr-3 file:py-2 file:px-3.5 file:rounded-lg "
+    "file:border-0 file:text-sm file:font-medium file:bg-ok file:text-ink "
+    "hover:file:opacity-90 cursor-pointer"
+)
+# Console alias captured up here so it survives the LEGACY `INPUT_CLASS` redefinition
+# further down (~line 1516, used by the not-yet-migrated auth/backup forms). Migrated
+# forms defined AFTER that redefinition should reference CONSOLE_INPUT_CLASS.
+CONSOLE_INPUT_CLASS = INPUT_CLASS
+
+
 # Common timezone choices (sorted, common ones first)
 COMMON_TIMEZONES = [
     "UTC",
@@ -60,69 +78,42 @@ class ScriptForm(forms.ModelForm):
         ]
         widgets = {
             "name": forms.TextInput(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                    "placeholder": "My Script Name",
-                }
+                attrs={"class": INPUT_CLASS, "placeholder": "My script name"}
             ),
             "description": forms.Textarea(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "rows": 2,
                     "placeholder": "What does this script do?",
                 }
             ),
             "code": forms.Textarea(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-sm placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS + " font-mono",
                     "rows": 15,
                     "placeholder": '# Your Python code here\nprint("Hello, World!")',
                 }
             ),
-            "environment": forms.Select(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                }
-            ),
-            "tags": forms.CheckboxSelectMultiple(
-                attrs={
-                    "class": "tag-checkbox",
-                }
-            ),
+            "environment": forms.Select(attrs={"class": INPUT_CLASS}),
+            "tags": forms.CheckboxSelectMultiple(attrs={"class": "tag-checkbox"}),
             "timeout_seconds": forms.NumberInput(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                    "min": 1,
-                    "max": 86400,
-                }
+                attrs={"class": INPUT_CLASS, "min": 1, "max": 86400}
             ),
-            "is_enabled": forms.CheckboxInput(
-                attrs={
-                    "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
-                }
-            ),
-            "notify_on": forms.Select(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                }
-            ),
+            "is_enabled": forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+            "notify_on": forms.Select(attrs={"class": INPUT_CLASS}),
             "notify_email": forms.EmailInput(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "placeholder": "Override default email (optional)",
                 }
             ),
             "notify_webhook_url": forms.URLInput(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "placeholder": "https://your-service.com/webhook",
                 }
             ),
-            "notify_webhook_enabled": forms.CheckboxInput(
-                attrs={
-                    "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
-                }
-            ),
+            "notify_webhook_enabled": forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         }
         labels = {
             "name": "Script Name",
@@ -170,13 +161,13 @@ class TagForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "placeholder": "Tag name",
                 }
             ),
             "color": forms.Select(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                 }
             ),
         }
@@ -217,10 +208,7 @@ class ScheduleForm(forms.ModelForm):
     daily_times_input = forms.CharField(
         required=False,
         widget=forms.TextInput(
-            attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50",
-                "placeholder": "09:00, 18:00",
-            }
+            attrs={"class": INPUT_CLASS, "placeholder": "09:00, 18:00"}
         ),
         label="Run Times",
         help_text="Comma-separated times in HH:MM format (24-hour)",
@@ -241,10 +229,7 @@ class ScheduleForm(forms.ModelForm):
     weekly_times_input = forms.CharField(
         required=False,
         widget=forms.TextInput(
-            attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50",
-                "placeholder": "09:00, 18:00",
-            }
+            attrs={"class": INPUT_CLASS, "placeholder": "09:00, 18:00"}
         ),
         label="Run Times",
         help_text="Comma-separated times in HH:MM format (24-hour)",
@@ -265,10 +250,7 @@ class ScheduleForm(forms.ModelForm):
     monthly_times_input = forms.CharField(
         required=False,
         widget=forms.TextInput(
-            attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50",
-                "placeholder": "09:00, 18:00",
-            }
+            attrs={"class": INPUT_CLASS, "placeholder": "09:00, 18:00"}
         ),
         label="Run Times",
         help_text="Comma-separated times in HH:MM format (24-hour)",
@@ -277,11 +259,7 @@ class ScheduleForm(forms.ModelForm):
     timezone = forms.ChoiceField(
         choices=get_timezone_choices,
         initial="UTC",
-        widget=forms.Select(
-            attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50",
-            }
-        ),
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
     )
 
     class Meta:
@@ -293,16 +271,8 @@ class ScheduleForm(forms.ModelForm):
                     "class": "sr-only peer",
                 }
             ),
-            "interval_minutes": forms.Select(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50",
-                }
-            ),
-            "is_active": forms.CheckboxInput(
-                attrs={
-                    "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
-                }
-            ),
+            "interval_minutes": forms.Select(attrs={"class": INPUT_CLASS}),
+            "is_active": forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         }
         labels = {
             "run_mode": "Run Mode",
@@ -459,11 +429,7 @@ class EnvironmentCreateForm(forms.ModelForm):
 
     python_path = forms.ChoiceField(
         choices=[],
-        widget=forms.Select(
-            attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-            }
-        ),
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
         label="Python Version",
         help_text="Select Python installation to use for this environment",
     )
@@ -473,14 +439,11 @@ class EnvironmentCreateForm(forms.ModelForm):
         fields = ["name", "description"]
         widgets = {
             "name": forms.TextInput(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                    "placeholder": "My Environment",
-                }
+                attrs={"class": INPUT_CLASS, "placeholder": "My environment"}
             ),
             "description": forms.Textarea(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "rows": 2,
                     "placeholder": "Environment description (optional)",
                 }
@@ -535,14 +498,11 @@ class EnvironmentEditForm(forms.ModelForm):
         fields = ["name", "description"]
         widgets = {
             "name": forms.TextInput(
-                attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                    "placeholder": "My Environment",
-                }
+                attrs={"class": INPUT_CLASS, "placeholder": "My environment"}
             ),
             "description": forms.Textarea(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "rows": 2,
                     "placeholder": "Environment description (optional)",
                 }
@@ -560,10 +520,7 @@ class PackageInstallForm(forms.Form):
     package_spec = forms.CharField(
         max_length=200,
         widget=forms.TextInput(
-            attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
-                "placeholder": "requests==2.31.0",
-            }
+            attrs={"class": INPUT_CLASS + " font-mono", "placeholder": "requests==2.31.0"}
         ),
         label="Package",
         help_text="Package name with optional version (e.g., requests, django>=4.0)",
@@ -586,7 +543,7 @@ class BulkInstallForm(forms.Form):
     requirements = forms.CharField(
         widget=forms.Textarea(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-sm placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS + " font-mono",
                 "rows": 10,
                 "placeholder": "requests==2.31.0\ndjango>=4.0\nnumpy",
             }
@@ -598,12 +555,7 @@ class BulkInstallForm(forms.Form):
 
     requirements_file = forms.FileField(
         required=False,
-        widget=forms.FileInput(
-            attrs={
-                "class": "block w-full text-sm text-code-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-code-accent/90 cursor-pointer",
-                "accept": ".txt",
-            }
-        ),
+        widget=forms.FileInput(attrs={"class": FILE_CLASS, "accept": ".txt"}),
         label="Or upload requirements.txt",
     )
 
@@ -649,7 +601,7 @@ class SecretCreateForm(forms.Form):
         max_length=100,
         widget=forms.TextInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent uppercase",
+                "class": INPUT_CLASS + " font-mono uppercase",
                 "placeholder": "API_KEY",
                 "autocomplete": "off",
             }
@@ -661,7 +613,7 @@ class SecretCreateForm(forms.Form):
     value = forms.CharField(
         widget=forms.Textarea(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS + " font-mono",
                 "rows": 3,
                 "placeholder": "sk-your-secret-value-here",
                 "autocomplete": "off",
@@ -675,7 +627,7 @@ class SecretCreateForm(forms.Form):
         required=False,
         widget=forms.Textarea(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "rows": 2,
                 "placeholder": "What is this secret used for?",
             }
@@ -745,7 +697,7 @@ class SecretEditForm(forms.Form):
         required=False,
         widget=forms.Textarea(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS + " font-mono",
                 "rows": 3,
                 "placeholder": "Leave blank to keep current value",
                 "autocomplete": "off",
@@ -759,7 +711,7 @@ class SecretEditForm(forms.Form):
         required=False,
         widget=forms.Textarea(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "rows": 2,
                 "placeholder": "What is this secret used for?",
             }
@@ -807,7 +759,7 @@ class NotificationSettingsForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "smtp.example.com",
             }
         ),
@@ -819,7 +771,7 @@ class NotificationSettingsForm(forms.Form):
         initial=587,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 1,
                 "max": 65535,
             }
@@ -832,7 +784,7 @@ class NotificationSettingsForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "username@example.com",
             }
         ),
@@ -843,7 +795,7 @@ class NotificationSettingsForm(forms.Form):
         required=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "Leave blank to keep current",
                 "autocomplete": "new-password",
             }
@@ -856,7 +808,7 @@ class NotificationSettingsForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Use TLS",
@@ -866,7 +818,7 @@ class NotificationSettingsForm(forms.Form):
         required=False,
         widget=forms.EmailInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "noreply@example.com",
             }
         ),
@@ -878,7 +830,7 @@ class NotificationSettingsForm(forms.Form):
         required=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "Leave blank to keep current",
                 "autocomplete": "new-password",
             }
@@ -890,7 +842,7 @@ class NotificationSettingsForm(forms.Form):
         required=False,
         widget=forms.EmailInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "noreply@yourdomain.com",
             }
         ),
@@ -902,7 +854,7 @@ class NotificationSettingsForm(forms.Form):
         required=False,
         widget=forms.EmailInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "notifications@example.com",
             }
         ),
@@ -991,7 +943,7 @@ class GeneralSettingsForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "PyRunner",
             }
         ),
@@ -1004,7 +956,7 @@ class GeneralSettingsForm(forms.Form):
         initial="UTC",
         widget=forms.Select(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
             }
         ),
         label="Timezone",
@@ -1015,7 +967,7 @@ class GeneralSettingsForm(forms.Form):
         choices=DATE_FORMAT_CHOICES,
         widget=forms.Select(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
             }
         ),
         label="Date Format",
@@ -1025,7 +977,7 @@ class GeneralSettingsForm(forms.Form):
         choices=TIME_FORMAT_CHOICES,
         widget=forms.Select(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
             }
         ),
         label="Time Format",
@@ -1036,7 +988,7 @@ class GeneralSettingsForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "placeholder": "django-admin",
             }
         ),
@@ -1096,7 +1048,7 @@ class LogRetentionForm(forms.Form):
         initial=0,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 0,
             }
         ),
@@ -1109,7 +1061,7 @@ class LogRetentionForm(forms.Form):
         initial=0,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 0,
             }
         ),
@@ -1122,7 +1074,7 @@ class LogRetentionForm(forms.Form):
         initial=False,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Auto Cleanup",
@@ -1171,7 +1123,7 @@ class WorkerSettingsForm(forms.Form):
         initial=2,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 1,
                 "max": 16,
             }
@@ -1186,7 +1138,7 @@ class WorkerSettingsForm(forms.Form):
         initial=600,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 0,
                 "max": 86400,
             }
@@ -1201,7 +1153,7 @@ class WorkerSettingsForm(forms.Form):
         initial=660,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 60,
                 "max": 86400,
             }
@@ -1216,7 +1168,7 @@ class WorkerSettingsForm(forms.Form):
         initial=20,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS,
                 "min": 5,
                 "max": 100,
             }
@@ -1292,7 +1244,7 @@ class BackupCreateForm(forms.Form):
         initial="gzip",
         widget=forms.RadioSelect(
             attrs={
-                "class": "w-4 h-4 text-code-accent bg-code-bg border-code-border focus:ring-code-accent",
+                "class": CHECK_CLASS,
             }
         ),
         label="Backup format",
@@ -1304,7 +1256,7 @@ class BackupCreateForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Include DataStores",
@@ -1316,7 +1268,7 @@ class BackupCreateForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Include run history",
@@ -1329,7 +1281,7 @@ class BackupCreateForm(forms.Form):
         max_value=10000,
         widget=forms.NumberInput(
             attrs={
-                "class": "w-full px-4 py-2 bg-code-bg text-code-text border border-code-border rounded-lg focus:ring-2 focus:ring-code-accent focus:border-transparent",
+                "class": INPUT_CLASS,
                 "placeholder": "1000",
             }
         ),
@@ -1342,7 +1294,7 @@ class BackupCreateForm(forms.Form):
         initial=False,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Include package operations",
@@ -1356,7 +1308,7 @@ class BackupRestoreForm(forms.Form):
     backup_file = forms.FileField(
         widget=forms.FileInput(
             attrs={
-                "class": "block w-full text-sm text-code-text file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-code-accent file:text-white hover:file:bg-opacity-90",
+                "class": FILE_CLASS,
                 "accept": ".json,.json.gz,.gz",
             }
         ),
@@ -1369,7 +1321,7 @@ class BackupRestoreForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Restore run history",
@@ -1380,7 +1332,7 @@ class BackupRestoreForm(forms.Form):
         required=True,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-red-500 bg-code-bg border-code-border rounded focus:ring-red-500 focus:ring-2",
+                "class": "w-4 h-4 rounded text-fail bg-ink border-line focus:ring-fail/40 focus:ring-2",
             }
         ),
         label="I understand all existing data will be deleted",
@@ -1402,13 +1354,13 @@ class DataStoreForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "placeholder": "my_data_store",
                 }
             ),
             "description": forms.Textarea(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "rows": 2,
                     "placeholder": "What is this data store used for?",
                 }
@@ -1447,7 +1399,7 @@ class DataStoreEntryForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS + " font-mono",
                 "placeholder": "my_key",
             }
         ),
@@ -1458,7 +1410,7 @@ class DataStoreEntryForm(forms.Form):
     value = forms.CharField(
         widget=forms.Textarea(
             attrs={
-                "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text font-mono text-sm placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                "class": INPUT_CLASS + " font-mono",
                 "rows": 6,
                 "placeholder": '{"example": "value"}\nor just a string\nor a number like 42',
             }
@@ -1525,18 +1477,18 @@ class DataStoreAPITokenForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "placeholder": "My Dashboard Token",
                 }
             ),
             "datastore": forms.Select(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                 }
             ),
             "expires_at": forms.DateTimeInput(
                 attrs={
-                    "class": "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent",
+                    "class": INPUT_CLASS,
                     "type": "datetime-local",
                 },
                 format="%Y-%m-%dT%H:%M",
@@ -1565,7 +1517,6 @@ class DataStoreAPITokenForm(forms.ModelForm):
 # Authentication Forms
 # =============================================================================
 
-INPUT_CLASS = "w-full px-4 py-3 bg-code-bg border border-code-border rounded-lg text-code-text placeholder-code-muted/50 focus:outline-none focus:ring-2 focus:ring-code-accent/50 focus:border-code-accent"
 
 
 class PasswordLoginForm(forms.Form):
@@ -1574,7 +1525,7 @@ class PasswordLoginForm(forms.Form):
     email = forms.EmailField(
         widget=forms.EmailInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "you@example.com",
                 "autocomplete": "email",
             }
@@ -1584,7 +1535,7 @@ class PasswordLoginForm(forms.Form):
     password = forms.CharField(
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "Your password",
                 "autocomplete": "current-password",
             }
@@ -1600,7 +1551,7 @@ class SetPasswordForm(forms.Form):
         min_length=8,
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "New password",
                 "autocomplete": "new-password",
             }
@@ -1611,7 +1562,7 @@ class SetPasswordForm(forms.Form):
     password_confirm = forms.CharField(
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "Confirm new password",
                 "autocomplete": "new-password",
             }
@@ -1634,7 +1585,7 @@ class AdminSetupForm(forms.Form):
     email = forms.EmailField(
         widget=forms.EmailInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "admin@example.com",
                 "autocomplete": "email",
             }
@@ -1645,7 +1596,7 @@ class AdminSetupForm(forms.Form):
         min_length=8,
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "Create a strong password",
                 "autocomplete": "new-password",
             }
@@ -1656,7 +1607,7 @@ class AdminSetupForm(forms.Form):
     password_confirm = forms.CharField(
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "Confirm password",
                 "autocomplete": "new-password",
             }
@@ -1684,11 +1635,7 @@ class S3SettingsForm(forms.Form):
     s3_enabled = forms.BooleanField(
         required=False,
         initial=False,
-        widget=forms.CheckboxInput(
-            attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
-            }
-        ),
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         label="Enable S3 Storage",
     )
 
@@ -1697,7 +1644,7 @@ class S3SettingsForm(forms.Form):
         max_length=500,
         widget=forms.TextInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "https://s3.amazonaws.com or https://minio.example.com:9000",
             }
         ),
@@ -1711,7 +1658,7 @@ class S3SettingsForm(forms.Form):
         initial="us-east-1",
         widget=forms.TextInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "us-east-1",
             }
         ),
@@ -1723,7 +1670,7 @@ class S3SettingsForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "my-backup-bucket",
             }
         ),
@@ -1734,7 +1681,7 @@ class S3SettingsForm(forms.Form):
         required=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "Leave blank to keep current",
                 "autocomplete": "new-password",
             }
@@ -1746,7 +1693,7 @@ class S3SettingsForm(forms.Form):
         required=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "Leave blank to keep current",
                 "autocomplete": "new-password",
             }
@@ -1757,11 +1704,7 @@ class S3SettingsForm(forms.Form):
     s3_use_ssl = forms.BooleanField(
         required=False,
         initial=True,
-        widget=forms.CheckboxInput(
-            attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
-            }
-        ),
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         label="Use SSL/TLS",
         help_text="Recommended for security. Disable only for local development.",
     )
@@ -1769,11 +1712,7 @@ class S3SettingsForm(forms.Form):
     s3_path_style = forms.BooleanField(
         required=False,
         initial=False,
-        widget=forms.CheckboxInput(
-            attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
-            }
-        ),
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         label="Path-style addressing",
         help_text="Required for MinIO and some S3-compatible providers.",
     )
@@ -1814,6 +1753,183 @@ class S3SettingsForm(forms.Form):
         return instance
 
 
+class ClaudeSettingsForm(forms.Form):
+    """Form for Claude AI integration configuration."""
+
+    from core.models import GlobalSettings as _GS
+
+    claude_enabled = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Enable Claude AI for scripts",
+    )
+
+    claude_auth_method = forms.ChoiceField(
+        required=False,
+        choices=_GS.ClaudeAuthMethod.choices,
+        initial=_GS.ClaudeAuthMethod.SUBSCRIPTION,
+        widget=forms.Select(attrs={"class": CONSOLE_INPUT_CLASS}),
+        label="Authentication method",
+    )
+
+    claude_oauth_token = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": CONSOLE_INPUT_CLASS,
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Claude subscription token",
+        help_text="Run `claude setup-token` locally and paste the token it outputs (starts with sk-ant-oat01-) — NOT the authorization code shown in the browser.",
+    )
+
+    claude_api_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": CONSOLE_INPUT_CLASS,
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Anthropic API key",
+        help_text="Pay-per-use billing. From console.anthropic.com.",
+    )
+
+    claude_default_model = forms.CharField(
+        required=False,
+        max_length=100,
+        widget=forms.TextInput(
+            attrs={
+                "class": CONSOLE_INPUT_CLASS,
+                "placeholder": "claude-sonnet-4-6 (optional)",
+            }
+        ),
+        label="Default model",
+        help_text="Optional. Leave blank to use the account default.",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["claude_enabled"].initial = instance.claude_enabled
+            self.fields["claude_auth_method"].initial = instance.claude_auth_method
+            self.fields["claude_default_model"].initial = instance.claude_default_model
+
+    def save(self, instance):
+        """Save Claude settings to the GlobalSettings instance."""
+        from core.models import GlobalSettings
+        from core.services.encryption_service import EncryptionService
+
+        instance.claude_enabled = self.cleaned_data.get("claude_enabled", False)
+        instance.claude_auth_method = (
+            self.cleaned_data.get("claude_auth_method")
+            or GlobalSettings.ClaudeAuthMethod.SUBSCRIPTION
+        )
+        instance.claude_default_model = self.cleaned_data.get("claude_default_model") or ""
+
+        # Only overwrite credentials when a new value is provided.
+        token = self.cleaned_data.get("claude_oauth_token")
+        if token:
+            instance.claude_oauth_token_encrypted = EncryptionService.encrypt(token)
+
+        api_key = self.cleaned_data.get("claude_api_key")
+        if api_key:
+            instance.claude_api_key_encrypted = EncryptionService.encrypt(api_key)
+
+        instance.save()
+        return instance
+
+
+class RecaptchaSettingsForm(forms.Form):
+    """Form for Google reCAPTCHA v2 login-protection configuration."""
+
+    recaptcha_enabled = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Require reCAPTCHA on login",
+    )
+
+    recaptcha_site_key = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={
+                "class": CONSOLE_INPUT_CLASS + " font-mono",
+                "placeholder": "6Lc...",
+                "autocomplete": "off",
+            }
+        ),
+        label="Site key",
+        help_text="The public site key from the reCAPTCHA admin console (v2 “I'm not a robot”).",
+    )
+
+    recaptcha_secret_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": CONSOLE_INPUT_CLASS + " font-mono",
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="Secret key",
+        help_text="The secret key (kept server-side, encrypted at rest).",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["recaptcha_enabled"].initial = instance.recaptcha_enabled
+            self.fields["recaptcha_site_key"].initial = instance.recaptcha_site_key
+        self._instance = instance
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("recaptcha_enabled"):
+            if not cleaned_data.get("recaptcha_site_key"):
+                self.add_error(
+                    "recaptcha_site_key",
+                    "Site key is required to enable reCAPTCHA.",
+                )
+            # Secret key must be provided now or already saved.
+            has_saved_secret = bool(
+                self._instance and self._instance.recaptcha_secret_key_encrypted
+            )
+            if not cleaned_data.get("recaptcha_secret_key") and not has_saved_secret:
+                self.add_error(
+                    "recaptcha_secret_key",
+                    "Secret key is required to enable reCAPTCHA.",
+                )
+        return cleaned_data
+
+    def save(self, instance):
+        """Save reCAPTCHA settings to the GlobalSettings instance."""
+        from core.services.encryption_service import EncryptionService
+
+        instance.recaptcha_enabled = self.cleaned_data.get("recaptcha_enabled", False)
+        instance.recaptcha_site_key = self.cleaned_data.get("recaptcha_site_key") or ""
+
+        # Only overwrite the secret when a new value is provided.
+        secret_key = self.cleaned_data.get("recaptcha_secret_key")
+        if secret_key:
+            instance.recaptcha_secret_key_encrypted = EncryptionService.encrypt(secret_key)
+
+        instance.save(
+            update_fields=[
+                "recaptcha_enabled",
+                "recaptcha_site_key",
+                "recaptcha_secret_key_encrypted",
+                "updated_at",
+            ]
+        )
+        return instance
+
+
 class S3BackupScheduleForm(forms.Form):
     """Form for S3 scheduled backup configuration."""
 
@@ -1834,7 +1950,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=False,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Enable Scheduled Backups",
@@ -1845,7 +1961,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=GlobalSettings.S3BackupSchedule.DISABLED,
         widget=forms.Select(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
             }
         ),
         label="Schedule Frequency",
@@ -1855,7 +1971,7 @@ class S3BackupScheduleForm(forms.Form):
         initial="02:00",
         widget=forms.TimeInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "type": "time",
             }
         ),
@@ -1868,7 +1984,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=0,
         widget=forms.Select(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
             }
         ),
         label="Day of Week",
@@ -1881,7 +1997,7 @@ class S3BackupScheduleForm(forms.Form):
         initial="pyrunner-backups/",
         widget=forms.TextInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "placeholder": "pyrunner-backups/",
             }
         ),
@@ -1894,7 +2010,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=7,
         widget=forms.NumberInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "min": "0",
             }
         ),
@@ -1907,7 +2023,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=False,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Include Run History",
@@ -1918,7 +2034,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=1000,
         widget=forms.NumberInput(
             attrs={
-                "class": INPUT_CLASS,
+                "class": CONSOLE_INPUT_CLASS,
                 "min": "0",
             }
         ),
@@ -1931,7 +2047,7 @@ class S3BackupScheduleForm(forms.Form):
         initial=True,
         widget=forms.CheckboxInput(
             attrs={
-                "class": "w-5 h-5 text-code-accent bg-code-bg border-code-border rounded focus:ring-code-accent focus:ring-2",
+                "class": CHECK_CLASS,
             }
         ),
         label="Include DataStores",

@@ -4,6 +4,7 @@ Script views for the control panel.
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_POST
 from django.http import HttpRequest, HttpResponse
 
@@ -11,6 +12,38 @@ from core.models import Script, Run, ScriptSchedule, ScheduleHistory, Tag
 from core.forms import ScriptForm, ScheduleForm
 from core.tasks import queue_script_run
 from core.services.schedule_service import ScheduleService
+
+
+# Starter code templates available via ?template=<key> on the create page.
+SCRIPT_TEMPLATES = {
+    "ai": {
+        "name": "AI Web Research",
+        "description": "Uses Claude (web search + fetch) to research a topic.",
+        "code": '''"""
+AI Web Research example.
+
+Requires:
+  - Claude enabled in PyRunner (Services -> Claude AI)
+  - 'claude-agent-sdk' installed in this script's Environment (Environments -> Packages)
+"""
+from pyrunner_ai import ask_claude
+
+TOPIC = "the latest stable Python release and its headline features"
+
+# Web search + web fetch are enabled by default.
+answer = ask_claude(
+    f"Search the web and give me a short, up-to-date briefing on {TOPIC}. "
+    "Include the version number and 3 bullet points."
+)
+
+print(answer)
+
+# Want details (tools used, cost, turns)? Use raw=True:
+# result = ask_claude("...", raw=True)
+# print(result.text, result.tools_used, result.cost_usd)
+''',
+    },
+}
 
 
 @login_required
@@ -37,7 +70,7 @@ def script_list_view(request: HttpRequest) -> HttpResponse:
         try:
             selected_tag = Tag.objects.get(pk=tag_filter)
             scripts = scripts.filter(tags=selected_tag)
-        except (Tag.DoesNotExist, ValueError):
+        except (Tag.DoesNotExist, ValueError, ValidationError):
             pass
 
     # Get all tags for filter dropdown
@@ -64,7 +97,9 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
             messages.success(request, f'Script "{script.name}" created successfully.')
             return redirect("cpanel:script_detail", pk=script.pk)
     else:
-        form = ScriptForm()
+        # Optionally pre-fill from a starter template (e.g. ?template=ai).
+        template = SCRIPT_TEMPLATES.get(request.GET.get("template", ""))
+        form = ScriptForm(initial=template) if template else ScriptForm()
 
     available_tags = Tag.objects.all().order_by("name")
     return render(request, "cpanel/scripts/create.html", {

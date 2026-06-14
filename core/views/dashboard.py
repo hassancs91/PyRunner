@@ -32,6 +32,16 @@ def dashboard_view(request):
         "-updated_at"
     )[:5]
 
+    # Run pulse — last 40 runs, oldest → newest, for the activity ribbon.
+    # `height` (14–100) encodes run duration so the ribbon reads like a heartbeat.
+    pulse_runs = list(Run.objects.order_by("-created_at")[:40])
+    pulse_runs.reverse()
+    run_pulse = []
+    for r in pulse_runs:
+        d = r.duration
+        height = 26 if d is None else int(18 + min(d, 60) / 60 * 82)
+        run_pulse.append({"status": r.status, "height": height})
+
     # New widgets
     recent_failures = DashboardService.get_recent_failures()
     upcoming_runs = DashboardService.get_upcoming_scheduled_runs()
@@ -53,6 +63,7 @@ def dashboard_view(request):
         # Recent activity
         "recent_runs": recent_runs,
         "recent_scripts": recent_scripts,
+        "run_pulse": run_pulse,
         # New widgets
         "recent_failures": recent_failures,
         "upcoming_runs": upcoming_runs,

@@ -20,6 +20,7 @@ from core.views.scripts import (
     webhook_regenerate_view,
 )
 from core.views.runs import run_list_view, run_detail_view
+from core.views.changelog import changelog_view
 from core.views.environments import (
     environment_list_view,
     environment_detail_view,
@@ -40,6 +41,7 @@ from core.views.settings import (
     notification_settings_view,
     test_email_view,
     general_settings_view,
+    recaptcha_settings_view,
     retention_settings_view,
     worker_settings_view,
     restart_workers_view,
@@ -103,11 +105,15 @@ from core.views.tasks import (
     tasks_api_view,
     task_cancel_view,
     task_force_stop_view,
+    task_detail_view,
 )
 from core.views.services import (
     services_view,
     s3_settings_view,
     s3_test_connection_view,
+    claude_settings_view,
+    claude_test_connection_view,
+    claude_usage_view,
 )
 
 app_name = "cpanel"
@@ -116,6 +122,9 @@ urlpatterns = [
     # Dashboard
     path("", dashboard_view, name="dashboard"),
     path("api/system-resources/", system_resources_api, name="system_resources_api"),
+
+    # Changelog / What's new
+    path("changelog/", changelog_view, name="changelog"),
 
     # Scripts
     path("scripts/", script_list_view, name="script_list"),
@@ -144,6 +153,8 @@ urlpatterns = [
     path("api/tasks/", tasks_api_view, name="tasks_api"),
     path("tasks/<str:task_id>/cancel/", task_cancel_view, name="task_cancel"),
     path("tasks/<str:task_id>/force-stop/", task_force_stop_view, name="task_force_stop"),
+    # NOTE: keep this AFTER cancel/force-stop so those specific routes win.
+    path("tasks/<str:task_id>/", task_detail_view, name="task_detail"),
 
     # Environments
     path("environments/", environment_list_view, name="environment_list"),
@@ -190,6 +201,7 @@ urlpatterns = [
     path("settings/notifications/", notification_settings_view, name="notification_settings"),
     path("settings/test-email/", test_email_view, name="test_email"),
     path("settings/general/", general_settings_view, name="general_settings"),
+    path("settings/recaptcha/", recaptcha_settings_view, name="recaptcha_settings"),
     path("settings/retention/", retention_settings_view, name="retention_settings"),
     path("settings/workers/", worker_settings_view, name="worker_settings"),
     path("settings/restart-workers/", restart_workers_view, name="restart_workers"),
@@ -229,4 +241,7 @@ urlpatterns = [
     path("services/", services_view, name="services"),
     path("services/s3/", s3_settings_view, name="s3_settings"),
     path("services/s3/test/", s3_test_connection_view, name="s3_test_connection"),
+    path("services/claude/", claude_settings_view, name="claude_settings"),
+    path("services/claude/test/", claude_test_connection_view, name="claude_test_connection"),
+    path("services/claude/usage/", claude_usage_view, name="claude_usage"),
 ]

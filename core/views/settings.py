@@ -23,6 +23,7 @@ from core.forms import (
     BackupCreateForm,
     BackupRestoreForm,
     S3BackupScheduleForm,
+    RecaptchaSettingsForm,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
     backup_restore_form = BackupRestoreForm()
     backup_schedule_form = S3BackupScheduleForm(instance=settings)
     backup_schedule_status = BackupScheduleService.get_schedule_status()
+    recaptcha_form = RecaptchaSettingsForm(instance=settings)
 
     return render(
         request,
@@ -62,6 +64,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             "backup_restore_form": backup_restore_form,
             "backup_schedule_form": backup_schedule_form,
             "backup_schedule_status": backup_schedule_status,
+            "recaptcha_form": recaptcha_form,
         },
     )
 
@@ -143,6 +146,25 @@ def general_settings_view(request: HttpRequest) -> HttpResponse:
     if form.is_valid():
         form.save(settings)
         messages.success(request, "General settings saved successfully.")
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
+
+    return redirect("cpanel:settings")
+
+
+@login_required
+@superuser_required
+@require_POST
+def recaptcha_settings_view(request: HttpRequest) -> HttpResponse:
+    """Update Google reCAPTCHA v2 login-protection settings."""
+    settings = GlobalSettings.get_settings()
+    form = RecaptchaSettingsForm(request.POST, instance=settings)
+
+    if form.is_valid():
+        form.save(settings)
+        messages.success(request, "reCAPTCHA settings saved successfully.")
     else:
         for field, errors in form.errors.items():
             for error in errors:

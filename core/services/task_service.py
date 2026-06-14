@@ -59,6 +59,32 @@ class TaskService:
         return queued
 
     @classmethod
+    def get_running_tasks(cls) -> list[dict[str, Any]]:
+        """
+        Get runs that are currently executing (status=RUNNING).
+
+        These are surfaced so the UI can offer a real Stop button on jobs that
+        are actively running (not just on ones already flagged as stuck).
+        """
+        from core.models import Run
+
+        running = []
+        for run in (
+            Run.objects.filter(status=Run.Status.RUNNING)
+            .select_related("script")
+            .order_by("started_at")
+        ):
+            running.append({
+                "id": run.task_id or str(run.id),
+                "type": "script_run",
+                "started_at": run.started_at,
+                "pid": run.pid,
+                "linked_run": run,
+            })
+
+        return running
+
+    @classmethod
     def get_completed_tasks(
         cls,
         status_filter: str | None = None,
@@ -300,11 +326,12 @@ class TaskService:
     @classmethod
     def force_stop_task(cls, task_id: str) -> tuple[bool, str]:
         """
-        Force stop a task that may be running.
+        Force stop a task.
 
-        Note: Django-Q2 doesn't support killing running processes on Windows.
-        This will mark the Run as cancelled, but the underlying process may
-        continue until it times out.
+        For a RUNNING run, this kills the script's OS process tree (the job
+        only — the long-lived django-q worker keeps running) and marks the Run
+        as CANCELLED. For a not-yet-started run it removes the queue entry and
+        marks the Run CANCELLED.
 
         Args:
             task_id: The task ID to stop
@@ -314,27 +341,30 @@ class TaskService:
         """
         from django_q.models import OrmQ
 
+        from core.executor import _kill_process_tree
         from core.models import Run
 
         try:
-            # Delete from OrmQ if still there
+            # Delete from OrmQ if still there (covers pending / not-yet-claimed)
             OrmQ.objects.filter(key=task_id).delete()
 
-            # Update Run status
+            # Running run -> kill the actual job process tree.
             run = Run.objects.filter(
                 task_id=task_id,
                 status=Run.Status.RUNNING,
             ).first()
 
             if run:
+                # Belt-and-suspenders: only kill while still RUNNING (avoids
+                # killing an unrelated, reused PID if the job just finished).
+                if run.pid:
+                    _kill_process_tree(run.pid)
                 run.status = Run.Status.CANCELLED
                 run.ended_at = timezone.now()
-                run.stderr = (run.stderr or "") + "\n[Task forcefully stopped by user]"
-                run.save(update_fields=["status", "ended_at", "stderr"])
-                return True, (
-                    "Run marked as cancelled. Note: The underlying process may "
-                    "continue until it times out."
-                )
+                run.stderr = (run.stderr or "") + "\n[Killed by user]"
+                run.pid = None
+                run.save(update_fields=["status", "ended_at", "stderr", "pid"])
+                return True, "Run stopped — the script process was killed."
 
             # Check if it's a pending run
             pending_run = Run.objects.filter(
@@ -353,6 +383,136 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error force stopping task {task_id}: {e}")
             return False, str(e)
+
+    @staticmethod
+    def _decode_ormq_payload(payload: Any) -> dict[str, Any]:
+        """
+        Decode a queued task's payload into its dict form.
+
+        django-q signs+pickles the OrmQ payload, so the correct path is
+        SignedPackage.loads; fall back to a raw pickle.loads for safety.
+        """
+        from django_q.signing import SignedPackage
+
+        try:
+            data = SignedPackage.loads(payload)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        try:
+            data = pickle.loads(payload)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        return {}
+
+    @staticmethod
+    def _safe_repr(value: Any) -> str:
+        """Readable repr of a task arg/result, '' for empty values."""
+        if value is None or value == () or value == [] or value == {}:
+            return ""
+        try:
+            return repr(value)
+        except Exception:
+            return str(value)
+
+    @classmethod
+    def get_task_detail(cls, task_id: str) -> dict[str, Any] | None:
+        """
+        Build a detail dict for a single task, usable by the task detail page.
+
+        Works for completed/failed tasks (django-q Task), still-queued tasks
+        (OrmQ), and system tasks with no linked Run. Returns None if nothing is
+        found for the given id.
+        """
+        from django_q.models import OrmQ, Task
+
+        from core.models import Run
+
+        linked_run = (
+            Run.objects.filter(task_id=task_id)
+            .select_related("script", "triggered_by")
+            .first()
+        )
+        task_type = "script_run" if linked_run else "system"
+
+        # 1) Completed (or failed) task recorded by django-q.
+        task = Task.objects.filter(id=task_id).first()
+        if task:
+            duration = None
+            if task.started and task.stopped:
+                duration = (task.stopped - task.started).total_seconds()
+
+            traceback_text = ""
+            result_display = ""
+            if task.success is False:
+                # django-q stores the traceback string in `result` on failure.
+                traceback_text = (
+                    task.result
+                    if isinstance(task.result, str)
+                    else cls._safe_repr(task.result)
+                )
+            else:
+                result_display = cls._safe_repr(task.result)
+
+            return {
+                "id": task.id,
+                "name": task.name or task_id,
+                "func": task.func or "Unknown",
+                "args_display": cls._safe_repr(task.args),
+                "kwargs_display": cls._safe_repr(task.kwargs),
+                "state": "completed",
+                "success": task.success,
+                "started": task.started,
+                "stopped": task.stopped,
+                "duration": duration,
+                "duration_display": cls._format_duration(duration),
+                "result_display": result_display,
+                "traceback": traceback_text,
+                "linked_run": linked_run,
+                "type": task_type,
+            }
+
+        # 2) Still queued (not yet executed).
+        q = OrmQ.objects.filter(key=task_id).first()
+        if q:
+            payload = cls._decode_ormq_payload(q.payload)
+            func = payload.get("func", "Unknown")
+            if func and not isinstance(func, str):
+                func = getattr(func, "__name__", str(func))
+            return {
+                "id": task_id,
+                "name": payload.get("name", task_id),
+                "func": func,
+                "args_display": cls._safe_repr(payload.get("args")),
+                "kwargs_display": cls._safe_repr(payload.get("kwargs")),
+                "state": "queued",
+                "success": None,
+                "queued_at": q.lock,
+                "linked_run": linked_run,
+                "type": task_type,
+            }
+
+        # 3) No Task/OrmQ row, but a Run references this task_id (e.g. running
+        #    right now, or the Task row was pruned). Build detail from the Run.
+        if linked_run:
+            return {
+                "id": task_id,
+                "name": f"run-{linked_run.id}",
+                "func": "core.tasks.execute_run_task",
+                "args_display": "",
+                "kwargs_display": "",
+                "state": linked_run.status,
+                "success": None,
+                "started": linked_run.started_at,
+                "stopped": linked_run.ended_at,
+                "linked_run": linked_run,
+                "type": task_type,
+            }
+
+        return None
 
     @classmethod
     def _format_duration(cls, seconds: float | None) -> str:

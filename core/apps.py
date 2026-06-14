@@ -22,8 +22,9 @@ class CoreConfig(AppConfig):
         post_migrate.connect(self._on_post_migrate, sender=self)
 
     def _on_post_migrate(self, sender, **kwargs):
-        """Run after migrations are complete to set up heartbeat schedule."""
+        """Run after migrations are complete to set up recurring schedules."""
         self._ensure_heartbeat_schedule()
+        self._ensure_update_check_schedule()
 
     def _register_worker_signals(self):
         """Register django-q2 signals for worker heartbeat."""
@@ -55,5 +56,18 @@ class CoreConfig(AppConfig):
                 from core.services.schedule_service import ScheduleService
 
                 ScheduleService.ensure_heartbeat_schedule()
+        except Exception:
+            pass  # Database not ready yet
+
+    def _ensure_update_check_schedule(self):
+        """Ensure the daily update-check schedule exists in database."""
+        try:
+            # Only run if database tables exist (not during migrations)
+            from django.db import connection
+
+            if "django_q_schedule" in connection.introspection.table_names():
+                from core.services.schedule_service import ScheduleService
+
+                ScheduleService.ensure_update_check_schedule()
         except Exception:
             pass  # Database not ready yet

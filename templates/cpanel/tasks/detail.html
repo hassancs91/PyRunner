@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Task {{ task.id|truncatechars:12 }} - PyRunner{% endblock %}
+
+{% block extra_head %}
+{% if task.linked_run and task.linked_run.status == 'running' %}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
+
+            <!-- Header -->
+            <div>
+                <nav class="flex items-center gap-1.5 eyebrow text-faint mb-3">
+                    <a href="{% url 'cpanel:tasks' %}" class="hover:text-text transition-colors">Tasks</a>
+                    <span>/</span>
+                    <span class="text-muted">Details</span>
+                </nav>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <h1 class="text-[22px] font-semibold tracking-tight truncate">{{ task.name }}</h1>
+                            {% if task.state == 'queued' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-info/10 text-info"><span class="w-1.5 h-1.5 rounded-full bg-info"></span>Queued</span>
+                            {% elif task.state == 'running' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-warn/10 text-warn"><span class="w-1.5 h-1.5 rounded-full bg-warn animate-pulse"></span>Running</span>
+                            {% elif task.state == 'completed' %}
+                                {% if task.success %}
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Success</span>
+                                {% else %}
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span>Failed</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-panel-hi text-muted"><span class="w-1.5 h-1.5 rounded-full bg-faint"></span>{{ task.state|title }}</span>
+                            {% endif %}
+                            <span class="text-xs px-2 py-0.5 rounded-md {% if task.type == 'script_run' %}bg-info/10 text-info{% else %}bg-panel-hi text-muted{% endif %}">{% if task.type == 'script_run' %}Script run{% else %}System{% endif %}</span>
+                        </div>
+                        <p class="text-sm text-muted mt-1.5">Task ID <span class="font-mono text-faint break-all">{{ task.id }}</span></p>
+                    </div>
+                    {% if task.linked_run %}
+                    <a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}"
+                       class="flex-shrink-0 text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">View run</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Live banner with Stop -->
+            {% if task.linked_run and task.linked_run.status == 'running' %}
+            <div class="p-4 rounded-xl bg-warn/10 border border-warn/30 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-warn animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm text-warn font-medium">Running… auto-refreshing every 5s</span>
+                </div>
+                <button onclick="stopTask('{{ task.id }}')" class="text-xs font-medium px-2.5 py-1 rounded-md border border-fail/40 text-fail hover:bg-fail/10 transition-colors">Stop</button>
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <!-- Left: output / detail -->
+                <div class="lg:col-span-2 space-y-5">
+                    <!-- Traceback (failed tasks) -->
+                    {% if task.traceback %}
+                    <section class="rounded-2xl border border-fail/30 bg-panel overflow-hidden">
+                        <div class="flex items-center justify-between px-4 h-11 border-b border-fail/30 bg-fail/10">
+                            <span class="text-[13px] font-medium text-fail flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                Traceback
+                            </span>
+                        </div>
+                        <div class="bg-ink max-h-[28rem] overflow-auto">
+                            <pre class="text-fail font-mono text-[13px] leading-relaxed whitespace-pre-wrap p-4">{{ task.traceback }}</pre>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    <!-- Result -->
+                    {% if task.result_display %}
+                    <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                        <div class="flex items-center justify-between px-4 h-11 border-b border-line-soft bg-panel-hi/40">
+                            <span class="text-[13px] font-medium flex items-center gap-2">
+                                <svg class="w-4 h-4 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                Result
+                            </span>
+                        </div>
+                        <div class="bg-ink max-h-[28rem] overflow-auto">
+                            <pre class="text-text font-mono text-[13px] leading-relaxed whitespace-pre-wrap p-4">{{ task.result_display }}</pre>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    <!-- Arguments -->
+                    {% if task.args_display or task.kwargs_display %}
+                    <section class="rounded-2xl border border-line bg-panel p-5 space-y-4">
+                        <h3 class="eyebrow text-faint">Arguments</h3>
+                        {% if task.args_display %}
+                        <div>
+                            <div class="text-xs text-muted mb-1.5 font-mono">args</div>
+                            <pre class="bg-ink rounded-lg p-3 font-mono text-[13px] text-text whitespace-pre-wrap overflow-auto">{{ task.args_display }}</pre>
+                        </div>
+                        {% endif %}
+                        {% if task.kwargs_display %}
+                        <div>
+                            <div class="text-xs text-muted mb-1.5 font-mono">kwargs</div>
+                            <pre class="bg-ink rounded-lg p-3 font-mono text-[13px] text-text whitespace-pre-wrap overflow-auto">{{ task.kwargs_display }}</pre>
+                        </div>
+                        {% endif %}
+                    </section>
+                    {% endif %}
+
+                    <!-- Linked run output preview -->
+                    {% if task.linked_run %}
+                    <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                        <div class="flex items-center justify-between px-4 h-11 border-b border-line-soft bg-panel-hi/40">
+                            <span class="text-[13px] font-medium flex items-center gap-2">
+                                <svg class="w-4 h-4 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                Output preview
+                            </span>
+                            <a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}" class="text-xs text-info hover:underline">Full output</a>
+                        </div>
+                        <div class="bg-ink max-h-[20rem] overflow-auto">
+                            {% if task.linked_run.stdout %}
+                            <pre class="text-text font-mono text-[13px] leading-relaxed whitespace-pre-wrap p-4">{{ task.linked_run.get_stdout_preview }}</pre>
+                            {% else %}
+                            <p class="text-faint text-sm italic p-4">No output</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                    {% endif %}
+                </div>
+
+                <!-- Right: metadata -->
+                <div class="space-y-5">
+                    <!-- Task info -->
+                    <section class="rounded-2xl border border-line bg-panel p-5">
+                        <h3 class="eyebrow text-faint mb-4">Task info</h3>
+                        <dl class="space-y-3.5 text-sm">
+                            <div class="flex items-start justify-between gap-3">
+                                <dt class="text-muted flex-shrink-0">Function</dt>
+                                <dd class="font-mono text-xs text-text text-right break-all">{{ task.func }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">State</dt>
+                                <dd class="text-text">{{ task.state|title }}</dd>
+                            </div>
+                            {% if task.success is not None %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Outcome</dt>
+                                <dd class="{% if task.success %}text-ok{% else %}text-fail{% endif %}">{% if task.success %}Success{% else %}Failed{% endif %}</dd>
+                            </div>
+                            {% endif %}
+                            {% if task.duration_display and task.duration is not None %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Duration</dt>
+                                <dd class="font-mono tnum text-text">{{ task.duration_display }}</dd>
+                            </div>
+                            {% endif %}
+                        </dl>
+                    </section>
+
+                    <!-- Timing -->
+                    {% if task.queued_at or task.started or task.stopped %}
+                    <section class="rounded-2xl border border-line bg-panel p-5">
+                        <h3 class="eyebrow text-faint mb-4">Timing</h3>
+                        <dl class="space-y-3.5 text-sm">
+                            {% if task.queued_at %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Queued</dt>
+                                <dd class="font-mono text-text text-xs">{{ task.queued_at|date:"M d, Y H:i:s" }}</dd>
+                            </div>
+                            {% endif %}
+                            {% if task.started %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Started</dt>
+                                <dd class="font-mono text-text text-xs">{{ task.started|date:"M d, Y H:i:s" }}</dd>
+                            </div>
+                            {% endif %}
+                            {% if task.stopped %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Stopped</dt>
+                                <dd class="font-mono text-text text-xs">{{ task.stopped|date:"M d, Y H:i:s" }}</dd>
+                            </div>
+                            {% endif %}
+                        </dl>
+                    </section>
+                    {% endif %}
+
+                    <!-- Linked run -->
+                    {% if task.linked_run %}
+                    <section class="rounded-2xl border border-line bg-panel p-5">
+                        <h3 class="eyebrow text-faint mb-4">Linked run</h3>
+                        <dl class="space-y-3.5 text-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Script</dt>
+                                <dd class="min-w-0"><a href="{% url 'cpanel:script_detail' pk=task.linked_run.script.pk %}" class="text-info hover:underline truncate block">{{ task.linked_run.script.name }}</a></dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Status</dt>
+                                <dd>{% with run=task.linked_run %}{% include "cpanel/runs/_status_badge.html" %}{% endwith %}</dd>
+                            </div>
+                            {% if task.linked_run.status == 'running' and task.linked_run.pid %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">PID</dt>
+                                <dd class="font-mono tnum text-text">{{ task.linked_run.pid }}</dd>
+                            </div>
+                            {% endif %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Triggered by</dt>
+                                <dd class="text-text truncate">{% if task.linked_run.triggered_by %}{{ task.linked_run.triggered_by.email }}{% else %}<span class="text-faint">System</span>{% endif %}</dd>
+                            </div>
+                            <div class="pt-1">
+                                <a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}" class="text-info hover:underline text-sm">View full run →</a>
+                            </div>
+                        </dl>
+                    </section>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+function stopTask(taskId) {
+    if (!confirm('Stop this task? The running script process will be killed.')) return;
+    fetch(`{% url 'cpanel:tasks' %}${taskId}/force-stop/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) { window.location.reload(); }
+        else { alert('Error: ' + data.error); }
+    })
+    .catch(error => { alert('Error: ' + error.message); });
+}
+</script>
+{% endblock %}

@@ -6,468 +6,276 @@
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
-    <div class="flex-1 p-8">
-        <!-- System Health Alerts -->
-        {% if system_health.worker_status == 'stopped' %}
-        <div class="mb-4 p-4 bg-code-red/20 border border-code-red rounded-lg flex items-center space-x-3">
-            <svg class="w-5 h-5 text-code-red flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-            <div>
-                <span class="font-medium text-code-red">Workers Stopped</span>
-                <span class="text-code-muted"> — Scheduled scripts and queued tasks will not run. Start the worker with </span>
-                <code class="text-code-text bg-code-bg px-1 rounded">python manage.py qcluster</code>
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
+
+            <!-- System Health Alerts -->
+            {% if system_health.worker_status == 'stopped' %}
+            <div class="p-4 rounded-xl bg-fail/10 border border-fail/30 flex items-center gap-3">
+                <svg class="w-5 h-5 text-fail flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div class="text-sm">
+                    <span class="font-medium text-fail">Workers stopped</span>
+                    <span class="text-muted"> — scheduled scripts and queued tasks will not run. Start the worker with </span>
+                    <code class="font-mono text-text bg-panel-hi px-1.5 py-0.5 rounded">python manage.py qcluster</code>
+                </div>
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        {% if system_health.schedules_paused %}
-        <div class="mb-4 p-4 bg-code-yellow/20 border border-code-yellow rounded-lg flex items-center space-x-3">
-            <svg class="w-5 h-5 text-code-yellow flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            <div>
-                <span class="font-medium text-code-yellow">Schedules Paused</span>
-                <span class="text-code-muted"> — All scheduled script executions are paused. </span>
-                <a href="{% url 'cpanel:settings' %}" class="text-code-accent hover:underline">Resume in Settings</a>
+            {% if system_health.schedules_paused %}
+            <div class="p-4 rounded-xl bg-warn/10 border border-warn/30 flex items-center gap-3">
+                <svg class="w-5 h-5 text-warn flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <div class="text-sm">
+                    <span class="font-medium text-warn">Schedules paused</span>
+                    <span class="text-muted"> — all scheduled script executions are paused. </span>
+                    <a href="{% url 'cpanel:settings' %}" class="text-info hover:underline">Resume in Settings</a>
+                </div>
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        <!-- Header -->
-        <div class="mb-8 flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold text-code-text">Dashboard</h1>
-                <p class="text-code-muted">Welcome back, <span class="text-code-accent">{{ user.email }}</span></p>
-            </div>
-            <!-- System Health Indicator -->
-            <div class="flex items-center space-x-2">
-                <div class="flex items-center space-x-2 px-3 py-2 bg-code-surface border border-code-border rounded-lg">
-                    <span class="w-2.5 h-2.5 rounded-full {% if system_health.worker_status == 'running' %}bg-code-green{% elif system_health.worker_status == 'stopped' %}bg-code-red{% else %}bg-code-yellow{% endif %}"></span>
-                    <span class="text-sm text-code-muted">Workers: </span>
-                    <span class="text-sm {% if system_health.worker_status == 'running' %}text-code-green{% elif system_health.worker_status == 'stopped' %}text-code-red{% else %}text-code-yellow{% endif %}">{{ system_health.worker_status_text }}</span>
-                </div>
-                <button onclick="location.reload()" class="p-2 bg-code-surface border border-code-border rounded-lg hover:border-code-accent transition-colors" title="Refresh dashboard">
-                    <svg class="w-4 h-4 text-code-muted hover:text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Stats Cards - Row 1 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            <!-- Total Scripts -->
-            <a href="{% url 'cpanel:script_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-accent transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-bold text-code-accent">{{ scripts_count }}</div>
-                        <div class="text-code-muted">Total Scripts</div>
-                    </div>
-                    <div class="w-12 h-12 bg-code-accent/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                        </svg>
-                    </div>
-                </div>
-            </a>
-
-            <!-- Active Scripts -->
-            <a href="{% url 'cpanel:script_list' %}?status=enabled" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-green transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-bold text-code-green">{{ active_scripts_count }}</div>
-                        <div class="text-code-muted">Active Scripts</div>
-                    </div>
-                    <div class="w-12 h-12 bg-code-green/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                        </svg>
-                    </div>
-                </div>
-            </a>
-
-            <!-- Success Rate -->
-            <a href="{% url 'cpanel:run_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-{% if success_rate is not None %}{% if success_rate >= 80 %}code-green{% elif success_rate >= 50 %}code-yellow{% else %}code-red{% endif %}{% else %}code-muted{% endif %} transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-bold {% if success_rate is not None %}{% if success_rate >= 80 %}text-code-green{% elif success_rate >= 50 %}text-code-yellow{% else %}text-code-red{% endif %}{% else %}text-code-muted{% endif %}">
-                            {% if success_rate is not None %}{{ success_rate }}%{% else %}—{% endif %}
-                        </div>
-                        <div class="text-code-muted">Success Rate</div>
-                    </div>
-                    <div class="w-12 h-12 bg-{% if success_rate is not None %}{% if success_rate >= 80 %}code-green{% elif success_rate >= 50 %}code-yellow{% else %}code-red{% endif %}{% else %}code-muted{% endif %}/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 {% if success_rate is not None %}{% if success_rate >= 80 %}text-code-green{% elif success_rate >= 50 %}text-code-yellow{% else %}text-code-red{% endif %}{% else %}text-code-muted{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Stats Cards - Row 2 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Runs Today -->
-            <a href="{% url 'cpanel:run_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-accent transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-bold text-code-accent">{{ runs_today }}</div>
-                        <div class="text-code-muted">Runs Today</div>
-                    </div>
-                    <div class="w-12 h-12 bg-code-accent/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </div>
-                </div>
-            </a>
-
-            <!-- Runs This Week -->
-            <a href="{% url 'cpanel:run_list' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-accent transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-bold text-code-accent">{{ runs_this_week }}</div>
-                        <div class="text-code-muted">Runs This Week</div>
-                    </div>
-                    <div class="w-12 h-12 bg-code-accent/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                    </div>
-                </div>
-            </a>
-
-            <!-- Queue Size -->
-            <a href="{% url 'cpanel:settings' %}" class="bg-code-surface border border-code-border rounded-xl p-6 hover:border-code-yellow transition-colors">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-bold text-code-yellow">{{ queue_size }}</div>
-                        <div class="text-code-muted">Queue Size</div>
-                    </div>
-                    <div class="w-12 h-12 bg-code-yellow/20 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-code-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                        </svg>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <!-- System Resources -->
-        <div class="mb-8">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-code-text">System Resources</h2>
-                <button id="toggleAutoRefresh" class="text-xs px-2 py-1 bg-code-surface border border-code-border rounded hover:border-code-accent transition-colors border-code-green text-code-green" title="Toggle auto-refresh">
-                    <span id="autoRefreshStatus">Auto-refresh: ON</span>
-                </button>
-            </div>
-            <div id="systemResourcesContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- CPU Usage -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                    <div class="flex items-center justify-between">
+            <!-- ============ STATUS HERO + RUN PULSE (signature) ============ -->
+            <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-5 px-6 pt-6 pb-5">
+                    <div class="flex items-center gap-4">
+                        {% if system_health.worker_status == 'running' %}
+                        <span class="relative grid place-items-center w-3.5 h-3.5">
+                            <span class="absolute inset-0 rounded-full bg-ok/40 live-ring"></span>
+                            <span class="w-3.5 h-3.5 rounded-full bg-ok live-dot"></span>
+                        </span>
                         <div>
-                            <div id="cpuValue" class="text-3xl font-bold {% if system_resources.cpu.percent >= 90 %}text-code-red{% elif system_resources.cpu.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}">
-                                {{ system_resources.cpu.percent|floatformat:1 }}%
-                            </div>
-                            <div class="text-code-muted">CPU Usage</div>
+                            <h1 class="text-[22px] font-semibold tracking-tight leading-none">All systems operational</h1>
+                            <p class="text-sm text-muted mt-1.5">
+                                Workers {{ system_health.worker_status_text|lower }} ·
+                                <span class="font-mono tnum text-text">{{ queue_size }}</span> queued
+                                {% if recent_runs.0 %}· last run <span class="text-text">{{ recent_runs.0.created_at|timesince }} ago</span>{% endif %}
+                            </p>
                         </div>
-                        <div id="cpuIcon" class="w-12 h-12 {% if system_resources.cpu.percent >= 90 %}bg-code-red/20{% elif system_resources.cpu.percent >= 70 %}bg-code-yellow/20{% else %}bg-code-green/20{% endif %} rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 {% if system_resources.cpu.percent >= 90 %}text-code-red{% elif system_resources.cpu.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="mt-4 h-2 bg-code-bg rounded-full overflow-hidden">
-                        <div id="cpuBar" class="h-full {% if system_resources.cpu.percent >= 90 %}bg-code-red{% elif system_resources.cpu.percent >= 70 %}bg-code-yellow{% else %}bg-code-green{% endif %} transition-all duration-300" style="width: {{ system_resources.cpu.percent }}%"></div>
-                    </div>
-                </div>
-
-                <!-- RAM Usage -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                    <div class="flex items-center justify-between">
+                        {% elif system_health.worker_status == 'stopped' %}
+                        <span class="w-3.5 h-3.5 rounded-full bg-fail"></span>
                         <div>
-                            <div id="ramValue" class="text-3xl font-bold {% if system_resources.memory.percent >= 90 %}text-code-red{% elif system_resources.memory.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}">
-                                {{ system_resources.memory.percent|floatformat:1 }}%
-                            </div>
-                            <div class="text-code-muted">RAM Usage</div>
-                            <div id="ramDetails" class="text-xs text-code-muted mt-1">{{ system_resources.memory.used_display }} / {{ system_resources.memory.total_display }}</div>
+                            <h1 class="text-[22px] font-semibold tracking-tight leading-none">Workers stopped</h1>
+                            <p class="text-sm text-muted mt-1.5">Scheduled and queued runs are not executing.</p>
                         </div>
-                        <div id="ramIcon" class="w-12 h-12 {% if system_resources.memory.percent >= 90 %}bg-code-red/20{% elif system_resources.memory.percent >= 70 %}bg-code-yellow/20{% else %}bg-code-green/20{% endif %} rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 {% if system_resources.memory.percent >= 90 %}text-code-red{% elif system_resources.memory.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="mt-4 h-2 bg-code-bg rounded-full overflow-hidden">
-                        <div id="ramBar" class="h-full {% if system_resources.memory.percent >= 90 %}bg-code-red{% elif system_resources.memory.percent >= 70 %}bg-code-yellow{% else %}bg-code-green{% endif %} transition-all duration-300" style="width: {{ system_resources.memory.percent }}%"></div>
-                    </div>
-                </div>
-
-                <!-- Storage Usage -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                    <div class="flex items-center justify-between">
+                        {% else %}
+                        <span class="w-3.5 h-3.5 rounded-full bg-warn"></span>
                         <div>
-                            <div id="diskValue" class="text-3xl font-bold {% if system_resources.disk.percent >= 90 %}text-code-red{% elif system_resources.disk.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}">
-                                {{ system_resources.disk.percent|floatformat:1 }}%
-                            </div>
-                            <div class="text-code-muted">Storage Usage</div>
-                            <div id="diskDetails" class="text-xs text-code-muted mt-1">{{ system_resources.disk.used_display }} / {{ system_resources.disk.total_display }}</div>
+                            <h1 class="text-[22px] font-semibold tracking-tight leading-none">{{ system_health.worker_status_text }}</h1>
+                            <p class="text-sm text-muted mt-1.5"><span class="font-mono tnum text-text">{{ queue_size }}</span> queued</p>
                         </div>
-                        <div id="diskIcon" class="w-12 h-12 {% if system_resources.disk.percent >= 90 %}bg-code-red/20{% elif system_resources.disk.percent >= 70 %}bg-code-yellow/20{% else %}bg-code-green/20{% endif %} rounded-lg flex items-center justify-center">
-                            <svg class="w-6 h-6 {% if system_resources.disk.percent >= 90 %}text-code-red{% elif system_resources.disk.percent >= 70 %}text-code-yellow{% else %}text-code-green{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
-                            </svg>
-                        </div>
+                        {% endif %}
                     </div>
-                    <div class="mt-4 h-2 bg-code-bg rounded-full overflow-hidden">
-                        <div id="diskBar" class="h-full {% if system_resources.disk.percent >= 90 %}bg-code-red{% elif system_resources.disk.percent >= 70 %}bg-code-yellow{% else %}bg-code-green{% endif %} transition-all duration-300" style="width: {{ system_resources.disk.percent }}%"></div>
+                    <div class="flex items-center gap-2.5">
+                        <a href="{% url 'cpanel:script_create' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                            New script
+                        </a>
+                        <button onclick="location.reload()" class="w-9 h-9 grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition" title="Refresh dashboard">
+                            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Recent Failures & Upcoming Runs -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <!-- Recent Failures -->
-            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-code-border flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-code-text">Recent Failures</h2>
-                    <a href="{% url 'cpanel:run_list' %}?status=failed" class="text-code-accent hover:underline text-sm">View all</a>
-                </div>
-                <div class="p-6">
-                    {% if recent_failures %}
-                    <ul class="space-y-4">
-                        {% for run in recent_failures %}
-                        <li class="flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 bg-code-red/20 rounded-lg flex items-center justify-center">
-                                    <svg class="w-4 h-4 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-code-accent hover:underline font-medium">
-                                        {{ run.script.name }}
-                                    </a>
-                                    <p class="text-xs text-code-muted">
-                                        {% if run.status == 'failed' %}Failed{% else %}Timeout{% endif %}
-                                        {% if run.duration_display %} - {{ run.duration_display }}{% endif %}
-                                    </p>
-                                </div>
-                            </div>
-                            <span class="text-xs text-code-muted">{{ run.created_at|timesince }} ago</span>
-                        </li>
+                <!-- run pulse ribbon -->
+                <div class="border-t border-line-soft px-6 py-5 bg-panel-hi/40">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="eyebrow text-faint">Run pulse · last {{ run_pulse|length }} run{{ run_pulse|length|pluralize }}</span>
+                        <div class="hidden sm:flex items-center gap-4 eyebrow text-faint">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-[2px] bg-ok"></span>Success</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-[2px] bg-fail"></span>Failed</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-[2px] bg-warn"></span>Running</span>
+                        </div>
+                    </div>
+                    {% if run_pulse %}
+                    <div class="flex items-end gap-[5px] h-16">
+                        {% for b in run_pulse %}
+                        <div class="pulse-bar {% if b.status == 'success' %}bg-ok{% elif b.status == 'failed' or b.status == 'timeout' %}bg-fail{% elif b.status == 'running' %}bg-warn animate-pulse{% else %}bg-faint{% endif %}" style="height: {{ b.height }}%" title="{{ b.status }}"></div>
                         {% endfor %}
-                    </ul>
-                    {% else %}
-                    <div class="text-center py-8">
-                        <div class="w-12 h-12 bg-code-green/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <svg class="w-6 h-6 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                        </div>
-                        <p class="text-code-muted">No recent failures</p>
                     </div>
+                    <div class="flex items-center justify-between mt-3 eyebrow text-faint">
+                        <span>older</span>
+                        <span>now</span>
+                    </div>
+                    {% else %}
+                    <div class="h-16 flex items-center justify-center text-sm text-muted">No runs yet — the pulse will fill in as your scripts execute.</div>
                     {% endif %}
                 </div>
-            </div>
+            </section>
 
-            <!-- Upcoming Scheduled Runs -->
-            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-code-border flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-code-text">Upcoming Runs</h2>
-                    <a href="{% url 'cpanel:script_list' %}" class="text-code-accent hover:underline text-sm">View scripts</a>
-                </div>
-                <div class="p-6">
-                    {% if upcoming_runs %}
-                    <ul class="space-y-4">
-                        {% for schedule in upcoming_runs %}
-                        <li class="flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 bg-code-accent/20 rounded-lg flex items-center justify-center">
-                                    <svg class="w-4 h-4 text-code-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <a href="{% url 'cpanel:script_detail' pk=schedule.script.pk %}" class="text-code-accent hover:underline font-medium">
-                                        {{ schedule.script.name }}
-                                    </a>
-                                    <p class="text-xs text-code-muted">{{ schedule.schedule_display }}</p>
-                                </div>
-                            </div>
-                            <span class="text-xs text-code-muted">in {{ schedule.next_run|timeuntil }}</span>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <div class="text-center py-8">
-                        <div class="w-12 h-12 bg-code-muted/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <svg class="w-6 h-6 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                        </div>
-                        <p class="text-code-muted mb-2">No scheduled runs</p>
-                        <a href="{% url 'cpanel:script_list' %}" class="text-code-accent hover:underline text-sm">Schedule a script</a>
+            <!-- ============ KPI INSTRUMENT STRIP ============ -->
+            <section class="rounded-2xl border border-line bg-panel grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-y md:divide-y-0 md:divide-x divide-line-soft">
+                <a href="{% url 'cpanel:script_list' %}" class="px-6 py-5 hover:bg-panel-hi/50 transition-colors">
+                    <div class="eyebrow text-faint">Scripts</div>
+                    <div class="mt-2 text-3xl font-semibold font-mono tnum tracking-tight">{{ scripts_count }}</div>
+                </a>
+                <a href="{% url 'cpanel:script_list' %}?status=enabled" class="px-6 py-5 hover:bg-panel-hi/50 transition-colors">
+                    <div class="eyebrow text-faint">Active</div>
+                    <div class="mt-2 text-3xl font-semibold font-mono tnum tracking-tight text-ok">{{ active_scripts_count }}</div>
+                </a>
+                <a href="{% url 'cpanel:run_list' %}" class="px-6 py-5 hover:bg-panel-hi/50 transition-colors">
+                    <div class="eyebrow text-faint">Success rate</div>
+                    <div class="mt-2 text-3xl font-semibold font-mono tnum tracking-tight {% if success_rate is not None %}{% if success_rate >= 80 %}text-ok{% elif success_rate >= 50 %}text-warn{% else %}text-fail{% endif %}{% endif %}">
+                        {% if success_rate is not None %}{{ success_rate }}<span class="text-lg text-muted">%</span>{% else %}<span class="text-muted">—</span>{% endif %}
                     </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+                </a>
+                <a href="{% url 'cpanel:run_list' %}" class="px-6 py-5 hover:bg-panel-hi/50 transition-colors">
+                    <div class="eyebrow text-faint">Runs today</div>
+                    <div class="mt-2 text-3xl font-semibold font-mono tnum tracking-tight">{{ runs_today }}</div>
+                </a>
+                <a href="{% url 'cpanel:run_list' %}" class="px-6 py-5 hover:bg-panel-hi/50 transition-colors">
+                    <div class="eyebrow text-faint">This week</div>
+                    <div class="mt-2 text-3xl font-semibold font-mono tnum tracking-tight">{{ runs_this_week }}</div>
+                </a>
+                <a href="{% url 'cpanel:settings' %}" class="px-6 py-5 hover:bg-panel-hi/50 transition-colors">
+                    <div class="eyebrow text-faint">Queue</div>
+                    <div class="mt-2 text-3xl font-semibold font-mono tnum tracking-tight {% if queue_size > 0 %}text-warn{% endif %}">{{ queue_size }}</div>
+                </a>
+            </section>
 
-        <!-- Recent Activity -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Recent Scripts with Quick Actions -->
-            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-code-border flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-code-text">Recent Scripts</h2>
-                    <a href="{% url 'cpanel:script_list' %}" class="text-code-accent hover:underline text-sm">View all</a>
-                </div>
-                <div class="p-6">
-                    {% if recent_scripts %}
-                    <ul class="space-y-4">
-                        {% for script in recent_scripts %}
-                        <li class="flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 bg-code-bg rounded-lg flex items-center justify-center">
-                                    <svg class="w-4 h-4 {% if script.is_enabled %}text-code-accent{% else %}text-code-muted{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="text-code-accent hover:underline font-medium">
-                                        {{ script.name }}
-                                    </a>
-                                    <p class="text-xs text-code-muted">
-                                        {{ script.environment.name }}
-                                        {% if not script.is_enabled %}<span class="text-code-yellow"> (disabled)</span>{% endif %}
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                {% if script.is_enabled %}
-                                <form action="{% url 'cpanel:script_run' pk=script.pk %}" method="post" class="inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="px-2 py-1 text-xs bg-code-green/20 text-code-green rounded hover:bg-code-green/30 transition-colors" title="Run now">
-                                        Run
-                                    </button>
-                                </form>
-                                {% endif %}
-                                <form action="{% url 'cpanel:script_toggle' pk=script.pk %}" method="post" class="inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="px-2 py-1 text-xs {% if script.is_enabled %}bg-code-yellow/20 text-code-yellow{% else %}bg-code-green/20 text-code-green{% endif %} rounded hover:opacity-80 transition-colors" title="{% if script.is_enabled %}Disable{% else %}Enable{% endif %}">
-                                        {% if script.is_enabled %}Disable{% else %}Enable{% endif %}
-                                    </button>
-                                </form>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <div class="text-center py-8">
-                        <p class="text-code-muted mb-4">No scripts yet.</p>
-                        <a href="{% url 'cpanel:script_create' %}" class="text-code-accent hover:underline">Create your first script</a>
+            <!-- ============ BODY: ACTIVITY FEED + STATUS RAIL ============ -->
+            <div class="grid lg:grid-cols-3 gap-5">
+
+                <!-- LEFT: primary activity feed -->
+                <section class="lg:col-span-2 rounded-2xl border border-line bg-panel flex flex-col">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-line-soft">
+                        <h2 class="text-sm font-semibold flex items-center gap-2"><span class="eyebrow text-faint">Live</span> Recent runs</h2>
+                        <a href="{% url 'cpanel:run_list' %}" class="text-xs text-info hover:underline">View all</a>
                     </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Recent Runs -->
-            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-code-border flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-code-text">Recent Runs</h2>
-                    <a href="{% url 'cpanel:run_list' %}" class="text-code-accent hover:underline text-sm">View all</a>
-                </div>
-                <div class="p-6">
                     {% if recent_runs %}
-                    <ul class="space-y-4">
+                    <div class="divide-y divide-line-soft">
                         {% for run in recent_runs %}
-                        <li class="flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-lg flex items-center justify-center {% if run.status == 'success' %}bg-code-green/20{% elif run.status == 'failed' or run.status == 'timeout' %}bg-code-red/20{% elif run.status == 'running' %}bg-code-yellow/20{% else %}bg-code-muted/20{% endif %}">
-                                    {% if run.status == 'success' %}
-                                    <svg class="w-4 h-4 text-code-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    {% elif run.status == 'failed' or run.status == 'timeout' %}
-                                    <svg class="w-4 h-4 text-code-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                    {% elif run.status == 'running' %}
-                                    <svg class="w-4 h-4 text-code-yellow animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                                    </svg>
-                                    {% else %}
-                                    <svg class="w-4 h-4 text-code-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    {% endif %}
-                                </div>
-                                <div>
-                                    <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-code-accent hover:underline font-medium">
-                                        {{ run.script.name }}
-                                    </a>
-                                    <p class="text-xs text-code-muted">
-                                        {% if run.status == 'success' %}Success{% elif run.status == 'failed' %}Failed{% elif run.status == 'timeout' %}Timeout{% elif run.status == 'running' %}Running{% elif run.status == 'pending' %}Pending{% else %}{{ run.status }}{% endif %}
-                                        {% if run.duration_display %} - {{ run.duration_display }}{% endif %}
-                                    </p>
-                                </div>
-                            </div>
-                            <span class="text-xs text-code-muted">{{ run.created_at|timesince }} ago</span>
-                        </li>
+                        <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="flex items-center gap-4 px-6 py-3 hover:bg-panel-hi/50 transition">
+                            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 {% if run.status == 'success' %}bg-ok{% elif run.status == 'failed' or run.status == 'timeout' %}bg-fail{% elif run.status == 'running' %}bg-warn animate-pulse{% else %}bg-faint{% endif %}"></span>
+                            <span class="flex-1 text-[13.5px] font-medium truncate text-text">{{ run.script.name }}</span>
+                            <span class="text-xs font-mono w-20 {% if run.status == 'success' %}text-ok{% elif run.status == 'failed' or run.status == 'timeout' %}text-fail{% elif run.status == 'running' %}text-warn{% else %}text-faint{% endif %}">{{ run.get_status_display|lower }}</span>
+                            <span class="text-xs text-muted font-mono tnum w-16 text-right">{% if run.duration_display %}{{ run.duration_display }}{% else %}—{% endif %}</span>
+                            <span class="text-xs text-faint w-20 text-right">{{ run.created_at|timesince }} ago</span>
+                        </a>
                         {% endfor %}
-                    </ul>
+                    </div>
                     {% else %}
-                    <div class="text-center py-8">
-                        <p class="text-code-muted mb-4">No runs yet.</p>
-                        <a href="{% url 'cpanel:script_list' %}" class="text-code-accent hover:underline">Run a script</a>
+                    <div class="flex-1 grid place-items-center px-6 py-16 text-center">
+                        <div>
+                            <div class="w-12 h-12 rounded-full bg-panel-hi grid place-items-center mx-auto mb-3">
+                                <svg class="w-6 h-6 text-faint" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-sm text-muted mb-2">No runs yet</p>
+                            <a href="{% url 'cpanel:script_list' %}" class="text-sm text-info hover:underline">Run a script</a>
+                        </div>
                     </div>
                     {% endif %}
+                </section>
+
+                <!-- RIGHT: status rail -->
+                <div class="space-y-5">
+
+                    <!-- System resources -->
+                    <section class="rounded-2xl border border-line bg-panel">
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-line-soft">
+                            <h2 class="text-sm font-semibold">System resources</h2>
+                            <button id="toggleAutoRefresh" class="eyebrow text-ok flex items-center gap-1.5" title="Toggle auto-refresh">
+                                <span class="w-1.5 h-1.5 rounded-full bg-ok"></span><span id="autoRefreshStatus">Live</span>
+                            </button>
+                        </div>
+                        <div id="systemResourcesContainer" class="px-6 py-5 space-y-5">
+                            <!-- CPU -->
+                            <div>
+                                <div class="flex items-baseline justify-between mb-2">
+                                    <span class="text-[13px] text-muted">CPU</span>
+                                    <span id="cpuValue" class="font-mono tnum text-sm font-semibold {% if system_resources.cpu.percent >= 90 %}text-fail{% elif system_resources.cpu.percent >= 70 %}text-warn{% else %}text-ok{% endif %}">{{ system_resources.cpu.percent|floatformat:1 }}%</span>
+                                </div>
+                                <div class="h-1.5 rounded-full bg-line overflow-hidden">
+                                    <div id="cpuBar" class="h-full rounded-full {% if system_resources.cpu.percent >= 90 %}bg-fail{% elif system_resources.cpu.percent >= 70 %}bg-warn{% else %}bg-ok{% endif %}" style="width: {{ system_resources.cpu.percent }}%"></div>
+                                </div>
+                            </div>
+                            <!-- RAM -->
+                            <div>
+                                <div class="flex items-baseline justify-between mb-2">
+                                    <span class="text-[13px] text-muted">Memory <span id="ramDetails" class="text-faint font-mono">{{ system_resources.memory.used_display }} / {{ system_resources.memory.total_display }}</span></span>
+                                    <span id="ramValue" class="font-mono tnum text-sm font-semibold {% if system_resources.memory.percent >= 90 %}text-fail{% elif system_resources.memory.percent >= 70 %}text-warn{% else %}text-ok{% endif %}">{{ system_resources.memory.percent|floatformat:1 }}%</span>
+                                </div>
+                                <div class="h-1.5 rounded-full bg-line overflow-hidden">
+                                    <div id="ramBar" class="h-full rounded-full {% if system_resources.memory.percent >= 90 %}bg-fail{% elif system_resources.memory.percent >= 70 %}bg-warn{% else %}bg-ok{% endif %}" style="width: {{ system_resources.memory.percent }}%"></div>
+                                </div>
+                            </div>
+                            <!-- Disk -->
+                            <div>
+                                <div class="flex items-baseline justify-between mb-2">
+                                    <span class="text-[13px] text-muted">Storage <span id="diskDetails" class="text-faint font-mono">{{ system_resources.disk.used_display }} / {{ system_resources.disk.total_display }}</span></span>
+                                    <span id="diskValue" class="font-mono tnum text-sm font-semibold {% if system_resources.disk.percent >= 90 %}text-fail{% elif system_resources.disk.percent >= 70 %}text-warn{% else %}text-ok{% endif %}">{{ system_resources.disk.percent|floatformat:1 }}%</span>
+                                </div>
+                                <div class="h-1.5 rounded-full bg-line overflow-hidden">
+                                    <div id="diskBar" class="h-full rounded-full {% if system_resources.disk.percent >= 90 %}bg-fail{% elif system_resources.disk.percent >= 70 %}bg-warn{% else %}bg-ok{% endif %}" style="width: {{ system_resources.disk.percent }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Needs attention -->
+                    <section class="rounded-2xl border border-line bg-panel">
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-line-soft">
+                            <h2 class="text-sm font-semibold flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span> Needs attention</h2>
+                            <a href="{% url 'cpanel:run_list' %}?status=failed" class="text-xs text-info hover:underline">All failures</a>
+                        </div>
+                        {% if recent_failures %}
+                        <div class="divide-y divide-line-soft">
+                            {% for run in recent_failures %}
+                            <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="flex items-center gap-3 px-6 py-3 hover:bg-panel-hi/50 transition">
+                                <span class="w-1.5 h-1.5 rounded-full bg-fail flex-shrink-0"></span>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-[13.5px] font-medium text-text truncate">{{ run.script.name }}</div>
+                                    <div class="text-xs text-faint font-mono mt-0.5">{{ run.get_status_display|lower }}{% if run.duration_display %} · {{ run.duration_display }}{% endif %}</div>
+                                </div>
+                                <span class="text-xs text-faint flex-shrink-0">{{ run.created_at|timesince }} ago</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="flex items-center gap-3 px-6 py-5">
+                            <div class="w-9 h-9 rounded-full bg-ok/10 grid place-items-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                            <p class="text-sm text-muted">No recent failures</p>
+                        </div>
+                        {% endif %}
+                    </section>
+
+                    <!-- Upcoming runs -->
+                    <section class="rounded-2xl border border-line bg-panel">
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-line-soft">
+                            <h2 class="text-sm font-semibold">Upcoming runs</h2>
+                            <a href="{% url 'cpanel:script_list' %}" class="text-xs text-info hover:underline">Schedule</a>
+                        </div>
+                        {% if upcoming_runs %}
+                        <div class="divide-y divide-line-soft">
+                            {% for schedule in upcoming_runs %}
+                            <a href="{% url 'cpanel:script_detail' pk=schedule.script.pk %}" class="flex items-center gap-3 px-6 py-3.5 hover:bg-panel-hi/50 transition">
+                                <svg class="w-4 h-4 text-info flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-[13.5px] font-medium truncate text-text">{{ schedule.script.name }}</div>
+                                    <div class="text-xs text-faint font-mono">{{ schedule.schedule_display }}</div>
+                                </div>
+                                <span class="text-xs font-mono text-muted flex-shrink-0">in {{ schedule.next_run|timeuntil }}</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="flex items-center gap-3 px-6 py-5">
+                            <div class="w-9 h-9 rounded-full bg-panel-hi grid place-items-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm text-muted">No scheduled runs</p>
+                                <a href="{% url 'cpanel:script_list' %}" class="text-xs text-info hover:underline">Schedule a script</a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </section>
                 </div>
             </div>
-        </div>
 
-        <!-- Quick Actions -->
-        <div class="mt-8">
-            <h2 class="text-lg font-semibold text-code-text mb-4">Quick Actions</h2>
-            <div class="flex flex-wrap gap-4">
-                <a href="{% url 'cpanel:script_create' %}"
-                   class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white font-semibold rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    <span>New Script</span>
-                </a>
-                <a href="{% url 'cpanel:script_list' %}"
-                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-                    </svg>
-                    <span>View Scripts</span>
-                </a>
-                <a href="{% url 'cpanel:run_list' %}"
-                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                    </svg>
-                    <span>View Runs</span>
-                </a>
-                <a href="{% url 'cpanel:environment_list' %}"
-                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                    </svg>
-                    <span>Environments</span>
-                </a>
-                <a href="{% url 'cpanel:settings' %}"
-                   class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    <span>Settings</span>
-                </a>
-            </div>
         </div>
     </div>
 </div>
@@ -484,27 +292,18 @@
     const statusSpan = document.getElementById('autoRefreshStatus');
 
     function getColorClass(percent) {
-        if (percent >= 90) return { text: 'text-code-red', bg: 'bg-code-red', bgLight: 'bg-code-red/20' };
-        if (percent >= 70) return { text: 'text-code-yellow', bg: 'bg-code-yellow', bgLight: 'bg-code-yellow/20' };
-        return { text: 'text-code-green', bg: 'bg-code-green', bgLight: 'bg-code-green/20' };
+        if (percent >= 90) return { text: 'text-fail', bg: 'bg-fail' };
+        if (percent >= 70) return { text: 'text-warn', bg: 'bg-warn' };
+        return { text: 'text-ok', bg: 'bg-ok' };
     }
 
-    function updateMetric(valueEl, barEl, iconEl, percent, details, detailsEl) {
+    function updateMetric(valueEl, barEl, percent, details, detailsEl) {
         const colors = getColorClass(percent);
-
         valueEl.textContent = percent.toFixed(1) + '%';
-        valueEl.className = 'text-3xl font-bold ' + colors.text;
-
+        valueEl.className = 'font-mono tnum text-sm font-semibold ' + colors.text;
         barEl.style.width = percent + '%';
-        barEl.className = 'h-full ' + colors.bg + ' transition-all duration-300';
-
-        const svg = iconEl.querySelector('svg');
-        iconEl.className = 'w-12 h-12 ' + colors.bgLight + ' rounded-lg flex items-center justify-center';
-        if (svg) svg.className = 'w-6 h-6 ' + colors.text;
-
-        if (details && detailsEl) {
-            detailsEl.textContent = details;
-        }
+        barEl.className = 'h-full rounded-full ' + colors.bg;
+        if (details && detailsEl) detailsEl.textContent = details;
     }
 
     async function fetchResources() {
@@ -513,58 +312,39 @@
             if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
 
-            updateMetric(
-                document.getElementById('cpuValue'),
-                document.getElementById('cpuBar'),
-                document.getElementById('cpuIcon'),
-                data.cpu.percent
-            );
-
-            updateMetric(
-                document.getElementById('ramValue'),
-                document.getElementById('ramBar'),
-                document.getElementById('ramIcon'),
-                data.memory.percent,
-                data.memory.used_display + ' / ' + data.memory.total_display,
-                document.getElementById('ramDetails')
-            );
-
-            updateMetric(
-                document.getElementById('diskValue'),
-                document.getElementById('diskBar'),
-                document.getElementById('diskIcon'),
-                data.disk.percent,
-                data.disk.used_display + ' / ' + data.disk.total_display,
-                document.getElementById('diskDetails')
-            );
+            updateMetric(document.getElementById('cpuValue'), document.getElementById('cpuBar'), data.cpu.percent);
+            updateMetric(document.getElementById('ramValue'), document.getElementById('ramBar'), data.memory.percent,
+                data.memory.used_display + ' / ' + data.memory.total_display, document.getElementById('ramDetails'));
+            updateMetric(document.getElementById('diskValue'), document.getElementById('diskBar'), data.disk.percent,
+                data.disk.used_display + ' / ' + data.disk.total_display, document.getElementById('diskDetails'));
         } catch (error) {
             console.error('Failed to refresh system resources:', error);
         }
     }
 
+    function setLiveLabel(on) {
+        if (!statusSpan) return;
+        statusSpan.textContent = on ? 'Live' : 'Paused';
+        toggleBtn.classList.toggle('text-ok', on);
+        toggleBtn.classList.toggle('text-faint', !on);
+        const dot = toggleBtn.querySelector('span:first-child');
+        if (dot) dot.className = 'w-1.5 h-1.5 rounded-full ' + (on ? 'bg-ok' : 'bg-faint');
+    }
+
     function toggleAutoRefresh() {
         autoRefreshEnabled = !autoRefreshEnabled;
-
+        setLiveLabel(autoRefreshEnabled);
         if (autoRefreshEnabled) {
-            statusSpan.textContent = 'Auto-refresh: ON';
-            toggleBtn.classList.add('border-code-green', 'text-code-green');
-            toggleBtn.classList.remove('text-code-muted');
             refreshInterval = setInterval(fetchResources, REFRESH_RATE);
             fetchResources();
-        } else {
-            statusSpan.textContent = 'Auto-refresh: OFF';
-            toggleBtn.classList.remove('border-code-green', 'text-code-green');
-            toggleBtn.classList.add('text-code-muted');
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-                refreshInterval = null;
-            }
+        } else if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
         }
     }
 
     if (toggleBtn) {
         toggleBtn.addEventListener('click', toggleAutoRefresh);
-        // Start auto-refresh on page load
         refreshInterval = setInterval(fetchResources, REFRESH_RATE);
     }
 })();

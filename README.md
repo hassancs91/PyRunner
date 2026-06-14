@@ -14,6 +14,7 @@ A self-hosted Python script automation platform. Upload a script, schedule it, m
 - **Virtual Environments** — Isolated Python environments with custom pip packages per script
 - **Run History & Logs** — Track every execution with stdout/stderr capture
 - **Secrets Management** — Store encrypted environment variables and secrets
+- **Claude AI for Scripts** — Call Claude from your scripts (web search, fetch & more) using your Claude subscription or an Anthropic API key
 - **Notifications** — Get alerts via email, webhook, or Telegram on script completion/failure
 - **Magic Link Auth** — Passwordless authentication via email
 - **Single Container** — Deploy with one Docker command
@@ -62,6 +63,71 @@ Copy `.env.example` to `.env` and configure:
 | `Q_WORKERS` | `2` | Background task workers |
 
 See [.env.example](.env.example) for all options.
+
+## Claude AI in your scripts
+
+PyRunner can run Claude directly inside your Python scripts — with **web search**
+and **web fetch** enabled by default — so your automations can research, summarize,
+and reason. It reuses **your own** Claude account: either a **Claude subscription**
+(via a Claude Code OAuth token) or an **Anthropic API key**.
+
+> **A note on subscription auth:** this is intended for *self-hosters using their
+> own Claude subscription for their own automations* — equivalent to running
+> Claude Code headless on your own machine. Anthropic's Agent SDK terms restrict
+> *offering* claude.ai login to other people as part of a product/SaaS; don't use
+> a shared or pooled subscription to serve multiple end-users.
+
+### Setup
+
+1. **Configure it** under **Services → Claude AI**:
+   - Choose **Claude subscription** and paste a token, or **Anthropic API key**.
+   - To get a subscription token, run `claude setup-token` on a machine where
+     you're logged into Claude, then paste the result.
+   - Tick **Enable Claude AI for scripts** and **Save**, then **Test Connection**
+     (it runs a real web search to confirm everything works end-to-end).
+2. **Install the SDK** into the Environment your script uses:
+   Environments → *(your env)* → Packages → add `claude-agent-sdk`.
+   (The Claude Code CLI itself ships with the PyRunner Docker image.)
+
+### Use it
+
+```python
+from pyrunner_ai import ask_claude
+
+# Web search + fetch are on by default
+answer = ask_claude("Search the web for today's top AI story and summarize it")
+print(answer)
+
+# Restrict tools, pick a model, add a system prompt
+summary = ask_claude(
+    "Summarize https://peps.python.org/pep-0008/",
+    tools=["WebFetch"],
+    model="claude-sonnet-4-6",
+)
+
+# Full details (tools used, cost, turns)
+result = ask_claude("Research the latest Django release", raw=True)
+print(result.text, result.tools_used, result.cost_usd)
+
+# Stream the answer
+from pyrunner_ai import stream_claude
+for chunk in stream_claude("Write a short poem about automation"):
+    print(chunk, end="", flush=True)
+
+# Lean mode: only load the tools you ask for (cuts ~50k cached tokens/call)
+answer = ask_claude("Search the web for today's AI news", lean=True)
+```
+
+Available tools: `WebSearch`, `WebFetch`, `Read`, `Glob`, `Grep`. File-writing
+and shell tools (`Write`, `Edit`, `Bash`) are **off by default** for safety —
+scripts run with full access to the PyRunner host, so only enable those if you
+fully trust the prompt.
+
+**A note on token counts:** an agentic call carries the agent's tool definitions
+as context, sent once and **prompt-cached** — that's the large "cache tokens"
+figure on the usage page, not your content. Pass `lean=True` to define only the
+tools you requested and slash that overhead. The connection test always runs
+lean.
 
 ## Tech Stack
 

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",
     # Third party
     "django_q",
     "tailwind",
@@ -233,39 +234,75 @@ def _get_q_cluster_config():
         "catch_up": False,
     }
 
-    # Try to load from database (only if apps are ready to avoid initialization warnings)
+    # Try to load from database (only if apps are ready to avoid initialization
+    # warnings). When apps aren't ready yet we keep the defaults above and still
+    # fall through to the retry invariant below — an early return here would skip
+    # it and leave a dangerous retry/timeout combination in place.
     try:
         from django.apps import apps
-
-        if not apps.ready:
-            return config  # Return defaults during app initialization
-
         from django.db import connection
         from django.db.utils import OperationalError, ProgrammingError
 
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT q_workers, q_timeout, q_retry, q_queue_limit "
-                "FROM global_settings WHERE id = 1"
-            )
-            row = cursor.fetchone()
-            if row:
-                config["workers"] = row[0] or config["workers"]
-                # On Windows, force timeout to 0 regardless of DB value
-                if os.name == "nt":
-                    config["timeout"] = 0
-                else:
-                    config["timeout"] = row[1] if row[1] is not None else config["timeout"]
-                config["retry"] = row[2] or config["retry"]
-                config["queue_limit"] = row[3] or config["queue_limit"]
+        if apps.ready:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT q_workers, q_timeout, q_retry, q_queue_limit "
+                    "FROM global_settings WHERE id = 1"
+                )
+                row = cursor.fetchone()
+                if row:
+                    config["workers"] = row[0] or config["workers"]
+                    # On Windows, force timeout to 0 regardless of DB value
+                    if os.name == "nt":
+                        config["timeout"] = 0
+                    else:
+                        config["timeout"] = (
+                            row[1] if row[1] is not None else config["timeout"]
+                        )
+                    config["retry"] = row[2] or config["retry"]
+                    config["queue_limit"] = row[3] or config["queue_limit"]
     except (OperationalError, ProgrammingError, Exception):
         # Database not ready yet (migrations not run), use defaults
         pass
+
+    # Defensive backstop: django-q2 re-queues a task that hasn't finished within
+    # `retry` seconds, running it AGAIN on another worker. If retry is smaller
+    # than a task's real duration the task is restarted forever (each restart
+    # never finishes in time either) — a death spiral that, for package installs,
+    # also resets the operation to "running" repeatedly and makes the packages
+    # page poll endlessly.
+    #
+    # When timeout is enforced, keep retry above it so a task is killed before it
+    # can be re-queued. When timeout == 0 (no timeout — e.g. Windows, where
+    # django-q2 can't enforce one) there is no upper bound on task duration, so a
+    # finite retry WILL eventually re-queue long-running tasks. Push retry far out
+    # so legitimately slow tasks (big pip installs, long scripts) complete first;
+    # genuinely dead tasks are surfaced via reconciliation/manual retry instead.
+    if config["timeout"]:
+        if config["retry"] <= config["timeout"]:
+            config["retry"] = config["timeout"] + 60
+    else:
+        config["retry"] = 86400  # 24h — effectively "don't auto re-queue"
 
     return config
 
 
 Q_CLUSTER = _get_q_cluster_config()
+
+# On Windows a task timeout is unsupported, so we force timeout=0 ("no timeout").
+# django-q2 treats any falsy timeout as a misconfiguration and emits a
+# "Retry and timeout are misconfigured" UserWarning on every config load. That
+# warning is a false positive here — 0 is intentional, not a mistake — so
+# suppress just that message to keep worker logs clean.
+if os.name == "nt":
+    import warnings
+
+    warnings.filterwarnings(
+        "ignore",
+        message="Retry and timeout are misconfigured.*",
+        category=UserWarning,
+        module=r"django_q\.conf",
+    )
 
 
 # PyRunner Configuration
@@ -273,10 +310,15 @@ DATA_DIR = BASE_DIR / "data"
 ENVIRONMENTS_ROOT = DATA_DIR / "environments"
 SCRIPTS_WORKDIR = DATA_DIR / "workdir"
 
+# Writable config/home directory for the Claude Code CLI used by the AI
+# integration (claude-agent-sdk). Kept under the data volume so it persists.
+CLAUDE_CONFIG_DIR = DATA_DIR / "claude"
+
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
 ENVIRONMENTS_ROOT.mkdir(exist_ok=True)
 SCRIPTS_WORKDIR.mkdir(exist_ok=True)
+CLAUDE_CONFIG_DIR.mkdir(exist_ok=True)
 
 
 # Secrets Encryption

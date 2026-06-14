@@ -6,486 +6,387 @@
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
-    <div class="flex-1 p-8">
-        <!-- Header -->
-        <div class="mb-8">
-            <nav class="flex items-center space-x-2 text-sm text-code-muted mb-4">
-                <a href="{% url 'cpanel:script_list' %}" class="hover:text-code-accent">Scripts</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-                <span class="text-code-text">{{ script.name }}</span>
-            </nav>
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
 
-            <div class="flex items-start justify-between">
-                <div>
-                    <h1 class="text-2xl font-bold text-code-text flex items-center">
-                        {{ script.name }}
+            <!-- Header -->
+            <div>
+                <nav class="flex items-center gap-1.5 eyebrow text-faint mb-3">
+                    <a href="{% url 'cpanel:script_list' %}" class="hover:text-text transition-colors">Scripts</a>
+                    <span>/</span>
+                    <span class="text-muted truncate max-w-[16rem]">{{ script.name }}</span>
+                </nav>
+
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <h1 class="text-[22px] font-semibold tracking-tight truncate">{{ script.name }}</h1>
+                            {% if script.is_archived %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span>Archived</span>
+                            {% elif script.is_enabled %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Enabled</span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-warn/10 text-warn"><span class="w-1.5 h-1.5 rounded-full bg-warn"></span>Disabled</span>
+                            {% endif %}
+                        </div>
+                        {% if script.description %}<p class="text-sm text-muted mt-1.5 max-w-2xl">{{ script.description }}</p>{% endif %}
+                        {% if script.tags.exists %}
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            {% for tag in script.tags.all %}
+                            <a href="{% url 'cpanel:script_list' %}?tag={{ tag.pk }}" class="inline-flex items-center px-2.5 py-0.5 text-xs rounded-full tag-{{ tag.color }} hover:opacity-80 transition-opacity">{{ tag.name }}</a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2 flex-shrink-0">
                         {% if script.is_archived %}
-                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Archived</span>
-                        {% elif script.is_enabled %}
-                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Enabled</span>
-                        {% else %}
-                        <span class="ml-3 px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Disabled</span>
-                        {% endif %}
-                    </h1>
-                    {% if script.description %}
-                    <p class="text-code-muted mt-1">{{ script.description }}</p>
-                    {% endif %}
-                    {% if script.tags.exists %}
-                    <div class="flex flex-wrap gap-2 mt-3">
-                        {% for tag in script.tags.all %}
-                        <a href="{% url 'cpanel:script_list' %}?tag={{ tag.pk }}"
-                           class="inline-flex items-center px-2.5 py-1 text-xs rounded-full tag-{{ tag.color }} hover:opacity-80 transition-opacity">
-                            {{ tag.name }}
-                        </a>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- Actions -->
-                <div class="flex items-center space-x-3">
-                    {% if script.is_archived %}
-                    <!-- Archived script actions -->
-                    <form method="post" action="{% url 'cpanel:script_restore' pk=script.pk %}">
-                        {% csrf_token %}
-                        <button type="submit"
-                                class="px-4 py-2 bg-code-green hover:bg-code-green/90 text-white font-semibold rounded-lg transition-colors flex items-center space-x-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                            </svg>
-                            <span>Restore</span>
-                        </button>
-                    </form>
-
-                    <form method="post" action="{% url 'cpanel:script_delete' pk=script.pk %}"
-                          onsubmit="return confirm('PERMANENTLY delete {{ script.name }}? This cannot be undone and will delete all run history.');">
-                        {% csrf_token %}
-                        <button type="submit"
-                                class="px-4 py-2 bg-code-red hover:bg-code-red/90 text-white font-semibold rounded-lg transition-colors flex items-center space-x-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            <span>Delete</span>
-                        </button>
-                    </form>
-                    {% else %}
-                    <!-- Normal script actions -->
-                    <form method="post" action="{% url 'cpanel:script_run' pk=script.pk %}">
-                        {% csrf_token %}
-                        <button type="submit"
-                                class="px-4 py-2 bg-code-green hover:bg-code-green/90 text-white font-semibold rounded-lg transition-colors flex items-center space-x-2 {% if not script.can_run %}opacity-50 cursor-not-allowed{% endif %}"
-                                {% if not script.can_run %}disabled{% endif %}>
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            <span>Run</span>
-                        </button>
-                    </form>
-
-                    <a href="{% url 'cpanel:script_edit' pk=script.pk %}"
-                       class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors flex items-center space-x-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                        <span>Edit</span>
-                    </a>
-
-                    <form method="post" action="{% url 'cpanel:script_toggle' pk=script.pk %}">
-                        {% csrf_token %}
-                        <button type="submit"
-                                class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-accent text-code-text rounded-lg transition-colors">
-                            {% if script.is_enabled %}Disable{% else %}Enable{% endif %}
-                        </button>
-                    </form>
-
-                    <form method="post" action="{% url 'cpanel:script_archive' pk=script.pk %}"
-                          onsubmit="return confirm('Archive {{ script.name }}? The script will be hidden and its schedule paused.');">
-                        {% csrf_token %}
-                        <button type="submit"
-                                class="px-4 py-2 bg-code-surface border border-code-border hover:border-code-red text-code-muted hover:text-code-red rounded-lg transition-colors flex items-center space-x-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
-                            </svg>
-                            <span>Archive</span>
-                        </button>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Column: Code and Info -->
-            <div class="lg:col-span-2 space-y-6">
-                <!-- Code Block -->
-                <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                    <div class="px-4 py-3 border-b border-code-border bg-code-bg flex items-center justify-between">
-                        <span class="text-sm font-medium text-code-text">Python Code</span>
-                        <span class="text-xs text-code-muted">{{ script.code|length }} chars</span>
-                    </div>
-                    <div id="code-viewer-container" style="height: 500px;" class="overflow-hidden"></div>
-                    <textarea id="code-content" class="hidden">{{ script.code }}</textarea>
-                </div>
-            </div>
-
-            <!-- Right Column: Metadata and Stats -->
-            <div class="space-y-6">
-                <!-- Script Info -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                    <h3 class="text-sm font-semibold text-code-text mb-4">Script Info</h3>
-                    <dl class="space-y-4">
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Environment</dt>
-                            <dd class="text-code-text mt-1">
-                                <a href="{% url 'cpanel:environment_detail' pk=script.environment.pk %}" class="text-code-accent hover:underline">
-                                    {{ script.environment.name }}
-                                </a>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Timeout</dt>
-                            <dd class="text-code-text mt-1">{{ script.timeout_seconds }} seconds</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Created</dt>
-                            <dd class="text-code-text mt-1">{{ script.created_at|date:"M d, Y H:i" }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Updated</dt>
-                            <dd class="text-code-text mt-1">{{ script.updated_at|date:"M d, Y H:i" }}</dd>
-                        </div>
-                        {% if script.created_by %}
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Created By</dt>
-                            <dd class="text-code-text mt-1">{{ script.created_by.email }}</dd>
-                        </div>
-                        {% endif %}
-                    </dl>
-
-                    {% if script.is_archived %}
-                    <div class="mt-4 pt-4 border-t border-code-border">
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Archived</dt>
-                            <dd class="text-code-red mt-1">{{ script.archived_at|date:"M d, Y H:i" }}</dd>
-                        </div>
-                        {% if script.archived_by %}
-                        <div class="mt-2">
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Archived By</dt>
-                            <dd class="text-code-text mt-1">{{ script.archived_by.email }}</dd>
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- Stats -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                    <h3 class="text-sm font-semibold text-code-text mb-4">Statistics</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="text-center p-3 bg-code-bg rounded-lg">
-                            <div class="text-2xl font-bold text-code-accent">{{ script.run_count }}</div>
-                            <div class="text-xs text-code-muted">Total Runs</div>
-                        </div>
-                        <div class="text-center p-3 bg-code-bg rounded-lg">
-                            <div class="text-2xl font-bold {% if script.success_rate >= 80 %}text-code-green{% elif script.success_rate >= 50 %}text-code-yellow{% else %}text-code-red{% endif %}">
-                                {% if script.run_count > 0 %}{{ script.success_rate|floatformat:0 }}%{% else %}-{% endif %}
-                            </div>
-                            <div class="text-xs text-code-muted">Success Rate</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Schedule, Webhook, Notifications Row -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-            <!-- Schedule Info Card -->
-            <div class="bg-code-surface border border-code-border rounded-xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-semibold text-code-text">Schedule</h3>
-                        {% if schedule.run_mode != 'manual' %}
-                        <form method="post" action="{% url 'cpanel:schedule_toggle' pk=script.pk %}">
+                        <form method="post" action="{% url 'cpanel:script_restore' pk=script.pk %}">
                             {% csrf_token %}
-                            <button type="submit" class="text-xs px-2 py-1 rounded {% if schedule.is_active %}bg-code-green/20 text-code-green{% else %}bg-code-yellow/20 text-code-yellow{% endif %}">
-                                {% if schedule.is_active %}Active{% else %}Paused{% endif %}
+                            <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                                Restore
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'cpanel:script_delete' pk=script.pk %}" onsubmit="return confirm('PERMANENTLY delete {{ script.name }}? This cannot be undone and will delete all run history.');">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-fail hover:border-fail/50 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                Delete
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{% url 'cpanel:script_run' pk=script.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition {% if not script.can_run %}opacity-50 cursor-not-allowed{% endif %}" {% if not script.can_run %}disabled{% endif %}>
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                Run now
+                            </button>
+                        </form>
+                        <a href="{% url 'cpanel:script_edit' pk=script.pk %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            Edit
+                        </a>
+                        <form method="post" action="{% url 'cpanel:script_toggle' pk=script.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">{% if script.is_enabled %}Disable{% else %}Enable{% endif %}</button>
+                        </form>
+                        <form method="post" action="{% url 'cpanel:script_archive' pk=script.pk %}" onsubmit="return confirm('Archive {{ script.name }}? The script will be hidden and its schedule paused.');">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-grid place-items-center w-9 h-9 rounded-lg border border-line text-muted hover:text-fail hover:border-fail/50 transition-colors" title="Archive">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                             </button>
                         </form>
                         {% endif %}
                     </div>
+                </div>
+            </div>
 
-                    <dl class="space-y-4">
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Mode</dt>
-                            <dd class="text-code-text mt-1">{{ schedule.schedule_display }}</dd>
+            <!-- Code + meta -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <!-- Code viewer -->
+                <div class="lg:col-span-2">
+                    <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                        <div class="flex items-center gap-1.5 px-3 h-9 border-b border-line-soft bg-panel-hi/50">
+                            <span class="w-2.5 h-2.5 rounded-full bg-fail/70"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-warn/70"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-ok/70"></span>
+                            <span class="ml-2 text-xs font-mono text-faint">script.py</span>
+                            <span class="ml-auto eyebrow text-faint">{{ script.code|length }} chars</span>
                         </div>
+                        <div id="code-viewer-container" class="h-[60vh] min-h-[320px] lg:h-[520px] overflow-hidden bg-ink"></div>
+                        <textarea id="code-content" class="hidden">{{ script.code }}</textarea>
+                    </section>
+                </div>
 
+                <!-- Right column -->
+                <div class="space-y-5">
+                    <!-- Script info -->
+                    <section class="rounded-2xl border border-line bg-panel p-5">
+                        <h3 class="eyebrow text-faint mb-4">Script info</h3>
+                        <dl class="space-y-3.5 text-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Environment</dt>
+                                <dd class="min-w-0"><a href="{% url 'cpanel:environment_detail' pk=script.environment.pk %}" class="text-info hover:underline truncate block">{{ script.environment.name }}</a></dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Timeout</dt>
+                                <dd class="font-mono tnum text-text">{{ script.timeout_seconds }}s</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Created</dt>
+                                <dd class="font-mono text-text text-xs">{{ script.created_at|date:"M d, Y H:i" }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Updated</dt>
+                                <dd class="font-mono text-text text-xs">{{ script.updated_at|date:"M d, Y H:i" }}</dd>
+                            </div>
+                            {% if script.created_by %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Created by</dt>
+                                <dd class="text-text truncate">{{ script.created_by.email }}</dd>
+                            </div>
+                            {% endif %}
+                            {% if script.is_archived %}
+                            <div class="flex items-center justify-between gap-3 pt-3 border-t border-line-soft">
+                                <dt class="text-muted">Archived</dt>
+                                <dd class="font-mono text-fail text-xs">{{ script.archived_at|date:"M d, Y H:i" }}</dd>
+                            </div>
+                            {% if script.archived_by %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-muted">Archived by</dt>
+                                <dd class="text-text truncate">{{ script.archived_by.email }}</dd>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                        </dl>
+                    </section>
+
+                    <!-- Stats -->
+                    <section class="rounded-2xl border border-line bg-panel p-5">
+                        <h3 class="eyebrow text-faint mb-4">Statistics</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-xl border border-line-soft bg-panel-hi/40 px-4 py-3">
+                                <div class="text-2xl font-semibold font-mono tnum">{{ script.run_count }}</div>
+                                <div class="text-xs text-faint mt-0.5">Total runs</div>
+                            </div>
+                            <div class="rounded-xl border border-line-soft bg-panel-hi/40 px-4 py-3">
+                                <div class="text-2xl font-semibold font-mono tnum {% if script.run_count > 0 %}{% if script.success_rate >= 80 %}text-ok{% elif script.success_rate >= 50 %}text-warn{% else %}text-fail{% endif %}{% endif %}">
+                                    {% if script.run_count > 0 %}{{ script.success_rate|floatformat:0 }}%{% else %}<span class="text-faint">—</span>{% endif %}
+                                </div>
+                                <div class="text-xs text-faint mt-0.5">Success rate</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Schedule / Webhook / Notifications -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <!-- Schedule -->
+                <section class="rounded-2xl border border-line bg-panel p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold">Schedule</h3>
+                        {% if schedule.run_mode != 'manual' %}
+                        <form method="post" action="{% url 'cpanel:schedule_toggle' pk=script.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-md {% if schedule.is_active %}bg-ok/10 text-ok{% else %}bg-warn/10 text-warn{% endif %}">
+                                <span class="w-1.5 h-1.5 rounded-full {% if schedule.is_active %}bg-ok{% else %}bg-warn{% endif %}"></span>{% if schedule.is_active %}Active{% else %}Paused{% endif %}
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <dl class="space-y-3.5 text-sm">
+                        <div class="flex items-center justify-between gap-3">
+                            <dt class="text-muted">Mode</dt>
+                            <dd class="text-text text-right">{{ schedule.schedule_display }}</dd>
+                        </div>
                         {% if schedule.next_run %}
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Next Run</dt>
-                            <dd class="text-code-text mt-1">{{ schedule.next_run|date:"M d, Y H:i" }} UTC</dd>
+                        <div class="flex items-center justify-between gap-3">
+                            <dt class="text-muted">Next run</dt>
+                            <dd class="font-mono text-text text-xs">{{ schedule.next_run|date:"M d, H:i" }} UTC</dd>
                         </div>
                         {% endif %}
-
                         {% if schedule.last_scheduled_run %}
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Last Scheduled Run</dt>
-                            <dd class="text-code-text mt-1">{{ schedule.last_scheduled_run|date:"M d, Y H:i" }} UTC</dd>
+                        <div class="flex items-center justify-between gap-3">
+                            <dt class="text-muted">Last run</dt>
+                            <dd class="font-mono text-text text-xs">{{ schedule.last_scheduled_run|date:"M d, H:i" }} UTC</dd>
                         </div>
                         {% endif %}
                     </dl>
-
-                    <div class="mt-4 pt-4 border-t border-code-border">
-                        <a href="{% url 'cpanel:schedule_history' pk=script.pk %}" class="text-xs text-code-accent hover:underline">
-                            View schedule history
-                        </a>
+                    <div class="mt-4 pt-4 border-t border-line-soft">
+                        <a href="{% url 'cpanel:schedule_history' pk=script.pk %}" class="text-xs text-info hover:underline">View schedule history</a>
                     </div>
-                </div>
+                </section>
 
-                <!-- Webhook Card -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                <!-- Webhook -->
+                <section class="rounded-2xl border border-line bg-panel p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-semibold text-code-text">Webhook</h3>
+                        <h3 class="text-sm font-semibold">Webhook</h3>
                         {% if script.has_webhook %}
-                        <span class="text-xs px-2 py-1 rounded bg-code-green/20 text-code-green">Enabled</span>
+                        <span class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Enabled</span>
                         {% else %}
-                        <span class="text-xs px-2 py-1 rounded bg-code-muted/20 text-code-muted">Disabled</span>
+                        <span class="text-xs px-2 py-0.5 rounded-md bg-panel-hi text-muted">Disabled</span>
                         {% endif %}
                     </div>
 
                     {% if script.has_webhook %}
                     <div class="space-y-4">
                         <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Webhook URL <span class="text-code-yellow">(sensitive)</span></dt>
-                            <div class="flex items-center space-x-2">
-                                <input type="password"
-                                       id="webhook-url"
+                            <div class="eyebrow text-faint mb-2">URL <span class="text-warn">· sensitive</span></div>
+                            <div class="flex items-center gap-2">
+                                <input type="password" id="webhook-url" readonly
                                        value="{{ request.scheme }}://{{ request.get_host }}{% url 'webhook_trigger' token=script.webhook_token %}"
-                                       readonly
-                                       class="flex-1 px-3 py-2 bg-code-bg border border-code-border rounded text-code-text text-xs font-mono">
-                                <button type="button"
-                                        onclick="toggleWebhookVisibility()"
-                                        id="webhook-toggle-btn"
-                                        class="px-3 py-2 bg-code-bg hover:bg-code-border text-code-muted text-xs rounded transition-colors border border-code-border"
-                                        title="Show/Hide URL">
-                                    <svg id="webhook-eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                    </svg>
+                                       class="flex-1 min-w-0 px-3 py-2 bg-ink border border-line rounded-lg text-text text-xs font-mono focus:outline-none">
+                                <button type="button" onclick="toggleWebhookVisibility()" id="webhook-toggle-btn" class="grid place-items-center w-9 h-9 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="Show/Hide URL">
+                                    <svg id="webhook-eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                 </button>
-                                <button type="button"
-                                        onclick="copyWebhookUrl()"
-                                        class="px-3 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-xs rounded transition-colors"
-                                        title="Copy URL">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                    </svg>
+                                <button type="button" onclick="copyWebhookUrl()" class="grid place-items-center w-9 h-9 rounded-lg bg-ok text-ink hover:opacity-90 transition" title="Copy URL">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                 </button>
                             </div>
                         </div>
-
                         <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider mb-2">Example curl</dt>
-                            <button type="button"
-                                    id="curl-toggle-btn"
-                                    onclick="toggleCurlExample()"
-                                    class="text-xs text-code-accent hover:underline mb-2">
-                                Show example
-                            </button>
-                            <pre id="curl-example" class="hidden p-3 bg-code-bg rounded text-xs font-mono text-code-muted overflow-x-auto">curl -X POST \
+                            <button type="button" id="curl-toggle-btn" onclick="toggleCurlExample()" class="text-xs text-info hover:underline">Show curl example</button>
+                            <pre id="curl-example" class="hidden mt-2 p-3 bg-ink border border-line-soft rounded-lg text-xs font-mono text-muted overflow-x-auto">curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"key": "value"}' \
   "{{ request.scheme }}://{{ request.get_host }}{% url 'webhook_trigger' token=script.webhook_token %}"</pre>
                         </div>
-
-                        <div class="flex items-center space-x-2 pt-2">
-                            <form method="post" action="{% url 'cpanel:webhook_regenerate' pk=script.pk %}"
-                                  onsubmit="return confirm('Regenerate webhook URL? The old URL will stop working.');">
+                        <div class="flex items-center gap-3 pt-1">
+                            <form method="post" action="{% url 'cpanel:webhook_regenerate' pk=script.pk %}" onsubmit="return confirm('Regenerate webhook URL? The old URL will stop working.');">
                                 {% csrf_token %}
-                                <button type="submit" class="text-xs text-code-yellow hover:underline">
-                                    Regenerate URL
-                                </button>
+                                <button type="submit" class="text-xs text-warn hover:underline">Regenerate URL</button>
                             </form>
-                            <span class="text-code-muted">|</span>
-                            <form method="post" action="{% url 'cpanel:webhook_disable' pk=script.pk %}"
-                                  onsubmit="return confirm('Disable webhook? The URL will stop working.');">
+                            <span class="text-line">|</span>
+                            <form method="post" action="{% url 'cpanel:webhook_disable' pk=script.pk %}" onsubmit="return confirm('Disable webhook? The URL will stop working.');">
                                 {% csrf_token %}
-                                <button type="submit" class="text-xs text-code-red hover:underline">
-                                    Disable
-                                </button>
+                                <button type="submit" class="text-xs text-fail hover:underline">Disable</button>
                             </form>
                         </div>
                     </div>
                     {% else %}
-                    <p class="text-code-muted text-sm mb-4">Enable webhooks to trigger this script via HTTP requests from external services.</p>
+                    <p class="text-sm text-muted mb-4">Trigger this script via an HTTP request from external services.</p>
                     <form method="post" action="{% url 'cpanel:webhook_enable' pk=script.pk %}">
                         {% csrf_token %}
-                        <button type="submit" class="px-4 py-2 bg-code-accent hover:bg-code-accent/90 text-white text-sm rounded transition-colors">
-                            Enable Webhook
-                        </button>
+                        <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Enable webhook</button>
                     </form>
                     {% endif %}
-                </div>
+                </section>
 
-                <!-- Notifications Card -->
-                <div class="bg-code-surface border border-code-border rounded-xl p-6">
+                <!-- Notifications -->
+                <section class="rounded-2xl border border-line bg-panel p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-semibold text-code-text">Notifications</h3>
+                        <h3 class="text-sm font-semibold">Notifications</h3>
                         {% if script.notify_on != 'never' %}
-                        <span class="text-xs px-2 py-1 rounded bg-code-accent/20 text-code-accent">
-                            {{ script.get_notify_on_display }}
-                        </span>
+                        <span class="text-xs px-2 py-0.5 rounded-md bg-info/10 text-info">{{ script.get_notify_on_display }}</span>
                         {% else %}
-                        <span class="text-xs px-2 py-1 rounded bg-code-muted/20 text-code-muted">Disabled</span>
+                        <span class="text-xs px-2 py-0.5 rounded-md bg-panel-hi text-muted">Disabled</span>
                         {% endif %}
                     </div>
-
                     {% if script.notify_on != 'never' %}
-                    <dl class="space-y-4">
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Notify On</dt>
-                            <dd class="text-code-text mt-1">{{ script.get_notify_on_display }}</dd>
+                    <dl class="space-y-3.5 text-sm">
+                        <div class="flex items-center justify-between gap-3">
+                            <dt class="text-muted">Notify on</dt>
+                            <dd class="text-text">{{ script.get_notify_on_display }}</dd>
                         </div>
-
                         {% if script.notify_email %}
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Email Override</dt>
-                            <dd class="text-code-text mt-1">{{ script.notify_email }}</dd>
+                        <div class="flex items-center justify-between gap-3">
+                            <dt class="text-muted">Email override</dt>
+                            <dd class="text-text truncate">{{ script.notify_email }}</dd>
                         </div>
                         {% else %}
-                        <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Email</dt>
-                            <dd class="text-code-muted mt-1 text-sm">Using global default</dd>
+                        <div class="flex items-center justify-between gap-3">
+                            <dt class="text-muted">Email</dt>
+                            <dd class="text-faint">Global default</dd>
                         </div>
                         {% endif %}
-
                         {% if script.notify_webhook_enabled and script.notify_webhook_url %}
                         <div>
-                            <dt class="text-xs text-code-muted uppercase tracking-wider">Webhook</dt>
-                            <dd class="text-code-text mt-1 text-sm break-all">{{ script.notify_webhook_url }}</dd>
+                            <dt class="text-muted mb-1">Webhook</dt>
+                            <dd class="text-text text-xs font-mono break-all">{{ script.notify_webhook_url }}</dd>
                         </div>
                         {% endif %}
                     </dl>
                     {% else %}
-                    <p class="text-code-muted text-sm">
-                        Notifications are disabled for this script.
-                        <a href="{% url 'cpanel:script_edit' pk=script.pk %}" class="text-code-accent hover:underline">
-                            Edit settings
-                        </a>
-                    </p>
+                    <p class="text-sm text-muted">Notifications are off for this script. <a href="{% url 'cpanel:script_edit' pk=script.pk %}" class="text-info hover:underline">Edit settings</a></p>
                     {% endif %}
+                </section>
+            </div>
+
+            <!-- Recent runs -->
+            <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">Recent runs</h2>
+                    <a href="{% url 'cpanel:run_list' %}?script={{ script.pk }}" class="text-xs text-info hover:underline">View all</a>
                 </div>
-        </div>
-
-        <!-- Recent Runs -->
-        <div class="mt-8">
-            <h2 class="text-lg font-semibold text-code-text mb-4">Recent Runs</h2>
-
-            {% if recent_runs %}
-            <div class="bg-code-surface border border-code-border rounded-xl overflow-hidden">
-                <table class="w-full">
-                    <thead class="bg-code-bg border-b border-code-border">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Duration</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Triggered By</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider">Started</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-code-muted uppercase tracking-wider"></th>
+                {% if recent_runs %}
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[520px]">
+                    <thead>
+                        <tr class="border-b border-line-soft text-left">
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Status</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Duration</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Triggered by</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Started</th>
+                            <th class="px-6 py-3 w-10"></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-code-border">
+                    <tbody class="divide-y divide-line-soft">
                         {% for run in recent_runs %}
-                        <tr class="hover:bg-code-bg/50 transition-colors">
-                            <td class="px-6 py-4">
-                                {% if run.status == 'success' %}
-                                <span class="px-2 py-1 text-xs rounded bg-code-green/20 text-code-green">Success</span>
-                                {% elif run.status == 'failed' %}
-                                <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Failed</span>
-                                {% elif run.status == 'timeout' %}
-                                <span class="px-2 py-1 text-xs rounded bg-code-red/20 text-code-red">Timeout</span>
-                                {% elif run.status == 'running' %}
-                                <span class="px-2 py-1 text-xs rounded bg-code-yellow/20 text-code-yellow">Running</span>
-                                {% elif run.status == 'pending' %}
-                                <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Pending</span>
-                                {% elif run.status == 'cancelled' %}
-                                <span class="px-2 py-1 text-xs rounded bg-code-muted/20 text-code-muted">Cancelled</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 text-code-text">
-                                {% if run.duration_display %}{{ run.duration_display }}{% else %}-{% endif %}
-                            </td>
-                            <td class="px-6 py-4 text-code-muted">
-                                {% if run.triggered_by %}{{ run.triggered_by.email }}{% else %}System{% endif %}
-                            </td>
-                            <td class="px-6 py-4 text-code-muted text-sm">
-                                {% if run.started_at %}{{ run.started_at|date:"M d, H:i" }}{% else %}{{ run.created_at|date:"M d, H:i" }}{% endif %}
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-code-accent hover:underline text-sm">
-                                    View
+                        <tr class="group hover:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5">{% include "cpanel/runs/_status_badge.html" %}</td>
+                            <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{% if run.duration_display %}{{ run.duration_display }}{% else %}—{% endif %}</td>
+                            <td class="px-6 py-3.5 text-sm text-muted truncate max-w-[12rem]">{% if run.triggered_by %}{{ run.triggered_by.email }}{% else %}<span class="text-faint">System</span>{% endif %}</td>
+                            <td class="px-6 py-3.5 text-right text-xs text-faint whitespace-nowrap">{% if run.started_at %}{{ run.started_at|date:"M d, H:i" }}{% else %}{{ run.created_at|date:"M d, H:i" }}{% endif %}</td>
+                            <td class="px-6 py-3.5 text-right">
+                                <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="inline-grid place-items-center w-7 h-7 rounded-md text-faint group-hover:text-text hover:bg-panel-hi transition-colors" title="View run">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                                 </a>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-            {% else %}
-            <div class="bg-code-surface border border-code-border rounded-xl p-8 text-center">
-                <p class="text-code-muted">No runs yet. Click "Run" to execute this script.</p>
-            </div>
-            {% endif %}
+                </div>
+                {% else %}
+                <div class="px-6 py-10 text-center">
+                    <p class="text-sm text-muted">No runs yet — press <span class="text-text font-medium">Run now</span> to execute this script.</p>
+                </div>
+                {% endif %}
+            </section>
+
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 <script>
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
-require(['vs/editor/editor.main'], function () {
-    const container = document.getElementById('code-viewer-container');
-    const codeContent = document.getElementById('code-content');
-
-    monaco.editor.create(container, {
-        value: codeContent.value,
-        language: 'python',
-        theme: 'vs-dark',
-        fontSize: 14,
-        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        lineNumbers: 'on',
-        readOnly: true,
-        automaticLayout: true
-    });
-});
-</script>
-
-<script>
-function copyWebhookUrl() {
-    const urlInput = document.getElementById('webhook-url');
-    if (urlInput) {
-        navigator.clipboard.writeText(urlInput.value).then(() => {
-            // Show brief feedback
-            const btn = event.currentTarget;
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
-            setTimeout(() => {
-                btn.innerHTML = originalHTML;
-            }, 1500);
-        }).catch(err => {
-            // Fallback for older browsers
-            urlInput.select();
-            document.execCommand('copy');
+(function () {
+    if (typeof require === 'undefined') return;
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+        var container = document.getElementById('code-viewer-container');
+        var codeContent = document.getElementById('code-content');
+        if (!container || !codeContent) return;
+        function monacoTheme() { return document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs'; }
+        monaco.editor.create(container, {
+            value: codeContent.value,
+            language: 'python',
+            theme: monacoTheme(),
+            fontSize: 14,
+            fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            lineNumbers: 'on',
+            readOnly: true,
+            automaticLayout: true,
+            padding: { top: 14, bottom: 14 },
         });
-    }
+        new MutationObserver(function () { monaco.editor.setTheme(monacoTheme()); })
+            .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    });
+})();
+
+function copyWebhookUrl() {
+    var urlInput = document.getElementById('webhook-url');
+    if (!urlInput) return;
+    var btn = event.currentTarget;
+    navigator.clipboard.writeText(urlInput.value).then(function () {
+        var original = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+        setTimeout(function () { btn.innerHTML = original; }, 1500);
+    }).catch(function () {
+        urlInput.type = 'text';
+        urlInput.select();
+        document.execCommand('copy');
+    });
 }
 
 function toggleWebhookVisibility() {
-    const urlInput = document.getElementById('webhook-url');
-    const eyeIcon = document.getElementById('webhook-eye-icon');
+    var urlInput = document.getElementById('webhook-url');
+    var eyeIcon = document.getElementById('webhook-eye-icon');
     if (urlInput.type === 'password') {
         urlInput.type = 'text';
         eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>';
@@ -496,14 +397,14 @@ function toggleWebhookVisibility() {
 }
 
 function toggleCurlExample() {
-    const curlExample = document.getElementById('curl-example');
-    const toggleBtn = document.getElementById('curl-toggle-btn');
+    var curlExample = document.getElementById('curl-example');
+    var toggleBtn = document.getElementById('curl-toggle-btn');
     if (curlExample.classList.contains('hidden')) {
         curlExample.classList.remove('hidden');
-        toggleBtn.textContent = 'Hide example';
+        toggleBtn.textContent = 'Hide curl example';
     } else {
         curlExample.classList.add('hidden');
-        toggleBtn.textContent = 'Show example';
+        toggleBtn.textContent = 'Show curl example';
     }
 }
 </script>

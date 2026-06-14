@@ -16,6 +16,7 @@ from .secret import Secret
 from .tag import Tag
 from .datastore import DataStore, DataStoreEntry
 from .api_token import DataStoreAPIToken
+from .claude_usage import ClaudeUsage
 
 __all__ = [
     "User",
@@ -34,4 +35,5 @@ __all__ = [
     "DataStore",
     "DataStoreEntry",
     "DataStoreAPIToken",
+    "ClaudeUsage",
 ]
