@@ -173,6 +173,10 @@ if ($envVars['DEBUG'] -ne 'False') {
 }
 $envVars['DEBUG'] = 'False'
 $envVars['SECURE_SSL_REDIRECT'] = 'False'   # plain http locally; edge/proxy does TLS in prod
+# Secure cookies require HTTPS; on plain-http localhost a Secure cookie is never
+# sent back, which silently logs you out on every request. Off for local runs.
+$envVars['SESSION_COOKIE_SECURE'] = 'False'
+$envVars['CSRF_COOKIE_SECURE'] = 'False'
 
 # Write back only if something changed, without a UTF-8 BOM (a BOM corrupts the
 # first key for Docker Compose's .env parser).

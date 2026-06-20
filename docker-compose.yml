@@ -22,6 +22,10 @@ services:
       # which would 301 http->https and break a plain-http local/proxied run.
       # Default it off here (edge/proxy terminates TLS, as on Coolify).
       - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT:-False}
+      # Secure cookies require HTTPS. Default True (prod / edge-TLS); set False
+      # for a plain-http run or the session cookie won't come back (logout loop).
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-True}
+      - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
 
       # Email settings (optional)
