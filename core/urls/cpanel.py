@@ -127,7 +127,11 @@ from core.views.workspaces import (
     workspace_list_view,
     workspace_create_view,
     workspace_rename_view,
+    workspace_delete_view,
     workspace_members_view,
+    workspace_member_add_view,
+    workspace_member_role_view,
+    workspace_member_remove_view,
 )
 
 app_name = "cpanel"
@@ -236,7 +240,11 @@ urlpatterns = [
     path("workspaces/", workspace_list_view, name="workspace_list"),
     path("workspaces/create/", workspace_create_view, name="workspace_create"),
     path("workspaces/<uuid:pk>/rename/", workspace_rename_view, name="workspace_rename"),
+    path("workspaces/<uuid:pk>/delete/", workspace_delete_view, name="workspace_delete"),
     path("workspaces/<uuid:pk>/members/", workspace_members_view, name="workspace_members"),
+    path("workspaces/<uuid:pk>/members/add/", workspace_member_add_view, name="workspace_member_add"),
+    path("workspaces/<uuid:pk>/members/<uuid:membership_id>/role/", workspace_member_role_view, name="workspace_member_role"),
+    path("workspaces/<uuid:pk>/members/<uuid:membership_id>/remove/", workspace_member_remove_view, name="workspace_member_remove"),
 
     # User Management
     path("users/", user_list_view, name="user_list"),

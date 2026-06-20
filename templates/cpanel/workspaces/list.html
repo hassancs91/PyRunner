@@ -14,7 +14,7 @@
                     <h1 class="text-[22px] font-semibold tracking-tight">Workspaces</h1>
                     <p class="text-sm text-muted mt-1">Each workspace is an isolated tenant. The switcher appears once you belong to more than one.</p>
                 </div>
-                <button type="button" onclick="document.getElementById('create-modal').classList.remove('hidden')" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition flex-shrink-0">New workspace</button>
+                {% if can_create %}<button type="button" onclick="document.getElementById('create-modal').classList.remove('hidden')" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition flex-shrink-0">New workspace</button>{% endif %}
             </div>
 
             <div class="rounded-2xl border border-line bg-panel p-6">
@@ -36,12 +36,20 @@
                         </div>
                         <div class="flex items-center gap-2 flex-shrink-0">
                             <a href="{% url 'cpanel_ws:dashboard' workspace_id=ws.id %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Open</a>
+                            {% if ws.user_can_manage %}
                             <a href="{% url 'cpanel:workspace_members' pk=ws.id %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Members</a>
                             <button type="button"
                                     data-rename-url="{% url 'cpanel:workspace_rename' pk=ws.id %}"
                                     data-name="{{ ws.name }}"
                                     onclick="openRenameModal(this)"
                                     class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Rename</button>
+                            {% endif %}
+                            {% if ws.user_is_owner and not ws.is_default %}
+                            <form method="post" action="{% url 'cpanel:workspace_delete' pk=ws.id %}" onsubmit="return confirm('Delete workspace &quot;{{ ws.name|escapejs }}&quot;? This cannot be undone.');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-fail/80 hover:text-fail hover:border-fail/50 transition-colors">Delete</button>
+                            </form>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -51,7 +59,8 @@
     </div>
 </div>
 
-<!-- Create Modal -->
+<!-- Create Modal (superuser only) -->
+{% if can_create %}
 <div id="create-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 flex">
     <div class="bg-panel border border-line rounded-2xl p-6 max-w-md w-full mx-4">
         <div class="flex items-center justify-between mb-4">
@@ -73,6 +82,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 
 <!-- Rename Modal -->
 <div id="rename-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 flex">
@@ -104,16 +114,25 @@ function openRenameModal(btn) {
     document.getElementById('rename-modal').classList.remove('hidden');
 }
 
+// Modals are conditionally rendered (create-modal is superuser-only), so guard
+// every lookup against a missing element.
+function hideModal(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+}
 document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
-        document.getElementById('create-modal').classList.add('hidden');
-        document.getElementById('rename-modal').classList.add('hidden');
+        hideModal('create-modal');
+        hideModal('rename-modal');
     }
 });
 ['create-modal', 'rename-modal'].forEach(function (id) {
-    document.getElementById(id).addEventListener('click', function (event) {
-        if (event.target === this) this.classList.add('hidden');
-    });
+    var el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('click', function (event) {
+            if (event.target === this) this.classList.add('hidden');
+        });
+    }
 });
 </script>
 {% endblock %}

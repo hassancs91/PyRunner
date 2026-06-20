@@ -19,7 +19,22 @@
                 </div>
             </div>
 
+            <!-- Add member -->
             <div class="rounded-2xl border border-line bg-panel p-6">
+                <h3 class="text-base font-semibold text-text mb-4">Add member</h3>
+                <form method="post" action="{% url 'cpanel:workspace_member_add' pk=workspace.id %}" class="flex flex-col sm:flex-row gap-3">
+                    {% csrf_token %}
+                    <input type="email" name="email" required placeholder="user@example.com" class="flex-1 px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
+                    <select name="role" class="px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
+                        {% for value, label in role_choices %}<option value="{{ value }}"{% if value == 'member' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2.5 rounded-lg bg-ok text-ink hover:opacity-90 transition flex-shrink-0">Add</button>
+                </form>
+                <p class="text-xs text-faint mt-2">The user must already have an account on this instance.</p>
+            </div>
+
+            <div class="rounded-2xl border border-line bg-panel p-6">
+                <h3 class="text-base font-semibold text-text mb-4">Members</h3>
                 <div class="space-y-3">
                     {% for m in memberships %}
                     <div class="flex items-center justify-between gap-3 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
@@ -29,18 +44,29 @@
                             </div>
                             <p class="text-text font-medium truncate">{{ m.user.email }}</p>
                         </div>
-                        <span class="px-2 py-0.5 text-xs rounded-md flex-shrink-0
-                            {% if m.role == 'owner' %}bg-ok/10 text-ok{% elif m.role == 'admin' %}bg-info/10 text-info{% else %}bg-line/40 text-muted{% endif %}">
-                            {{ m.get_role_display }}
-                        </span>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            {% if m.role == 'owner' and owner_count == 1 %}
+                            <span class="px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok">Owner</span>
+                            <span class="text-xs text-faint">last owner</span>
+                            {% else %}
+                            <form method="post" action="{% url 'cpanel:workspace_member_role' pk=workspace.id membership_id=m.id %}" class="flex items-center gap-2">
+                                {% csrf_token %}
+                                <select name="role" onchange="this.form.submit()" class="px-2.5 py-1.5 bg-ink border border-line rounded-lg text-text text-xs focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
+                                    {% for value, label in role_choices %}<option value="{{ value }}"{% if value == m.role %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                                </select>
+                            </form>
+                            <form method="post" action="{% url 'cpanel:workspace_member_remove' pk=workspace.id membership_id=m.id %}" onsubmit="return confirm('Remove {{ m.user.email|escapejs }} from this workspace?');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-fail/80 hover:text-fail hover:border-fail/50 transition-colors">Remove</button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </div>
                     {% empty %}
                     <p class="text-sm text-faint">No members yet.</p>
                     {% endfor %}
                 </div>
             </div>
-
-            <p class="text-xs text-faint">Adding and removing members arrives with role-based access control in a later stage.</p>
         </div>
     </div>
 </div>
