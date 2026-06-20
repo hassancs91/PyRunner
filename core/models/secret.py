@@ -32,9 +32,11 @@ class Secret(models.Model):
     objects = WorkspaceScopedManager()
 
     # Key name - must be uppercase with underscores (e.g., API_KEY, DATABASE_URL)
+    # Tenancy Stage 3: unique PER WORKSPACE (not globally), so two workspaces can
+    # each own an API_KEY. Enforced by the Meta constraints below (mirrors
+    # DataStore.name, Decision 2B).
     key = models.CharField(
         max_length=100,
-        unique=True,
         help_text="Environment variable name (uppercase, underscores allowed)",
     )
 
@@ -67,6 +69,20 @@ class Secret(models.Model):
         verbose_name = "secret"
         verbose_name_plural = "secrets"
         ordering = ["key"]
+        constraints = [
+            # Per-workspace key uniqueness (mirrors DataStore Decision 2B). The
+            # partial constraint reproduces "globally unique among un-scoped rows"
+            # because NULLs are SQL-distinct in a multi-column UNIQUE.
+            models.UniqueConstraint(
+                fields=["workspace", "key"],
+                name="uniq_secret_workspace_key",
+            ),
+            models.UniqueConstraint(
+                fields=["key"],
+                condition=models.Q(workspace__isnull=True),
+                name="uniq_secret_key_when_no_workspace",
+            ),
+        ]
 
     def __str__(self):
         return self.key

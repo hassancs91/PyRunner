@@ -15,8 +15,65 @@ logger = logging.getLogger(__name__)
 class TaskService:
     """Service for managing and monitoring Django-Q2 tasks."""
 
+    @staticmethod
+    def _hidden_task_ids(workspace) -> set:
+        """task_ids of Runs that belong to OTHER workspaces (tenancy Stage 3).
+
+        django-q's ``Task``/``OrmQ`` rows carry no workspace — only the linked
+        ``Run`` is scopable — so the tasks page hides a task whose linked run is
+        in another workspace by excluding these ids. A task with no linked run
+        (system/infra: package installs, cleanup) is NOT hidden. A NULL-workspace
+        run stays visible (transitional, keeps a single-workspace instance
+        byte-for-byte). ``workspace`` None ⇒ no hiding (legacy/cross-workspace).
+
+        NOTE: this scans cross-workspace run task_ids per request — acceptable at
+        current scale; revisit if the runs table grows very large.
+        """
+        if workspace is None:
+            return set()
+        from django.db.models import Q
+
+        from core.models import Run
+
+        return set(
+            Run.objects.exclude(Q(workspace=workspace) | Q(workspace__isnull=True))
+            .exclude(task_id__isnull=True)
+            .exclude(task_id="")
+            .values_list("task_id", flat=True)
+        )
+
+    @staticmethod
+    def _run_workspace_filter(workspace):
+        """Q matching runs visible in ``workspace`` (the run's ws, or NULL).
+
+        Mirrors the transitional rule used across the tenancy sweep so legacy
+        NULL-workspace runs stay visible/stoppable on a single-workspace instance.
+        """
+        from django.db.models import Q
+
+        return Q(workspace=workspace) | Q(workspace__isnull=True)
+
     @classmethod
-    def get_queued_tasks(cls) -> list[dict[str, Any]]:
+    def _task_in_workspace(cls, task_id, workspace) -> bool:
+        """Whether a task may be controlled from ``workspace`` (tenancy Stage 3).
+
+        True when there is no linked run (system/infra task) or the linked run is
+        visible in ``workspace`` (its own workspace, or NULL — transitional).
+        False ONLY when a linked run exists and belongs to another workspace —
+        the control-plane guard that stops a tenant from killing another tenant's
+        job. ``workspace`` None ⇒ always True (legacy/unscoped caller).
+        """
+        if workspace is None:
+            return True
+        from core.models import Run
+
+        linked = Run.objects.filter(task_id=task_id)
+        if not linked.exists():
+            return True
+        return linked.filter(cls._run_workspace_filter(workspace)).exists()
+
+    @classmethod
+    def get_queued_tasks(cls, workspace=None) -> list[dict[str, Any]]:
         """
         Get all tasks currently in the queue (pending execution).
 
@@ -26,8 +83,10 @@ class TaskService:
 
         from core.models import Run
 
+        hidden = cls._hidden_task_ids(workspace)
+
         queued = []
-        for q in OrmQ.objects.all().order_by("lock"):
+        for q in OrmQ.objects.exclude(key__in=hidden).order_by("lock"):
             task_info = {
                 "id": q.key,
                 "name": "Unknown",
@@ -59,7 +118,7 @@ class TaskService:
         return queued
 
     @classmethod
-    def get_running_tasks(cls) -> list[dict[str, Any]]:
+    def get_running_tasks(cls, workspace=None) -> list[dict[str, Any]]:
         """
         Get runs that are currently executing (status=RUNNING).
 
@@ -68,12 +127,12 @@ class TaskService:
         """
         from core.models import Run
 
+        qs = Run.objects.filter(status=Run.Status.RUNNING)
+        if workspace is not None:
+            qs = qs.filter(cls._run_workspace_filter(workspace))
+
         running = []
-        for run in (
-            Run.objects.filter(status=Run.Status.RUNNING)
-            .select_related("script")
-            .order_by("started_at")
-        ):
+        for run in qs.select_related("script").order_by("started_at"):
             running.append({
                 "id": run.task_id or str(run.id),
                 "type": "script_run",
@@ -90,6 +149,7 @@ class TaskService:
         status_filter: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        workspace=None,
     ) -> tuple[list[dict[str, Any]], int]:
         """
         Get completed tasks from Django-Q2 Task model.
@@ -98,6 +158,10 @@ class TaskService:
             status_filter: "success" or "failed" to filter by status
             limit: Maximum number of tasks to return
             offset: Number of tasks to skip
+            workspace: when given, hide tasks whose linked run is in another
+                workspace (tenancy Stage 3). Excluded at the queryset level so
+                pagination/total stay correct. System tasks (no linked run) and
+                NULL-workspace runs remain visible.
 
         Returns:
             Tuple of (tasks list, total count)
@@ -112,6 +176,10 @@ class TaskService:
             qs = qs.filter(success=True)
         elif status_filter == "failed":
             qs = qs.filter(success=False)
+
+        hidden = cls._hidden_task_ids(workspace)
+        if hidden:
+            qs = qs.exclude(id__in=hidden)
 
         total = qs.count()
         tasks = qs[offset : offset + limit]
@@ -150,7 +218,7 @@ class TaskService:
         return result, total
 
     @classmethod
-    def get_stuck_tasks(cls, threshold_minutes: int = 5) -> list[dict[str, Any]]:
+    def get_stuck_tasks(cls, threshold_minutes: int = 5, workspace=None) -> list[dict[str, Any]]:
         """
         Identify tasks that appear to be stuck.
 
@@ -171,11 +239,13 @@ class TaskService:
         now = timezone.now()
         stale_threshold = now - timedelta(minutes=threshold_minutes)
 
+        hidden = cls._hidden_task_ids(workspace)
+
         stuck = []
 
         # Check OrmQ for stale entries
         try:
-            for q in OrmQ.objects.filter(lock__lt=stale_threshold):
+            for q in OrmQ.objects.filter(lock__lt=stale_threshold).exclude(key__in=hidden):
                 task_info = {
                     "id": q.key,
                     "type": "queued_stale",
@@ -195,10 +265,13 @@ class TaskService:
 
         # Check for Runs stuck in "running" state without corresponding queue entry
         try:
-            for run in Run.objects.filter(
+            overtime = Run.objects.filter(
                 status=Run.Status.RUNNING,
                 started_at__lt=stale_threshold,
-            ).select_related("script"):
+            )
+            if workspace is not None:
+                overtime = overtime.filter(cls._run_workspace_filter(workspace))
+            for run in overtime.select_related("script"):
                 # Check if task is still in queue
                 in_queue = OrmQ.objects.filter(key=run.task_id).exists() if run.task_id else False
 
@@ -222,9 +295,14 @@ class TaskService:
         return stuck
 
     @classmethod
-    def get_task_statistics(cls) -> dict[str, int]:
+    def get_task_statistics(cls, workspace=None) -> dict[str, int]:
         """
         Get task queue statistics.
+
+        When ``workspace`` is given, counts are scoped to the active workspace
+        (tenancy Stage 3): tasks whose linked run is in another workspace are
+        excluded; system tasks (no linked run) and NULL-workspace runs stay
+        counted, keeping a single-workspace instance byte-for-byte.
 
         Returns dict with:
         - queued_count: Tasks waiting in queue
@@ -240,6 +318,8 @@ class TaskService:
         now = timezone.now()
         today_start = now - timedelta(hours=24)
 
+        hidden = cls._hidden_task_ids(workspace)
+
         stats = {
             "queued_count": 0,
             "running_count": 0,
@@ -249,12 +329,15 @@ class TaskService:
         }
 
         try:
-            stats["queued_count"] = OrmQ.objects.count()
+            stats["queued_count"] = OrmQ.objects.exclude(key__in=hidden).count()
         except Exception:
             pass
 
         try:
-            stats["running_count"] = Run.objects.filter(status=Run.Status.RUNNING).count()
+            running = Run.objects.filter(status=Run.Status.RUNNING)
+            if workspace is not None:
+                running = running.filter(cls._run_workspace_filter(workspace))
+            stats["running_count"] = running.count()
         except Exception:
             pass
 
@@ -262,7 +345,7 @@ class TaskService:
             stats["completed_today"] = Task.objects.filter(
                 started__gte=today_start,
                 success=True,
-            ).count()
+            ).exclude(id__in=hidden).count()
         except Exception:
             pass
 
@@ -270,19 +353,19 @@ class TaskService:
             stats["failed_today"] = Task.objects.filter(
                 started__gte=today_start,
                 success=False,
-            ).count()
+            ).exclude(id__in=hidden).count()
         except Exception:
             pass
 
         try:
-            stats["stuck_count"] = len(cls.get_stuck_tasks())
+            stats["stuck_count"] = len(cls.get_stuck_tasks(workspace=workspace))
         except Exception:
             pass
 
         return stats
 
     @classmethod
-    def cancel_queued_task(cls, task_id: str) -> tuple[bool, str]:
+    def cancel_queued_task(cls, task_id: str, workspace=None) -> tuple[bool, str]:
         """
         Cancel a task that's still in the queue.
 
@@ -290,6 +373,9 @@ class TaskService:
 
         Args:
             task_id: The task ID to cancel
+            workspace: when given, a task whose linked run is in ANOTHER workspace
+                is refused before anything is mutated (tenancy Stage 3 control-
+                plane guard) — a tenant cannot cancel another tenant's job.
 
         Returns:
             Tuple of (success, message)
@@ -297,6 +383,11 @@ class TaskService:
         from django_q.models import OrmQ
 
         from core.models import Run
+
+        # Cross-workspace guard FIRST (before touching the queue), so a denied
+        # request never removes another workspace's queue entry.
+        if not cls._task_in_workspace(task_id, workspace):
+            return False, "Task not found in queue"
 
         try:
             # Delete from OrmQ
@@ -324,7 +415,7 @@ class TaskService:
             return False, str(e)
 
     @classmethod
-    def force_stop_task(cls, task_id: str) -> tuple[bool, str]:
+    def force_stop_task(cls, task_id: str, workspace=None) -> tuple[bool, str]:
         """
         Force stop a task.
 
@@ -335,6 +426,9 @@ class TaskService:
 
         Args:
             task_id: The task ID to stop
+            workspace: when given, a task whose linked run is in ANOTHER workspace
+                is refused before the OS process is touched (tenancy Stage 3
+                control-plane guard) — a tenant cannot kill another tenant's job.
 
         Returns:
             Tuple of (success, message)
@@ -343,6 +437,11 @@ class TaskService:
 
         from core.executor import _kill_process_tree
         from core.models import Run
+
+        # Cross-workspace guard FIRST — never kill another tenant's process tree
+        # or remove their queue entry.
+        if not cls._task_in_workspace(task_id, workspace):
+            return False, "No running or pending task found with this ID"
 
         try:
             # Delete from OrmQ if still there (covers pending / not-yet-claimed)
@@ -419,13 +518,17 @@ class TaskService:
             return str(value)
 
     @classmethod
-    def get_task_detail(cls, task_id: str) -> dict[str, Any] | None:
+    def get_task_detail(cls, task_id: str, workspace=None) -> dict[str, Any] | None:
         """
         Build a detail dict for a single task, usable by the task detail page.
 
         Works for completed/failed tasks (django-q Task), still-queued tasks
         (OrmQ), and system tasks with no linked Run. Returns None if nothing is
         found for the given id.
+
+        When ``workspace`` is given and the task's linked run belongs to another
+        workspace, returns None (tenancy Stage 3 IDOR guard → 404, no
+        existence disclosure). NULL-workspace runs stay visible (transitional).
         """
         from django_q.models import OrmQ, Task
 
@@ -436,6 +539,13 @@ class TaskService:
             .select_related("script", "triggered_by")
             .first()
         )
+        if (
+            workspace is not None
+            and linked_run is not None
+            and linked_run.workspace_id is not None
+            and linked_run.workspace_id != workspace.id
+        ):
+            return None  # cross-workspace task — 404, never disclose it exists
         task_type = "script_run" if linked_run else "system"
 
         # 1) Completed (or failed) task recorded by django-q.

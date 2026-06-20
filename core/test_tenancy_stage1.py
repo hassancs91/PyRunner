@@ -98,7 +98,12 @@ class RunStampingTests(TestCase):
     @mock.patch("core.views.scripts.queue_script_run")
     def test_manual_run_stamped(self, _q):
         self.client.force_login(self.user)
-        self.client.post(reverse("cpanel:script_run", args=[self.script.id]))
+        # Stage 3 scopes the manual-run view by the active workspace, so the
+        # ws_a script must be reached under the ws_a URL prefix (the bare URL
+        # resolves to the superuser's default workspace and would 404 here).
+        self.client.post(
+            reverse("cpanel_ws:script_run", args=[self.ws_a.id, self.script.id])
+        )
         run = Run.objects.latest("created_at")
         self.assertEqual(run.workspace_id, self.ws_a.id)
 

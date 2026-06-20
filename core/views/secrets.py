@@ -16,7 +16,7 @@ from core.services import EncryptionService
 @login_required
 def secret_list_view(request: HttpRequest) -> HttpResponse:
     """List all secrets with masked values."""
-    secrets = Secret.objects.all().order_by("key")
+    secrets = Secret.objects.for_workspace(request.workspace).order_by("key")
 
     # Check if encryption is configured
     encryption_configured = EncryptionService.is_configured()
@@ -43,17 +43,19 @@ def secret_create_view(request: HttpRequest) -> HttpResponse:
         return redirect("cpanel:secret_list")
 
     if request.method == "POST":
-        form = SecretCreateForm(request.POST)
+        form = SecretCreateForm(request.POST, workspace=request.workspace)
         if form.is_valid():
             key = form.cleaned_data["key"]
             value = form.cleaned_data["value"]
             description = form.cleaned_data.get("description", "")
 
-            # Create the secret with encrypted value
+            # Create the secret with encrypted value, stamped with the active
+            # workspace (tenancy Stage 3) so its key is unique per workspace.
             secret = Secret(
                 key=key,
                 description=description,
                 created_by=request.user,
+                workspace=request.workspace,
             )
             secret.set_value(value)
             secret.save()
@@ -61,7 +63,7 @@ def secret_create_view(request: HttpRequest) -> HttpResponse:
             messages.success(request, f'Secret "{key}" created successfully.')
             return redirect("cpanel:secret_list")
     else:
-        form = SecretCreateForm()
+        form = SecretCreateForm(workspace=request.workspace)
 
     return render(
         request,
@@ -75,7 +77,7 @@ def secret_create_view(request: HttpRequest) -> HttpResponse:
 @login_required
 def secret_edit_view(request: HttpRequest, pk) -> HttpResponse:
     """Edit an existing secret."""
-    secret = get_object_or_404(Secret, pk=pk)
+    secret = get_object_or_404(Secret, pk=pk, workspace=request.workspace)
 
     if request.method == "POST":
         form = SecretEditForm(request.POST)
@@ -112,7 +114,7 @@ def secret_edit_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def secret_delete_view(request: HttpRequest, pk) -> HttpResponse:
     """Delete a secret."""
-    secret = get_object_or_404(Secret, pk=pk)
+    secret = get_object_or_404(Secret, pk=pk, workspace=request.workspace)
     key = secret.key
     secret.delete()
 

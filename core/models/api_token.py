@@ -41,6 +41,19 @@ class DataStoreAPIToken(models.Model):
         help_text="If set, token only grants access to this datastore. Leave empty for global access.",
     )
 
+    # Tenancy Stage 3: the workspace this token acts in. A global (no-datastore)
+    # token lists/resolves only this workspace's datastores; NULL falls back to
+    # the default workspace (today's behavior on a single-workspace instance).
+    workspace = models.ForeignKey(
+        "core.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="api_tokens",
+        help_text="Workspace this token is scoped to (tenancy; nullable).",
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(

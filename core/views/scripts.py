@@ -49,7 +49,12 @@ print(answer)
 @login_required
 def script_list_view(request: HttpRequest) -> HttpResponse:
     """List all scripts with optional filtering."""
-    scripts = Script.objects.select_related("environment", "created_by").prefetch_related("tags").order_by("-updated_at")
+    scripts = (
+        Script.objects.for_workspace(request.workspace)
+        .select_related("environment", "created_by")
+        .prefetch_related("tags")
+        .order_by("-updated_at")
+    )
 
     # Optional filtering by status
     status_filter = request.GET.get("status")
@@ -92,6 +97,9 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             script = form.save(commit=False)
             script.created_by = request.user
+            # Stamp the active workspace (tenancy Stage 3) so the new script is
+            # owned by — and visible in — the workspace it was created in.
+            script.workspace = request.workspace
             script.save()
             form.save_m2m()  # Save M2M relationships (tags)
             messages.success(request, f'Script "{script.name}" created successfully.')
@@ -114,14 +122,15 @@ def script_detail_view(request: HttpRequest, pk) -> HttpResponse:
     """View script details and recent runs."""
     script = get_object_or_404(
         Script.objects.select_related("environment", "created_by").prefetch_related("tags"),
-        pk=pk
+        pk=pk,
+        workspace=request.workspace,
     )
     recent_runs = script.runs.select_related("triggered_by").order_by("-created_at")[:10]
 
     # Ensure schedule exists for this script
     schedule, _ = ScriptSchedule.objects.get_or_create(
         script=script,
-        defaults={"created_by": request.user}
+        defaults={"created_by": request.user, "workspace": script.workspace},
     )
 
     return render(request, "cpanel/scripts/detail.html", {
@@ -134,12 +143,12 @@ def script_detail_view(request: HttpRequest, pk) -> HttpResponse:
 @login_required
 def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
     """Edit an existing script and its schedule."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     # Get or create schedule for this script
     schedule, created = ScriptSchedule.objects.get_or_create(
         script=script,
-        defaults={"created_by": request.user}
+        defaults={"created_by": request.user, "workspace": script.workspace},
     )
 
     if request.method == "POST":
@@ -209,7 +218,7 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def script_run_view(request: HttpRequest, pk) -> HttpResponse:
     """Trigger a manual script run."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     if not script.can_run:
         if script.is_archived:
@@ -245,7 +254,7 @@ def script_run_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def script_toggle_view(request: HttpRequest, pk) -> HttpResponse:
     """Toggle script enabled/disabled state."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
     script.is_enabled = not script.is_enabled
     script.save(update_fields=["is_enabled", "updated_at"])
 
@@ -258,7 +267,7 @@ def script_toggle_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def schedule_toggle_view(request: HttpRequest, pk) -> HttpResponse:
     """Toggle schedule active/inactive state."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     try:
         schedule = script.schedule
@@ -294,7 +303,7 @@ def schedule_toggle_view(request: HttpRequest, pk) -> HttpResponse:
 @login_required
 def schedule_history_view(request: HttpRequest, pk) -> HttpResponse:
     """View schedule change history."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     try:
         schedule = script.schedule
@@ -314,7 +323,7 @@ def schedule_history_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def webhook_enable_view(request: HttpRequest, pk) -> HttpResponse:
     """Enable webhook for a script (creates token if not exists)."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     if not script.webhook_token:
         script.create_webhook_token()
@@ -329,7 +338,7 @@ def webhook_enable_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def webhook_disable_view(request: HttpRequest, pk) -> HttpResponse:
     """Disable webhook for a script (removes token)."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     if script.webhook_token:
         script.clear_webhook_token()
@@ -344,7 +353,7 @@ def webhook_disable_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def webhook_regenerate_view(request: HttpRequest, pk) -> HttpResponse:
     """Regenerate webhook token (invalidates old URL)."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     script.regenerate_webhook_token()
     messages.success(request, f'Webhook URL regenerated for "{script.name}". The old URL is now invalid.')
@@ -358,7 +367,7 @@ def script_archive_view(request: HttpRequest, pk) -> HttpResponse:
     """Archive a script (soft delete)."""
     from django.utils import timezone
 
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     if script.is_archived:
         messages.info(request, f'Script "{script.name}" is already archived.')
@@ -387,7 +396,7 @@ def script_archive_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def script_restore_view(request: HttpRequest, pk) -> HttpResponse:
     """Restore an archived script."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     if not script.is_archived:
         messages.info(request, f'Script "{script.name}" is not archived.')
@@ -406,7 +415,7 @@ def script_restore_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def script_delete_view(request: HttpRequest, pk) -> HttpResponse:
     """Permanently delete an archived script."""
-    script = get_object_or_404(Script, pk=pk)
+    script = get_object_or_404(Script, pk=pk, workspace=request.workspace)
 
     if not script.is_archived:
         messages.error(request, "Only archived scripts can be permanently deleted.")

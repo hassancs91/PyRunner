@@ -39,9 +39,22 @@ def environment_list_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def environment_detail_view(request: HttpRequest, pk) -> HttpResponse:
-    """View environment details and associated scripts."""
+    """View environment details and associated scripts.
+
+    The environment itself is SHARED infrastructure (not workspace-scoped), so it
+    resolves by pk alone. But the "scripts using this env" listing — and the
+    count shown beside it — are scoped to the active workspace so a tenant never
+    sees another workspace's scripts (tenancy Stage 3, leak-matrix row 19). The
+    delete-guard (``can_delete``/``script_count``) deliberately stays GLOBAL: a
+    shared env must not be deletable while ANY workspace's scripts use it (the
+    Script→Environment FK is PROTECT and the venv is removed from disk).
+    """
     environment = get_object_or_404(Environment, pk=pk)
-    scripts = environment.scripts.select_related("created_by").order_by("-updated_at")
+    scripts = (
+        environment.scripts.filter(workspace=request.workspace)
+        .select_related("created_by")
+        .order_by("-updated_at")
+    )
 
     # Calculate disk usage
     disk_usage_bytes = EnvironmentService.get_disk_usage(environment)
@@ -53,6 +66,7 @@ def environment_detail_view(request: HttpRequest, pk) -> HttpResponse:
         {
             "environment": environment,
             "scripts": scripts,
+            "workspace_script_count": scripts.count(),
             "disk_usage": disk_usage,
         },
     )

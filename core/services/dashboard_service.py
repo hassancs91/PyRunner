@@ -13,9 +13,13 @@ class DashboardService:
     """Service for gathering dashboard statistics and widget data."""
 
     @classmethod
-    def get_statistics(cls) -> dict:
+    def get_statistics(cls, workspace=None) -> dict:
         """
         Get all dashboard statistics.
+
+        Args:
+            workspace: when given, script/run counts are scoped to it (tenancy
+                Stage 3). ``None`` keeps the legacy instance-wide behavior.
 
         Returns dict with:
         - total_scripts: Total number of scripts
@@ -33,19 +37,25 @@ class DashboardService:
         today = now.date()
         week_ago = now - timedelta(days=7)
 
+        scripts = Script.objects
+        runs = Run.objects
+        if workspace is not None:
+            scripts = scripts.for_workspace(workspace)
+            runs = runs.for_workspace(workspace)
+
         # Script counts
-        total_scripts = Script.objects.count()
-        active_scripts = Script.objects.filter(is_enabled=True).count()
+        total_scripts = scripts.count()
+        active_scripts = scripts.filter(is_enabled=True).count()
 
         # Run counts
-        total_runs = Run.objects.count()
-        runs_today = Run.objects.filter(created_at__date=today).count()
-        runs_this_week = Run.objects.filter(created_at__gte=week_ago).count()
+        total_runs = runs.count()
+        runs_today = runs.filter(created_at__date=today).count()
+        runs_this_week = runs.filter(created_at__gte=week_ago).count()
 
         # Success rate
         success_rate = None
         if total_runs > 0:
-            success_count = Run.objects.filter(status=Run.Status.SUCCESS).count()
+            success_count = runs.filter(status=Run.Status.SUCCESS).count()
             success_rate = round((success_count / total_runs) * 100, 1)
 
         # Queue size
@@ -64,31 +74,39 @@ class DashboardService:
         }
 
     @classmethod
-    def get_recent_failures(cls, limit: int = 5) -> QuerySet:
+    def get_recent_failures(cls, limit: int = 5, workspace=None) -> QuerySet:
         """
         Get recent failed and timeout runs.
 
         Args:
             limit: Maximum number of runs to return
+            workspace: when given, scope to the active workspace (tenancy Stage 3)
 
         Returns:
             QuerySet of Run objects ordered by most recent
         """
         from core.models import Run
 
+        runs = Run.objects
+        if workspace is not None:
+            runs = runs.for_workspace(workspace)
         return (
-            Run.objects.filter(status__in=[Run.Status.FAILED, Run.Status.TIMEOUT])
+            runs.filter(status__in=[Run.Status.FAILED, Run.Status.TIMEOUT])
             .select_related("script")
             .order_by("-created_at")[:limit]
         )
 
     @classmethod
-    def get_upcoming_scheduled_runs(cls, limit: int = 5) -> QuerySet:
+    def get_upcoming_scheduled_runs(cls, limit: int = 5, workspace=None) -> QuerySet:
         """
         Get upcoming scheduled script runs.
 
         Args:
             limit: Maximum number of schedules to return
+            workspace: when given, scope to the active workspace (tenancy Stage 3).
+                Schedules are scoped by ``script__workspace`` — the authoritative
+                source — since a schedule's own ``workspace`` FK may predate
+                stamping.
 
         Returns:
             QuerySet of ScriptSchedule objects with upcoming runs
@@ -97,16 +115,15 @@ class DashboardService:
 
         now = timezone.now()
 
-        return (
-            ScriptSchedule.objects.filter(
-                next_run__isnull=False,
-                next_run__gt=now,
-                is_active=True,
-                run_mode__in=[ScriptSchedule.RunMode.INTERVAL, ScriptSchedule.RunMode.DAILY],
-            )
-            .select_related("script")
-            .order_by("next_run")[:limit]
+        schedules = ScriptSchedule.objects.filter(
+            next_run__isnull=False,
+            next_run__gt=now,
+            is_active=True,
+            run_mode__in=[ScriptSchedule.RunMode.INTERVAL, ScriptSchedule.RunMode.DAILY],
         )
+        if workspace is not None:
+            schedules = schedules.filter(script__workspace=workspace)
+        return schedules.select_related("script").order_by("next_run")[:limit]
 
     @classmethod
     def get_system_health(cls) -> dict:

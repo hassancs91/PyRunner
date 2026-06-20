@@ -13,28 +13,34 @@ from core.services.system_info_service import SystemInfoService
 @login_required
 def dashboard_view(request):
     """Main dashboard view with overview statistics."""
-    # Get statistics from service
-    stats = DashboardService.get_statistics()
+    ws = request.workspace
+
+    # Get statistics from service (scoped to the active workspace — tenancy Stage 3)
+    stats = DashboardService.get_statistics(workspace=ws)
+
+    # Active-workspace runs, reused by the legacy count cards and the pulse.
+    ws_runs = Run.objects.for_workspace(ws)
 
     # Legacy counts (for backwards compatibility)
-    runs_count = Run.objects.count()
+    runs_count = ws_runs.count()
+    # Environments are SHARED infrastructure (not workspace-scoped); count global.
     environments_count = Environment.objects.filter(is_active=True).count()
-    success_count = Run.objects.filter(status=Run.Status.SUCCESS).count()
-    failed_count = Run.objects.filter(
+    success_count = ws_runs.filter(status=Run.Status.SUCCESS).count()
+    failed_count = ws_runs.filter(
         status__in=[Run.Status.FAILED, Run.Status.TIMEOUT]
     ).count()
 
     # Recent activity
-    recent_runs = Run.objects.select_related("script", "triggered_by").order_by(
+    recent_runs = ws_runs.select_related("script", "triggered_by").order_by(
         "-created_at"
     )[:5]
-    recent_scripts = Script.objects.select_related("environment").order_by(
-        "-updated_at"
-    )[:5]
+    recent_scripts = Script.objects.for_workspace(ws).select_related(
+        "environment"
+    ).order_by("-updated_at")[:5]
 
     # Run pulse — last 40 runs, oldest → newest, for the activity ribbon.
     # `height` (14–100) encodes run duration so the ribbon reads like a heartbeat.
-    pulse_runs = list(Run.objects.order_by("-created_at")[:40])
+    pulse_runs = list(ws_runs.order_by("-created_at")[:40])
     pulse_runs.reverse()
     run_pulse = []
     for r in pulse_runs:
@@ -42,9 +48,9 @@ def dashboard_view(request):
         height = 26 if d is None else int(18 + min(d, 60) / 60 * 82)
         run_pulse.append({"status": r.status, "height": height})
 
-    # New widgets
-    recent_failures = DashboardService.get_recent_failures()
-    upcoming_runs = DashboardService.get_upcoming_scheduled_runs()
+    # New widgets (scoped to the active workspace — tenancy Stage 3)
+    recent_failures = DashboardService.get_recent_failures(workspace=ws)
+    upcoming_runs = DashboardService.get_upcoming_scheduled_runs(workspace=ws)
     system_health = DashboardService.get_system_health()
     system_resources = SystemInfoService.get_system_resources()
 

@@ -4,6 +4,7 @@ API Token management views for the control panel.
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -12,10 +13,23 @@ from core.forms import DataStoreAPITokenForm
 from core.models import DataStore, DataStoreAPIToken
 
 
+def _token_scope(request):
+    """Q scoping tokens to the active workspace (tenancy Stage 3).
+
+    Includes NULL-workspace tokens (legacy/un-stamped) so a single-workspace
+    instance is byte-for-byte; once a token is created post-Stage-3 it carries a
+    workspace and is no longer visible cross-workspace.
+    """
+    return Q(workspace=request.workspace) | Q(workspace__isnull=True)
+
+
 @login_required
 def api_token_list_view(request: HttpRequest) -> HttpResponse:
-    """List all API tokens."""
-    tokens = DataStoreAPIToken.objects.select_related("datastore", "created_by").all()
+    """List the active workspace's API tokens."""
+    tokens = (
+        DataStoreAPIToken.objects.filter(_token_scope(request))
+        .select_related("datastore", "created_by")
+    )
 
     return render(
         request,
@@ -30,12 +44,15 @@ def api_token_list_view(request: HttpRequest) -> HttpResponse:
 def api_token_create_view(request: HttpRequest) -> HttpResponse:
     """Create a new API token."""
     if request.method == "POST":
-        form = DataStoreAPITokenForm(request.POST)
+        form = DataStoreAPITokenForm(request.POST, workspace=request.workspace)
         if form.is_valid():
             token = form.save(commit=False)
             # Generate the token value
             token.token = DataStoreAPIToken.generate_token()
             token.created_by = request.user
+            # Stamp the active workspace (tenancy Stage 3) so the token only
+            # resolves this workspace's datastores.
+            token.workspace = request.workspace
             token.save()
 
             # Store the token in session for one-time display
@@ -45,7 +62,7 @@ def api_token_create_view(request: HttpRequest) -> HttpResponse:
             messages.success(request, f'API token "{token.name}" created successfully.')
             return redirect("cpanel:api_token_created", pk=token.pk)
     else:
-        form = DataStoreAPITokenForm()
+        form = DataStoreAPITokenForm(workspace=request.workspace)
 
     return render(
         request,
@@ -59,7 +76,7 @@ def api_token_create_view(request: HttpRequest) -> HttpResponse:
 @login_required
 def api_token_created_view(request: HttpRequest, pk) -> HttpResponse:
     """Display newly created token (one-time view)."""
-    token_obj = get_object_or_404(DataStoreAPIToken, pk=pk)
+    token_obj = get_object_or_404(DataStoreAPIToken, _token_scope(request), pk=pk)
 
     # Get the token value from session (one-time display)
     new_token = request.session.pop("new_api_token", None)
@@ -85,7 +102,7 @@ def api_token_created_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def api_token_revoke_view(request: HttpRequest, pk) -> HttpResponse:
     """Revoke (delete) an API token."""
-    token = get_object_or_404(DataStoreAPIToken, pk=pk)
+    token = get_object_or_404(DataStoreAPIToken, _token_scope(request), pk=pk)
     name = token.name
     token.delete()
 
@@ -97,7 +114,7 @@ def api_token_revoke_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def api_token_toggle_view(request: HttpRequest, pk) -> HttpResponse:
     """Toggle an API token's active status."""
-    token = get_object_or_404(DataStoreAPIToken, pk=pk)
+    token = get_object_or_404(DataStoreAPIToken, _token_scope(request), pk=pk)
     token.is_active = not token.is_active
     token.save(update_fields=["is_active"])
 

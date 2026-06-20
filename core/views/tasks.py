@@ -21,17 +21,20 @@ def tasks_view(request: HttpRequest) -> HttpResponse:
     page = int(request.GET.get("page", 1))
     per_page = 50
 
+    # Active workspace scopes all task listings (tenancy Stage 3).
+    ws = request.workspace
+
     # Get task statistics
-    stats = TaskService.get_task_statistics()
+    stats = TaskService.get_task_statistics(workspace=ws)
 
     # Get stuck tasks
-    stuck_tasks = TaskService.get_stuck_tasks()
+    stuck_tasks = TaskService.get_stuck_tasks(workspace=ws)
 
     # Get currently running tasks (for the Stop button)
-    running_tasks = TaskService.get_running_tasks()
+    running_tasks = TaskService.get_running_tasks(workspace=ws)
 
     # Get queued tasks
-    queued_tasks = TaskService.get_queued_tasks()
+    queued_tasks = TaskService.get_queued_tasks(workspace=ws)
 
     # Get completed tasks with filtering
     completed_status = None
@@ -45,6 +48,7 @@ def tasks_view(request: HttpRequest) -> HttpResponse:
         status_filter=completed_status,
         limit=per_page,
         offset=offset,
+        workspace=ws,
     )
 
     # Calculate pagination
@@ -71,9 +75,10 @@ def tasks_api_view(request: HttpRequest) -> JsonResponse:
     API endpoint for real-time task updates (AJAX polling).
     Returns current task state for auto-refresh feature.
     """
-    stats = TaskService.get_task_statistics()
-    queued_tasks = TaskService.get_queued_tasks()
-    stuck_tasks = TaskService.get_stuck_tasks()
+    ws = request.workspace
+    stats = TaskService.get_task_statistics(workspace=ws)
+    queued_tasks = TaskService.get_queued_tasks(workspace=ws)
+    stuck_tasks = TaskService.get_stuck_tasks(workspace=ws)
 
     # Serialize queued tasks
     queued_data = []
@@ -111,7 +116,9 @@ def task_cancel_view(request: HttpRequest, task_id: str) -> JsonResponse:
     """
     Cancel a queued task.
     """
-    success, message = TaskService.cancel_queued_task(task_id)
+    success, message = TaskService.cancel_queued_task(
+        task_id, workspace=request.workspace
+    )
 
     if success:
         return JsonResponse({"success": True, "message": message})
@@ -125,7 +132,9 @@ def task_force_stop_view(request: HttpRequest, task_id: str) -> JsonResponse:
     """
     Force stop a running task.
     """
-    success, message = TaskService.force_stop_task(task_id)
+    success, message = TaskService.force_stop_task(
+        task_id, workspace=request.workspace
+    )
 
     if success:
         return JsonResponse({"success": True, "message": message})
@@ -139,7 +148,7 @@ def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
     Detail page for a single task (queued, completed/failed, or system task
     with no linked Run).
     """
-    task = TaskService.get_task_detail(task_id)
+    task = TaskService.get_task_detail(task_id, workspace=request.workspace)
     if task is None:
         raise Http404("Task not found")
 

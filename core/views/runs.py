@@ -14,7 +14,11 @@ RUNS_PER_PAGE = 25
 @login_required
 def run_list_view(request: HttpRequest) -> HttpResponse:
     """List all runs with optional filtering."""
-    runs = Run.objects.select_related("script", "triggered_by").order_by("-created_at")
+    runs = (
+        Run.objects.for_workspace(request.workspace)
+        .select_related("script", "triggered_by")
+        .order_by("-created_at")
+    )
 
     # Optional filtering by status
     status_filter = request.GET.get("status")
@@ -26,8 +30,8 @@ def run_list_view(request: HttpRequest) -> HttpResponse:
     if script_filter:
         runs = runs.filter(script_id=script_filter)
 
-    # Get all scripts for filter dropdown
-    scripts = Script.objects.all().order_by("name")
+    # Get the active workspace's scripts for the filter dropdown
+    scripts = Script.objects.for_workspace(request.workspace).order_by("name")
 
     # Paginate
     paginator = Paginator(runs, RUNS_PER_PAGE)
@@ -58,7 +62,8 @@ def run_detail_view(request: HttpRequest, pk) -> HttpResponse:
     """View run details including output."""
     run = get_object_or_404(
         Run.objects.select_related("script", "triggered_by"),
-        pk=pk
+        pk=pk,
+        workspace=request.workspace,
     )
 
     return render(request, "cpanel/runs/detail.html", {"run": run})

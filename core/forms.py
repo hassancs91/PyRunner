@@ -614,6 +614,12 @@ class BulkInstallForm(forms.Form):
 class SecretCreateForm(forms.Form):
     """Form for creating a new secret."""
 
+    def __init__(self, *args, workspace=None, **kwargs):
+        # The active workspace scopes the key-uniqueness check (tenancy Stage 3:
+        # secret keys are unique per workspace, not globally).
+        self._workspace = workspace
+        super().__init__(*args, **kwargs)
+
     key = forms.CharField(
         max_length=100,
         widget=forms.TextInput(
@@ -683,11 +689,17 @@ class SecretCreateForm(forms.Form):
                 f"'{key}' is a reserved environment variable name."
             )
 
-        # Check if key already exists
+        # Check if key already exists within the active workspace (keys are
+        # per-workspace, so two workspaces can each own an API_KEY).
         from core.models import Secret
 
-        if Secret.objects.filter(key=key).exists():
-            raise forms.ValidationError(f"A secret with key '{key}' already exists.")
+        qs = Secret.objects.filter(key=key)
+        if self._workspace is not None:
+            qs = qs.filter(workspace=self._workspace)
+        if qs.exists():
+            raise forms.ValidationError(
+                f"A secret with key '{key}' already exists in this workspace."
+            )
 
         return key
 
@@ -1532,12 +1544,18 @@ class DataStoreAPITokenForm(forms.ModelForm):
             "expires_at": "Optional. Leave empty for no expiration.",
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, workspace=None, **kwargs):
         super().__init__(*args, **kwargs)
         # Make datastore optional with a clear empty choice
         self.fields["datastore"].required = False
         self.fields["datastore"].empty_label = "All Datastores (Global Access)"
         self.fields["expires_at"].required = False
+        # Scope the datastore choices to the active workspace (tenancy Stage 3),
+        # so a token can't be bound to another workspace's datastore.
+        if workspace is not None:
+            self.fields["datastore"].queryset = DataStore.objects.for_workspace(
+                workspace
+            )
 
 
 # =============================================================================

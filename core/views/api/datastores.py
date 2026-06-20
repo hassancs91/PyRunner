@@ -8,7 +8,7 @@ from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from core.models import DataStore, DataStoreEntry
+from core.models import DataStore, DataStoreEntry, Workspace
 from core.views.api.decorators import api_token_required, add_cors_headers
 
 logger = logging.getLogger(__name__)
@@ -51,8 +51,15 @@ def list_datastores(request: HttpRequest) -> JsonResponse:
         # Token restricted to single datastore
         datastores = [token.datastore]
     else:
-        # Global token - list all datastores
-        datastores = DataStore.objects.all()
+        # Global token: list only the token's workspace datastores (tenancy
+        # Stage 3). A NULL-workspace token falls back to the default workspace,
+        # so a single-workspace instance is byte-for-byte (every store is there).
+        effective_ws = token.workspace or Workspace.get_default()
+        datastores = (
+            DataStore.objects.for_workspace(effective_ws)
+            if effective_ws is not None
+            else DataStore.objects.all()
+        )
 
     data = {
         "datastores": [
@@ -243,9 +250,12 @@ def _get_authorized_datastore(request: HttpRequest, name: str):
 
     # Scope by-name resolution to the token's workspace (tenancy Decision 2B). A
     # datastore-scoped token resolves within its datastore's workspace; a global
-    # token falls back to the default workspace (a per-token workspace binding
-    # for multi-tenant API access lands with the Stage 3 token sweep).
-    workspace_id = token.datastore.workspace_id if token.datastore_id else None
+    # token resolves within its own workspace FK (Stage 3); NULL falls back to
+    # the default workspace.
+    if token.datastore_id:
+        workspace_id = token.datastore.workspace_id
+    else:
+        workspace_id = token.workspace_id
 
     try:
         datastore = DataStore.resolve_for_workspace(name, workspace_id)
