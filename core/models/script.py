@@ -21,6 +21,18 @@ class Script(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
 
+    # Tenancy seam (Phase A): nullable, backfilled to the default workspace.
+    # No query-scoping yet — present so rows already carry the column.
+    workspace = models.ForeignKey(
+        "core.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="scripts",
+        help_text="Workspace this resource belongs to (tenancy seam; nullable).",
+    )
+
     # The actual Python code
     code = models.TextField(help_text="Python code to execute")
 

@@ -42,6 +42,17 @@ class ScriptSchedule(models.Model):
         related_name="schedule",
     )
 
+    # Tenancy seam (Phase A): nullable, backfilled to the default workspace.
+    workspace = models.ForeignKey(
+        "core.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="schedules",
+        help_text="Workspace this schedule belongs to (tenancy seam; nullable).",
+    )
+
     # Run mode selection
     run_mode = models.CharField(
         max_length=20,

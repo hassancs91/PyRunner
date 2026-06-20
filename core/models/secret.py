@@ -16,6 +16,17 @@ class Secret(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
+    # Tenancy seam (Phase A): nullable, backfilled to the default workspace.
+    workspace = models.ForeignKey(
+        "core.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="secrets",
+        help_text="Workspace this resource belongs to (tenancy seam; nullable).",
+    )
+
     # Key name - must be uppercase with underscores (e.g., API_KEY, DATABASE_URL)
     key = models.CharField(
         max_length=100,

@@ -36,6 +36,17 @@ class Run(models.Model):
         related_name="runs",
     )
 
+    # Tenancy seam (Phase A): nullable, backfilled to the default workspace.
+    workspace = models.ForeignKey(
+        "core.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="runs",
+        help_text="Workspace this run belongs to (tenancy seam; nullable).",
+    )
+
     # Execution status
     status = models.CharField(
         max_length=20,

@@ -6,6 +6,7 @@ This module exports all models for easy importing:
 """
 
 from .user import User, MagicToken, UserInvite, PasswordResetToken
+from .workspace import Workspace
 from .environment import Environment
 from .script import Script
 from .run import Run
@@ -24,6 +25,7 @@ __all__ = [
     "MagicToken",
     "UserInvite",
     "PasswordResetToken",
+    "Workspace",
     "Environment",
     "Script",
     "Run",

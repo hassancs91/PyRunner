@@ -5,7 +5,7 @@ This command is designed to be used as a Docker entrypoint or for
 scripted deployments where browser-based setup is not available.
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from core.services.setup_service import SetupService
 
@@ -37,8 +37,12 @@ class Command(BaseCommand):
         if success:
             self.stdout.write(self.style.SUCCESS("  Migrations complete"))
         else:
+            # Fail HARD on a migration error. entrypoint.sh runs this under
+            # `set -e`, so a non-zero exit aborts the boot and the orchestrator
+            # keeps the previous container instead of serving a half-migrated DB
+            # (which would pass the GET / healthcheck while 500-ing real pages).
             self.stdout.write(self.style.ERROR(f"  Migration failed: {message}"))
-            return
+            raise CommandError(f"Database migration failed: {message}")
 
         # Check if full setup is needed (environment creation, etc.)
         if not force and not SetupService.is_setup_needed():

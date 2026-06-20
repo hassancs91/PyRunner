@@ -23,6 +23,18 @@ class DataStore(models.Model):
         help_text="Unique name for this data store (used in scripts)",
     )
 
+    # Tenancy seam (Phase A): nullable, backfilled to the default workspace.
+    # `name` stays GLOBALLY unique (the by-name helper + REST API depend on it).
+    workspace = models.ForeignKey(
+        "core.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="datastores",
+        help_text="Workspace this resource belongs to (tenancy seam; nullable).",
+    )
+
     description = models.TextField(
         blank=True,
         help_text="Optional description of what this data store is used for",
