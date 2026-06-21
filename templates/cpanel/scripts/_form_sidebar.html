@@ -19,6 +19,12 @@
                 {% if form.timeout_seconds.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.timeout_seconds.help_text }}</p>{% endif %}
                 {% if form.timeout_seconds.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.timeout_seconds.errors.0 }}</p>{% endif %}
             </div>
+            <div>
+                <label for="id_isolation_mode" class="block text-[13px] font-medium text-text mb-1.5">{{ form.isolation_mode.label }}</label>
+                {{ form.isolation_mode }}
+                {% if form.isolation_mode.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.isolation_mode.help_text }}</p>{% endif %}
+                {% if form.isolation_mode.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.isolation_mode.errors.0 }}</p>{% endif %}
+            </div>
             <label class="flex items-center gap-3 pt-3 border-t border-line-soft cursor-pointer">
                 {{ form.is_enabled }}
                 <span>

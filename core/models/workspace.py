@@ -43,12 +43,29 @@ class Workspace(models.Model):
     workspace-aware and the rows already carry the column.
     """
 
+    # Per-workspace execution-isolation policy (sandbox Stage 3). Null = inherit
+    # the instance default (GlobalSettings.sandbox_default). An Owner/Admin can
+    # only TIGHTEN toward 'required' relative to the instance default; it never
+    # weakens the instance floor (resolve_isolation takes the stricter of the two).
+    class SandboxPolicy(models.TextChoices):
+        OFF = "off", "Off"
+        OPTIONAL = "optional", "Optional"
+        REQUIRED = "required", "Required"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, default="Default Workspace")
     is_default = models.BooleanField(
         default=False,
         db_index=True,
         help_text="The fallback workspace assigned to existing/un-scoped resources.",
+    )
+    sandbox_policy = models.CharField(
+        max_length=20,
+        choices=SandboxPolicy.choices,
+        null=True,
+        blank=True,
+        help_text="Execution-isolation policy for this workspace. Blank = inherit "
+        "the instance default. Can only tighten toward 'required'.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -11,13 +11,14 @@ import os
 import subprocess
 import tempfile
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
-from core.executor_backends import RunSpec, get_run_backend
+from core.executor_backends import LocalSubprocessBackend, RunSpec, get_run_backend
 
 # Re-exported so ``from core.executor import _kill_process_tree`` keeps working
 # (TaskService.force_stop_task imports it). The implementation now lives with
@@ -345,6 +346,92 @@ def _resolve_run_limits() -> dict | None:
     return limits or None
 
 
+# Strictness ordering for the isolation policy. A workspace may TIGHTEN the
+# instance default toward 'required' but never weaken below it.
+_SANDBOX_STRICTNESS = {"off": 0, "optional": 1, "required": 2}
+
+
+@dataclass
+class IsolationDecision:
+    """The resolved isolation policy for one run."""
+
+    sandbox: bool  # True => run under the sandbox backend
+    mandatory: bool  # True => effective policy is 'required' (fail-closed may apply)
+    reason: str = ""  # short human explanation (logs)
+
+
+def resolve_isolation(run, gs=None) -> IsolationDecision:
+    """Resolve whether a run is sandboxed from the DB policy hierarchy.
+
+    instance default (``GlobalSettings.sandbox_default``) → workspace policy
+    (``Workspace.sandbox_policy``, can only TIGHTEN) → per-script toggle
+    (``Script.isolation_mode``, honored only under 'optional'). Resolved at run
+    time, so a policy change applies on the next run with no restart.
+
+    A default instance (sandbox_default 'off', workspace policy null, script
+    'inherit') returns ``sandbox=False`` — today's behavior, byte-for-byte.
+    """
+    if gs is None:
+        gs = GlobalSettings.get_settings()
+    base = gs.sandbox_default or "off"
+
+    # Workspace policy can only make a run stricter than the instance default —
+    # an Owner/Admin can mandate isolation but can't disable an instance floor.
+    workspace = None
+    if run is not None:
+        workspace = getattr(run, "workspace", None)
+        if workspace is None and getattr(run, "script_id", None):
+            workspace = run.script.workspace
+    ws_policy = getattr(workspace, "sandbox_policy", None) if workspace else None
+
+    effective = base
+    if ws_policy and _SANDBOX_STRICTNESS.get(ws_policy, 0) > _SANDBOX_STRICTNESS.get(base, 0):
+        effective = ws_policy
+
+    if effective == "required":
+        return IsolationDecision(True, True, "policy: required")
+    if effective == "off":
+        return IsolationDecision(False, False, "policy: off")
+
+    # 'optional': honor the per-script toggle ('sandboxed' opts in; else plain).
+    mode = (
+        getattr(run.script, "isolation_mode", "inherit")
+        if (run is not None and getattr(run, "script_id", None))
+        else "inherit"
+    )
+    if mode == "sandboxed":
+        return IsolationDecision(True, False, "optional: script sandboxed")
+    return IsolationDecision(False, False, "optional: script not sandboxed")
+
+
+def _select_backend_for_run(run, gs):
+    """Pick the backend for a run. An explicit ``PYRUNNER_RUN_BACKEND`` env value
+    is a break-glass override; otherwise the DB isolation policy decides.
+
+    Returns ``(backend, decision)`` — ``decision.mandatory`` drives fail-closed.
+    The plain/local path deliberately flows through ``get_run_backend()`` so the
+    single backend seam (and the ``PYRUNNER_RUN_BACKEND=local`` break-glass value)
+    keeps working unchanged; only the sandbox-policy path bypasses it.
+    """
+    decision = resolve_isolation(run, gs)
+    override = os.environ.get("PYRUNNER_RUN_BACKEND", "").strip().lower()
+
+    # Sandbox is selected by an explicit 'sandbox' override or by the resolved
+    # policy — unless an explicit 'local' override forces the plain path.
+    want_sandbox = override == "sandbox" or (decision.sandbox and override != "local")
+    if want_sandbox:
+        from core.executor_backends import SandboxedSubprocessBackend
+
+        reason = "override: sandbox" if override == "sandbox" else decision.reason
+        return SandboxedSubprocessBackend(), IsolationDecision(
+            True, decision.mandatory, reason
+        )
+
+    # Plain path: keep using the get_run_backend() seam (byte-for-byte default;
+    # honors a 'local' break-glass value), so existing callers/tests are intact.
+    return get_run_backend(), IsolationDecision(False, False, decision.reason)
+
+
 def execute_run(run: Run, webhook_data: dict | None = None) -> None:
     """
     Execute a script run and update the Run record with results.
@@ -435,13 +522,39 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
                 if claude_env.get(cred_key):
                     secrets[cred_key] = claude_env[cred_key]
 
-            # Hand the prepared command to the configured RunBackend. The local
-            # backend (default) launches the script in its own process group/
-            # session so the web process can later kill the whole job tree
-            # (force stop / timeout) without touching the django-q worker. The
-            # Run lifecycle below — pid record, masking, truncation, status
-            # mapping, the cancel-safe save — stays in core.
-            backend = get_run_backend()
+            # Select the RunBackend from the DB isolation policy (instance →
+            # workspace → script), resolved per-run; an explicit
+            # PYRUNNER_RUN_BACKEND env value is a break-glass override. The chosen
+            # backend launches the script in its own process group/session so the
+            # web process can later kill the whole job tree (force stop / timeout)
+            # without touching the django-q worker. The Run lifecycle below — pid
+            # record, masking, truncation, status mapping, the cancel-safe save —
+            # stays in core.
+            gs = GlobalSettings.get_settings()
+            backend, decision = _select_backend_for_run(run, gs)
+
+            # Fail-closed: when isolation is REQUIRED but the host can't deliver a
+            # full sandbox, an opt-in instance fails the run rather than silently
+            # degrading to a weaker tier. Default (fail_closed off) degrades+warns
+            # inside the backend, preserving the accident-model behavior.
+            if decision.sandbox and decision.mandatory and gs.sandbox_fail_closed:
+                from core.executor_backends.sandboxed import runtime_tier
+                from core.services.sandbox import CAP_FULL
+
+                if runtime_tier() != CAP_FULL:
+                    run.status = Run.Status.FAILED
+                    run.exit_code = -1
+                    run.stderr = (
+                        "Isolation is required for this run, but a full sandbox is "
+                        "unavailable on this host and fail-closed is enabled "
+                        f"(active tier: {runtime_tier()}). The run was not executed."
+                    )
+                    logger.error(
+                        "Run %s blocked by fail-closed: sandbox required but unavailable",
+                        run.id,
+                    )
+                    return  # the finally block persists this FAILED state
+
             spec = RunSpec(
                 cmd=cmd,
                 env=script_env,

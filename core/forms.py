@@ -88,6 +88,7 @@ class ScriptForm(forms.ModelForm):
             "tags",
             "timeout_seconds",
             "is_enabled",
+            "isolation_mode",
             "notify_on",
             "notify_email",
             "notify_webhook_url",
@@ -117,6 +118,7 @@ class ScriptForm(forms.ModelForm):
                 attrs={"class": INPUT_CLASS, "min": 1, "max": 86400}
             ),
             "is_enabled": forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+            "isolation_mode": forms.Select(attrs={"class": INPUT_CLASS}),
             "notify_on": forms.Select(attrs={"class": INPUT_CLASS}),
             "notify_email": forms.EmailInput(
                 attrs={
@@ -140,6 +142,7 @@ class ScriptForm(forms.ModelForm):
             "tags": "Tags",
             "timeout_seconds": "Timeout (seconds)",
             "is_enabled": "Enabled",
+            "isolation_mode": "Execution Isolation",
             "notify_on": "Notify On",
             "notify_email": "Notification Email",
             "notify_webhook_url": "Webhook URL",
@@ -147,6 +150,7 @@ class ScriptForm(forms.ModelForm):
         }
         help_texts = {
             "timeout_seconds": "Maximum execution time (1 second to 24 hours)",
+            "isolation_mode": "Run sandboxed. Effective only when the workspace policy is 'optional' (a 'required' workspace always sandboxes).",
             "notify_email": "Leave empty to use global default",
             "notify_webhook_url": "URL to POST notifications to when script completes",
         }

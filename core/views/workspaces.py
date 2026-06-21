@@ -182,6 +182,33 @@ def workspace_delete_view(request: HttpRequest, pk) -> HttpResponse:
 
 
 @login_required
+@require_POST
+def workspace_sandbox_policy_view(request: HttpRequest, pk) -> HttpResponse:
+    """Set a workspace's execution-isolation policy (Owner/Admin or superuser).
+
+    Blank ⇒ inherit the instance default. A workspace policy can only TIGHTEN the
+    effective isolation toward 'required' (resolve_isolation enforces the floor),
+    so an Owner/Admin can mandate isolation but can't weaken an instance default.
+    """
+    workspace = get_object_or_404(Workspace, pk=pk)
+    _require_manage(request, workspace)
+
+    policy = (request.POST.get("sandbox_policy") or "").strip()
+    valid = {c[0] for c in Workspace.SandboxPolicy.choices}
+    if policy == "":
+        workspace.sandbox_policy = None  # inherit the instance default
+    elif policy in valid:
+        workspace.sandbox_policy = policy
+    else:
+        messages.error(request, "Invalid isolation policy.")
+        return redirect("cpanel:workspace_list")
+
+    workspace.save(update_fields=["sandbox_policy", "updated_at"])
+    messages.success(request, f"Isolation policy for '{workspace.name}' updated.")
+    return redirect("cpanel:workspace_list")
+
+
+@login_required
 def workspace_members_view(request: HttpRequest, pk) -> HttpResponse:
     """List/manage the members of a workspace (Owner/Admin or superuser)."""
     workspace = get_object_or_404(Workspace, pk=pk)

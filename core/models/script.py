@@ -66,6 +66,22 @@ class Script(models.Model):
         help_text="Whether this script can be executed",
     )
 
+    # Per-script execution-isolation toggle (sandbox Stage 3). Honored only when
+    # the effective workspace policy is 'optional'; a 'required' workspace locks
+    # isolation on regardless, and an 'off' instance/workspace ignores it.
+    class IsolationMode(models.TextChoices):
+        INHERIT = "inherit", "Inherit (workspace default)"
+        SANDBOXED = "sandboxed", "Sandboxed"
+        PLAIN = "plain", "Plain"
+
+    isolation_mode = models.CharField(
+        max_length=20,
+        choices=IsolationMode.choices,
+        default=IsolationMode.INHERIT,
+        help_text="Run this script sandboxed. Effective only when the workspace "
+        "policy is 'optional' (a 'required' workspace always sandboxes).",
+    )
+
     # Webhook
     webhook_token = models.CharField(
         max_length=64,

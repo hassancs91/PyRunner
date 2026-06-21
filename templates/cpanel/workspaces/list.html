@@ -37,6 +37,16 @@
                         <div class="flex items-center gap-2 flex-shrink-0">
                             <a href="{% url 'cpanel_ws:dashboard' workspace_id=ws.id %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Open</a>
                             {% if ws.user_can_manage %}
+                            <form method="post" action="{% url 'cpanel:workspace_sandbox_policy' pk=ws.id %}" class="flex items-center">
+                                {% csrf_token %}
+                                <select name="sandbox_policy" onchange="this.form.submit()" title="Execution isolation policy for this workspace"
+                                        class="text-[13px] px-2.5 py-1.5 rounded-lg border border-line bg-ink text-muted focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
+                                    <option value="" {% if not ws.sandbox_policy %}selected{% endif %}>Isolation: Inherit</option>
+                                    <option value="off" {% if ws.sandbox_policy == 'off' %}selected{% endif %}>Isolation: Off</option>
+                                    <option value="optional" {% if ws.sandbox_policy == 'optional' %}selected{% endif %}>Isolation: Optional</option>
+                                    <option value="required" {% if ws.sandbox_policy == 'required' %}selected{% endif %}>Isolation: Required</option>
+                                </select>
+                            </form>
                             <a href="{% url 'cpanel:workspace_members' pk=ws.id %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Members</a>
                             <button type="button"
                                     data-rename-url="{% url 'cpanel:workspace_rename' pk=ws.id %}"
