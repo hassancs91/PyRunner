@@ -289,6 +289,18 @@ class PluginService:
         """
         warnings = []
         if remove_data:
+            # Plugin Platform v2: owned resources (owner_plugin=slug) are the
+            # plugin's real persistence — delete them. Best-effort + field-gated so
+            # it never errors on a pre-v2 schema. Owned Scripts cascade to their
+            # Runs/Schedules/SecretGrants; owned Secrets/DataStores cascade to
+            # their grants/entries. User (owner-NULL) rows are never touched.
+            removed = PluginService._cleanup_owned_resources(plugin.slug)
+            if removed:
+                logger.info("Plugin %r owned-data removed: %s", plugin.slug, removed)
+
+            # Legacy path: a v1 plugin that shipped its own models/migrations still
+            # gets its tables dropped in isolation. A v2 plugin ships none, so this
+            # is a no-op for it.
             ok, output = PluginService._run_uninstall_data(plugin.slug)
             if not ok:
                 warnings.append(
@@ -304,6 +316,29 @@ class PluginService:
         plugin.delete()
         logger.info("Plugin %r deleted (remove_data=%s)", slug, remove_data)
         return warnings
+
+    @staticmethod
+    def _cleanup_owned_resources(slug: str) -> dict:
+        """Delete Script/Secret/DataStore rows owned by ``slug``. Returns counts.
+
+        Field-gated (a pre-v2 schema has no ``owner_plugin`` column) and wrapped so
+        a cleanup failure can never block plugin removal — the files + registry row
+        are still removed by the caller.
+        """
+        from core.models import DataStore, Script, Secret
+
+        counts = {}
+        for model, label in ((Script, "scripts"), (Secret, "secrets"), (DataStore, "datastores")):
+            try:
+                model._meta.get_field("owner_plugin")  # raises if column absent
+                deleted, _ = model.objects.filter(owner_plugin=slug).delete()
+                if deleted:
+                    counts[label] = deleted
+            except Exception as exc:
+                logger.warning(
+                    "Owned-%s cleanup skipped for plugin %r: %s", label, slug, exc
+                )
+        return counts
 
     # ------------------------------------------------------------- restart info
 

@@ -24,6 +24,8 @@ from core.models import (
     SecretGrant,
     Workspace,
 )
+from core.services.backup_service import BackupService
+from core.services.plugin_service import PluginService
 
 
 def _secret(key, value, *, workspace=None, owner_plugin=None, owner_key=None):
@@ -161,3 +163,89 @@ class DataStoreOwnershipTests(TestCase):
         ds = DataStore.objects.create(name="plain", workspace=self.ws)
         self.assertIsNone(ds.owner_plugin)
         self.assertIsNone(ds.owner_key)
+
+
+class BackupRoundTripTests(TestCase):
+    def setUp(self):
+        self.ws = Workspace.get_default()
+        self.env = Environment.objects.create(name="e", path="bkenv")
+
+    def test_owner_fields_and_grants_round_trip(self):
+        owned_script = Script.objects.create(
+            name="o", code="x", environment=self.env, workspace=self.ws,
+            owner_plugin="pluginx", owner_key="backup",
+            injection_mode=Script.InjectionMode.SELECTED,
+        )
+        _secret("OWNED", "v", workspace=self.ws, owner_plugin="pluginx", owner_key="api")
+        user_secret = _secret("USERK", "u", workspace=self.ws)
+        DataStore.objects.create(
+            name="pluginx:state", workspace=self.ws,
+            owner_plugin="pluginx", owner_key="state",
+        )
+        SecretGrant.objects.create(script=owned_script, secret=user_secret)
+
+        backup = BackupService.create_backup(include_runs=False)
+        result = BackupService.restore_backup(backup, restore_runs=False)
+        self.assertTrue(result["success"], result.get("errors"))
+
+        s2 = Script.objects.get(owner_plugin="pluginx")
+        self.assertEqual(s2.owner_key, "backup")
+        self.assertEqual(s2.injection_mode, "selected")
+        self.assertEqual(Secret.objects.get(key="OWNED").owner_plugin, "pluginx")
+        self.assertEqual(DataStore.objects.get(name="pluginx:state").owner_plugin, "pluginx")
+        self.assertTrue(
+            SecretGrant.objects.filter(script=s2, secret__key="USERK", active=True).exists()
+        )
+
+    def test_pre_v2_backup_imports_as_null_owner_all_mode(self):
+        Script.objects.create(name="s", code="x", environment=self.env, workspace=self.ws)
+        _secret("K", "v", workspace=self.ws)
+        DataStore.objects.create(name="d", workspace=self.ws)
+
+        backup = BackupService.create_backup(include_runs=False)
+        # Mimic a pre-1.3.0 backup: strip every v2 field.
+        backup["backup_metadata"]["version"] = "1.2.0"
+        for s in backup["scripts"]:
+            for k in ("owner_plugin", "owner_key", "injection_mode", "secret_grants"):
+                s.pop(k, None)
+        for s in backup["secrets"]:
+            s.pop("owner_plugin", None)
+            s.pop("owner_key", None)
+        for d in backup["datastores"]:
+            d.pop("owner_plugin", None)
+            d.pop("owner_key", None)
+
+        result = BackupService.restore_backup(backup, restore_runs=False)
+        self.assertTrue(result["success"], result.get("errors"))
+        s2 = Script.objects.get(name="s")
+        self.assertIsNone(s2.owner_plugin)
+        self.assertEqual(s2.injection_mode, "all")  # legacy default
+        self.assertIsNone(Secret.objects.get(key="K").owner_plugin)
+        self.assertIsNone(DataStore.objects.get(name="d").owner_plugin)
+
+
+class OwnedCleanupTests(TestCase):
+    def setUp(self):
+        self.ws = Workspace.get_default()
+        self.env = Environment.objects.create(name="e", path="clenv")
+
+    def test_cleanup_removes_only_owned_rows(self):
+        Script.objects.create(
+            name="o", code="x", environment=self.env, workspace=self.ws, owner_plugin="pp"
+        )
+        Script.objects.create(name="u", code="x", environment=self.env, workspace=self.ws)
+        _secret("OWNED", "v", workspace=self.ws, owner_plugin="pp")
+        _secret("USERK", "u", workspace=self.ws)
+        DataStore.objects.create(name="pp:state", workspace=self.ws, owner_plugin="pp")
+        DataStore.objects.create(name="userds", workspace=self.ws)
+
+        counts = PluginService._cleanup_owned_resources("pp")
+
+        self.assertGreaterEqual(counts.get("scripts", 0), 1)
+        # Owned rows gone, user rows untouched.
+        self.assertFalse(Script.objects.filter(owner_plugin="pp").exists())
+        self.assertTrue(Script.objects.filter(name="u").exists())
+        self.assertFalse(Secret.objects.filter(owner_plugin="pp").exists())
+        self.assertTrue(Secret.objects.filter(key="USERK").exists())
+        self.assertFalse(DataStore.objects.filter(owner_plugin="pp").exists())
+        self.assertTrue(DataStore.objects.filter(name="userds").exists())

@@ -43,7 +43,12 @@ class BackupService:
     # collapsing every tenant into the default (tenancy Stage 5). Backward
     # compatible: a pre-1.2.0 backup has neither, and restore maps its rows to the
     # default workspace.
-    BACKUP_VERSION = "1.2.0"
+    # 1.3.0 — Plugin Platform v2: ``owner_plugin``/``owner_key`` on
+    # Script/Secret/DataStore, ``injection_mode`` + embedded ``secret_grants`` on
+    # scripts. Backward compatible: a pre-1.3.0 backup has none of these, and
+    # restore defaults them to NULL owner / ``injection_mode='all'`` / no grants
+    # (= today's behavior), so old backups never hit a UNIQUE violation.
+    BACKUP_VERSION = "1.3.0"
     MAX_BACKUP_SIZE_MB = 100
 
     # Backup format constants
@@ -198,6 +203,9 @@ class BackupService:
                 "code": script.code,
                 "environment_id": str(script.environment.id),
                 "workspace_id": str(script.workspace_id) if script.workspace_id else None,
+                "owner_plugin": script.owner_plugin,
+                "owner_key": script.owner_key,
+                "injection_mode": script.injection_mode,
                 "timeout_seconds": script.timeout_seconds,
                 "is_enabled": script.is_enabled,
                 "webhook_token": script.webhook_token,
@@ -207,6 +215,12 @@ class BackupService:
                 "notify_webhook_enabled": script.notify_webhook_enabled,
                 "retention_days_override": script.retention_days_override,
                 "retention_count_override": script.retention_count_override,
+                # Embedded per-script secret grants (selected-mode injection).
+                # Imported after secrets+scripts exist; old backups have none.
+                "secret_grants": [
+                    {"secret_id": str(g.secret_id), "active": g.active}
+                    for g in script.secret_grants.all()
+                ],
                 "created_at": cls._serialize_datetime(script.created_at),
                 "updated_at": cls._serialize_datetime(script.updated_at),
                 "created_by_email": script.created_by.email if script.created_by else None,
@@ -258,6 +272,8 @@ class BackupService:
                 "id": str(secret.id),
                 "key": secret.key,
                 "workspace_id": str(secret.workspace_id) if secret.workspace_id else None,
+                "owner_plugin": secret.owner_plugin,
+                "owner_key": secret.owner_key,
                 "encrypted_value": secret.encrypted_value,
                 "description": secret.description,
                 "created_at": cls._serialize_datetime(secret.created_at),
@@ -331,6 +347,8 @@ class BackupService:
                 "id": str(ds.id),
                 "name": ds.name,
                 "workspace_id": str(ds.workspace_id) if ds.workspace_id else None,
+                "owner_plugin": ds.owner_plugin,
+                "owner_key": ds.owner_key,
                 "description": ds.description,
                 "created_at": cls._serialize_datetime(ds.created_at),
                 "updated_at": cls._serialize_datetime(ds.updated_at),
@@ -660,6 +678,9 @@ class BackupService:
             env_map = cls._import_environments(backup_data.get("environments", []), user_map, current_user, ws_map, default_ws)
             cls._import_secrets(backup_data.get("secrets", []), user_map, current_user, ws_map, default_ws)
             script_map = cls._import_scripts(backup_data.get("scripts", []), env_map, user_map, current_user, ws_map, default_ws)
+            # Grants reference both Secrets (imported above) and Scripts (just
+            # imported), so they go in their own pass. Old backups carry none.
+            cls._import_secret_grants(backup_data.get("scripts", []), script_map)
             cls._import_schedules(backup_data.get("script_schedules", []), script_map, user_map, current_user, ws_map, default_ws)
             cls._import_schedule_history(backup_data.get("schedule_history", []), user_map, current_user)
 
@@ -822,6 +843,8 @@ class BackupService:
                 id=secret_data["id"],  # Preserve UUID
                 key=secret_data["key"],
                 workspace=cls._resolve_workspace(secret_data.get("workspace_id"), ws_map, default_ws),
+                owner_plugin=secret_data.get("owner_plugin"),
+                owner_key=secret_data.get("owner_key"),
                 encrypted_value=secret_data["encrypted_value"],
                 description=secret_data.get("description", ""),
                 created_at=cls._deserialize_datetime(secret_data.get("created_at")),
@@ -849,6 +872,9 @@ class BackupService:
                 code=script_data["code"],
                 environment=env,
                 workspace=cls._resolve_workspace(script_data.get("workspace_id"), ws_map, default_ws),
+                owner_plugin=script_data.get("owner_plugin"),
+                owner_key=script_data.get("owner_key"),
+                injection_mode=script_data.get("injection_mode", "all"),
                 timeout_seconds=script_data.get("timeout_seconds", 300),
                 is_enabled=script_data.get("is_enabled", False),
                 webhook_token=script_data.get("webhook_token"),
@@ -865,6 +891,30 @@ class BackupService:
             script_map[old_id] = script
 
         return script_map
+
+    @classmethod
+    def _import_secret_grants(cls, scripts_data: List[dict], script_map: dict) -> None:
+        """Recreate per-script secret grants embedded in the script export.
+
+        Runs after both secrets and scripts are imported (UUIDs preserved, so
+        secrets resolve by id). A grant pointing at a missing secret/script is
+        skipped (best-effort). Pre-1.3.0 backups carry no ``secret_grants`` key.
+        """
+        from core.models import SecretGrant
+
+        for script_data in scripts_data:
+            script = script_map.get(script_data["id"])
+            if not script:
+                continue
+            for grant in script_data.get("secret_grants", []):
+                secret = Secret.objects.filter(id=grant.get("secret_id")).first()
+                if secret is None:
+                    continue
+                SecretGrant.objects.get_or_create(
+                    script=script,
+                    secret=secret,
+                    defaults={"active": grant.get("active", True)},
+                )
 
     @classmethod
     def _import_schedules(cls, schedules_data: List[dict], script_map: dict, user_map: dict, current_user, ws_map: dict, default_ws) -> None:
@@ -977,6 +1027,8 @@ class BackupService:
                 id=old_id,  # Preserve UUID
                 name=ds_data["name"],
                 workspace=cls._resolve_workspace(ds_data.get("workspace_id"), ws_map, default_ws),
+                owner_plugin=ds_data.get("owner_plugin"),
+                owner_key=ds_data.get("owner_key"),
                 description=ds_data.get("description", ""),
                 created_at=cls._deserialize_datetime(ds_data.get("created_at")),
                 updated_at=cls._deserialize_datetime(ds_data.get("updated_at")),
