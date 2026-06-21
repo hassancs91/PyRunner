@@ -86,6 +86,7 @@
                         <tr class="hover:bg-panel-hi/50 transition-colors">
                             <td class="px-6 py-3.5 max-w-xs">
                                 <a href="{% url 'cpanel:script_detail' pk=script.pk %}" class="text-[13.5px] font-medium text-text hover:text-ok transition-colors">{{ script.name }}</a>
+                                {% include "cpanel/_owner_pill.html" with obj=script %}
                                 {% if script.description %}
                                 <p class="text-xs text-faint truncate mt-0.5">{{ script.description|truncatechars:60 }}</p>
                                 {% endif %}

@@ -55,6 +55,7 @@
                         <tr class="group hover:bg-panel-hi/50 transition-colors">
                             <td class="px-6 py-3.5">
                                 <a href="{% url 'cpanel:datastore_detail' pk=store.pk %}" class="font-mono text-sm text-info hover:underline">{{ store.name }}</a>
+                                {% include "cpanel/_owner_pill.html" with obj=store %}
                             </td>
                             <td class="px-6 py-3.5 text-sm text-muted max-w-xs truncate">{{ store.description|default:"—" }}</td>
                             <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ store.entry_count }}</td>

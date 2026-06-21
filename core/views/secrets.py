@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from core.forms import SecretCreateForm, SecretEditForm
 from core.models import Secret
 from core.services import EncryptionService
+from core.views.ownership import owned_block_message, owned_delete_blocked
 
 
 @login_required
@@ -115,6 +116,13 @@ def secret_edit_view(request: HttpRequest, pk) -> HttpResponse:
 def secret_delete_view(request: HttpRequest, pk) -> HttpResponse:
     """Delete a secret."""
     secret = get_object_or_404(Secret, pk=pk, workspace=request.workspace)
+
+    # Plugin Platform v2: refuse to delete a plugin-owned secret out from under
+    # its plugin (superuser force=1 is the escape hatch; cascade drops grants).
+    if owned_delete_blocked(request, secret):
+        messages.error(request, owned_block_message(secret, "secret"))
+        return redirect("cpanel:secret_list")
+
     key = secret.key
     secret.delete()
 

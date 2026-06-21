@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from core.forms import DataStoreForm, DataStoreEntryForm
 from core.models import DataStore, DataStoreEntry
 from core.services import DatastoreService
+from core.views.ownership import owned_block_message, owned_delete_blocked
 
 
 @login_required
@@ -106,6 +107,11 @@ def datastore_edit_view(request: HttpRequest, pk) -> HttpResponse:
 def datastore_delete_view(request: HttpRequest, pk) -> HttpResponse:
     """Delete a data store and all its entries."""
     datastore = get_object_or_404(DataStore, pk=pk, workspace=request.workspace)
+
+    if owned_delete_blocked(request, datastore):
+        messages.error(request, owned_block_message(datastore, "data store"))
+        return redirect("cpanel:datastore_list")
+
     name = datastore.name
     datastore.delete()
 

@@ -1,0 +1,4 @@
+{% comment %}
+Owner pill for a plugin-owned resource (Plugin Platform v2). Renders nothing for
+user/system rows (owner_plugin NULL). Include with: {% include "cpanel/_owner_pill.html" with obj=secret %}
+{% endcomment %}{% if obj.owner_plugin %}<span title="Managed by the “{{ obj.owner_plugin }}” plugin — manage it from the plugin page, or uninstall the plugin to remove it." class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-full bg-info/10 text-info border border-info/20 font-medium align-middle"><span class="w-1.5 h-1.5 rounded-full bg-info"></span>{{ obj.owner_plugin }}</span>{% endif %}

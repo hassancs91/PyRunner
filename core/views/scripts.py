@@ -12,6 +12,7 @@ from core.models import Script, Run, ScriptSchedule, ScheduleHistory, Tag
 from core.forms import ScriptForm, ScheduleForm
 from core.tasks import queue_script_run
 from core.services.schedule_service import ScheduleService
+from core.views.ownership import owned_block_message, owned_delete_blocked
 
 
 # Starter code templates available via ?template=<key> on the create page.
@@ -419,6 +420,10 @@ def script_delete_view(request: HttpRequest, pk) -> HttpResponse:
 
     if not script.is_archived:
         messages.error(request, "Only archived scripts can be permanently deleted.")
+        return redirect("cpanel:script_detail", pk=pk)
+
+    if owned_delete_blocked(request, script):
+        messages.error(request, owned_block_message(script, "script"))
         return redirect("cpanel:script_detail", pk=pk)
 
     name = script.name

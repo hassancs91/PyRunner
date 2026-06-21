@@ -11,8 +11,11 @@ Covers the data-model + executor half of WS3:
   * PYRUNNER_OWNER_PLUGIN exposed to an owned script's run env.
 """
 
+from unittest import mock
+
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.urls import reverse
 
 from core.executor import _build_script_environment, resolve_secrets_for_run
 from core.models import (
@@ -22,7 +25,9 @@ from core.models import (
     Script,
     Secret,
     SecretGrant,
+    User,
     Workspace,
+    WorkspaceMembership,
 )
 from core.services.backup_service import BackupService
 from core.services.plugin_service import PluginService
@@ -249,3 +254,51 @@ class OwnedCleanupTests(TestCase):
         self.assertTrue(Secret.objects.filter(key="USERK").exists())
         self.assertFalse(DataStore.objects.filter(owner_plugin="pp").exists())
         self.assertTrue(DataStore.objects.filter(name="userds").exists())
+
+
+class DeleteGuardTests(TestCase):
+    """Owned resources are delete-guarded on the generic Secrets page; a superuser
+    force=1 is the escape hatch. (Same guard wraps the script + datastore deletes.)"""
+
+    def setUp(self):
+        for target in (
+            "core.services.setup_service.SetupService.is_setup_needed",
+            "core.services.setup_service.SetupService.needs_admin_setup",
+        ):
+            p = mock.patch(target, return_value=False)
+            p.start()
+            self.addCleanup(p.stop)
+
+        self.ws = Workspace.get_default()
+        self.member = User.objects.create(email="m@example.com")
+        self.root = User.objects.create(email="r@example.com", is_superuser=True)
+        WorkspaceMembership.ensure(self.member, self.ws, WorkspaceMembership.ROLE_MEMBER)
+        WorkspaceMembership.ensure(self.root, self.ws, WorkspaceMembership.ROLE_OWNER)
+
+        self.owned = _secret("OWNED", "v", workspace=self.ws, owner_plugin="pp", owner_key="api")
+        self.free = _secret("FREE", "v", workspace=self.ws)
+
+    def _delete(self, secret, data=None):
+        return self.client.post(
+            reverse("cpanel:secret_delete", args=[secret.pk]), data or {}
+        )
+
+    def test_member_cannot_delete_owned(self):
+        self.client.force_login(self.member)
+        self._delete(self.owned)
+        self.assertTrue(Secret.objects.filter(pk=self.owned.pk).exists())
+
+    def test_superuser_blocked_without_force(self):
+        self.client.force_login(self.root)
+        self._delete(self.owned)
+        self.assertTrue(Secret.objects.filter(pk=self.owned.pk).exists())
+
+    def test_superuser_force_deletes_owned(self):
+        self.client.force_login(self.root)
+        self._delete(self.owned, {"force": "1"})
+        self.assertFalse(Secret.objects.filter(pk=self.owned.pk).exists())
+
+    def test_unowned_secret_deletes_normally(self):
+        self.client.force_login(self.member)
+        self._delete(self.free)
+        self.assertFalse(Secret.objects.filter(pk=self.free.pk).exists())
