@@ -19,6 +19,13 @@ def datastore_list_view(request: HttpRequest) -> HttpResponse:
     """List the active workspace's data stores."""
     datastores = DatastoreService.get_datastores_with_stats(request.workspace)
 
+    # Owner filter (Plugin Platform v2). get_datastores_with_stats returns a list,
+    # so owners + filtering are done in Python.
+    owners = sorted({ds.owner_plugin for ds in datastores if ds.owner_plugin})
+    owner_filter = request.GET.get("owner_plugin")
+    if owner_filter:
+        datastores = [ds for ds in datastores if ds.owner_plugin == owner_filter]
+
     # Format size for each datastore
     for ds in datastores:
         ds.size_display = DatastoreService.format_size(ds.size_bytes)
@@ -33,6 +40,8 @@ def datastore_list_view(request: HttpRequest) -> HttpResponse:
             "datastores": datastores,
             "total_size_display": total_size_display,
             "datastore_count": len(datastores),
+            "owners": owners,
+            "selected_owner": owner_filter or "",
         },
     )
 

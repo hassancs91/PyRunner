@@ -121,6 +121,20 @@ def script_list_view(request: HttpRequest) -> HttpResponse:
         except (Tag.DoesNotExist, ValueError, ValidationError):
             pass
 
+    # Filter by owning plugin (Plugin Platform v2). The owner list is computed
+    # from the whole workspace so the dropdown always offers every owner.
+    owners = list(
+        Script.objects.for_workspace(request.workspace)
+        .exclude(owner_plugin__isnull=True)
+        .exclude(owner_plugin="")
+        .order_by("owner_plugin")
+        .values_list("owner_plugin", flat=True)
+        .distinct()
+    )
+    owner_filter = request.GET.get("owner_plugin")
+    if owner_filter:
+        scripts = scripts.filter(owner_plugin=owner_filter)
+
     # Get all tags for filter dropdown
     all_tags = Tag.objects.all().order_by("name")
 
@@ -129,6 +143,8 @@ def script_list_view(request: HttpRequest) -> HttpResponse:
         "status_filter": status_filter,
         "all_tags": all_tags,
         "selected_tag": selected_tag,
+        "owners": owners,
+        "selected_owner": owner_filter or "",
     })
 
 

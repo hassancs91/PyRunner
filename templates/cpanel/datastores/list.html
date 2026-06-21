@@ -21,6 +21,12 @@
                 </a>
             </div>
 
+            {% if owners %}
+            <div class="flex justify-end">
+                {% include "cpanel/_owner_filter.html" with owners=owners selected_owner=selected_owner %}
+            </div>
+            {% endif %}
+
             {% if datastores %}
             <!-- Storage summary -->
             <div class="rounded-2xl border border-line bg-panel p-4 flex items-center justify-between gap-4">

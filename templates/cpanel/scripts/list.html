@@ -54,6 +54,8 @@
                     {% endif %}
                 </div>
                 {% endif %}
+
+                {% include "cpanel/_owner_filter.html" with owners=owners selected_owner=selected_owner %}
             </div>
 
             <script>

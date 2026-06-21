@@ -40,6 +40,20 @@ def secret_list_view(request: HttpRequest) -> HttpResponse:
     """List all secrets with masked values."""
     secrets = Secret.objects.for_workspace(request.workspace).order_by("key")
 
+    # Owner filter (Plugin Platform v2): owners computed before filtering so the
+    # dropdown always lists every owner present in the workspace.
+    owners = list(
+        Secret.objects.for_workspace(request.workspace)
+        .exclude(owner_plugin__isnull=True)
+        .exclude(owner_plugin="")
+        .order_by("owner_plugin")
+        .values_list("owner_plugin", flat=True)
+        .distinct()
+    )
+    owner_filter = request.GET.get("owner_plugin")
+    if owner_filter:
+        secrets = secrets.filter(owner_plugin=owner_filter)
+
     # Check if encryption is configured
     encryption_configured = EncryptionService.is_configured()
 
@@ -49,6 +63,8 @@ def secret_list_view(request: HttpRequest) -> HttpResponse:
         {
             "secrets": secrets,
             "encryption_configured": encryption_configured,
+            "owners": owners,
+            "selected_owner": owner_filter or "",
         },
     )
 

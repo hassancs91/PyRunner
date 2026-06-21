@@ -32,6 +32,9 @@ def superuser_required(view_func):
 def plugin_list_view(request: HttpRequest) -> HttpResponse:
     """List installed plugins with status, errors, and a restart banner."""
     plugins = list(Plugin.objects.all())
+    # Attach owned-resource counts for the delete-confirm preview (Plugin Platform v2).
+    for p in plugins:
+        p.owned_counts = PluginService.owned_resource_counts(p.slug)
     context = {
         "plugins": plugins,
         "pending_restart": PluginService.pending_restart(),

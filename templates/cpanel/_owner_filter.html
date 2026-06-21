@@ -1,0 +1,24 @@
+{% comment %}
+Owner-filter dropdown for the Scripts/Secrets/DataStores lists (Plugin Platform v2).
+Renders nothing unless plugin-owned rows exist. Include with:
+  {% include "cpanel/_owner_filter.html" with owners=owners selected_owner=selected_owner %}
+Preserves any other query params (status, tag) via searchParams.
+{% endcomment %}
+{% if owners %}
+<div class="flex items-center gap-2">
+    <span class="eyebrow text-faint">Owner</span>
+    <select onchange="filterByOwner(this.value)"
+            class="px-3 py-1.5 text-sm bg-panel border border-line rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-ok/40 focus:border-ok/50 transition">
+        <option value="">All owners</option>
+        {% for o in owners %}
+        <option value="{{ o }}" {% if selected_owner == o %}selected{% endif %}>{{ o }}</option>
+        {% endfor %}
+    </select>
+    {% if selected_owner %}
+    <a href="#" onclick="event.preventDefault();filterByOwner('');" class="text-sm text-muted hover:text-text transition-colors">Clear</a>
+    {% endif %}
+</div>
+<script>
+function filterByOwner(v){var u=new URL(window.location.href);if(v){u.searchParams.set('owner_plugin',v);}else{u.searchParams.delete('owner_plugin');}window.location.href=u.toString();}
+</script>
+{% endif %}

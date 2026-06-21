@@ -14,8 +14,9 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import (
-    Environment, Script, Secret, SecretGrant, User, Workspace, WorkspaceMembership,
+    DataStore, Environment, Script, Secret, SecretGrant, User, Workspace, WorkspaceMembership,
 )
+from core.services.plugin_service import PluginService
 from core.views.scripts import _reconcile_grants
 
 
@@ -143,3 +144,43 @@ class RenderTests(_LoggedIn):
         body = resp.content.decode()
         self.assertIn("ATTACHED", body)
         self.assertIn(f'value="{s1.id}"', body)  # hidden granted_secret_ids prefilled
+
+
+class OwnerFilterTests(_LoggedIn):
+    def test_script_list_filters_by_owner(self):
+        Script.objects.create(name="owned", code="x", environment=self.env,
+                              workspace=self.ws, owner_plugin="pp", owner_key="k")
+        Script.objects.create(name="free", code="x", environment=self.env, workspace=self.ws)
+        resp = self.client.get(reverse("cpanel:script_list"), {"owner_plugin": "pp"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([s.name for s in resp.context["scripts"]], ["owned"])
+        self.assertIn("pp", resp.context["owners"])
+
+    def test_secret_list_filters_by_owner(self):
+        _secret("OWNED", "v", self.ws, owner_plugin="pp")
+        _secret("FREE", "v", self.ws)
+        resp = self.client.get(reverse("cpanel:secret_list"), {"owner_plugin": "pp"})
+        self.assertEqual([s.key for s in resp.context["secrets"]], ["OWNED"])
+        self.assertIn("pp", resp.context["owners"])
+
+    def test_datastore_list_filters_by_owner(self):
+        DataStore.objects.create(name="pp:state", workspace=self.ws, owner_plugin="pp")
+        DataStore.objects.create(name="free", workspace=self.ws)
+        resp = self.client.get(reverse("cpanel:datastore_list"), {"owner_plugin": "pp"})
+        self.assertEqual([d.name for d in resp.context["datastores"]], ["pp:state"])
+        self.assertIn("pp", resp.context["owners"])
+
+
+class OwnedCountsTests(_LoggedIn):
+    def test_counts(self):
+        Script.objects.create(name="s", code="x", environment=self.env,
+                              workspace=self.ws, owner_plugin="pp", owner_key="k")
+        _secret("S", "v", self.ws, owner_plugin="pp")
+        DataStore.objects.create(name="pp:x", workspace=self.ws, owner_plugin="pp")
+        self.assertEqual(
+            PluginService.owned_resource_counts("pp"),
+            {"scripts": 1, "secrets": 1, "datastores": 1, "total": 3},
+        )
+
+    def test_counts_zero_for_unknown(self):
+        self.assertEqual(PluginService.owned_resource_counts("nope")["total"], 0)

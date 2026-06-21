@@ -105,7 +105,7 @@
                                         <button type="submit" class="text-[13px] font-medium px-3 py-1.5 rounded-lg bg-ok text-ink hover:opacity-90 transition">{% if plugin.status == 'errored' %}Retry{% else %}Activate{% endif %}</button>
                                     </form>
                                     {% endif %}
-                                    <button type="button" data-url="{% url 'cpanel:plugin_delete' pk=plugin.pk %}" data-name="{{ plugin.name }}" onclick="openDeleteModal(this)" class="text-[13px] px-3 py-1.5 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete</button>
+                                    <button type="button" data-url="{% url 'cpanel:plugin_delete' pk=plugin.pk %}" data-name="{{ plugin.name }}" data-owned="{% if plugin.owned_counts.total %}{{ plugin.owned_counts.scripts }} script{{ plugin.owned_counts.scripts|pluralize }}, {{ plugin.owned_counts.secrets }} secret{{ plugin.owned_counts.secrets|pluralize }}, {{ plugin.owned_counts.datastores }} data store{{ plugin.owned_counts.datastores|pluralize }}{% endif %}" onclick="openDeleteModal(this)" class="text-[13px] px-3 py-1.5 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -139,10 +139,11 @@
         <p class="text-sm text-muted mb-4">Delete <span id="delete-name" class="font-medium text-text"></span>? This removes its files and registry entry. This cannot be undone.</p>
         <form method="post" id="delete-form">
             {% csrf_token %}
-            <label class="flex items-start gap-2.5 mb-5 p-3 rounded-lg border border-line-soft bg-panel-hi/40">
+            <label class="flex items-start gap-2.5 mb-2 p-3 rounded-lg border border-line-soft bg-panel-hi/40">
                 <input type="checkbox" name="remove_data" class="mt-0.5 w-4 h-4 rounded text-fail bg-ink border-line focus:ring-fail/40 focus:ring-2">
-                <span class="text-sm text-muted">Also drop this plugin's database tables. <span class="text-fail">Destroys its stored data.</span></span>
+                <span class="text-sm text-muted">Also delete this plugin's owned scripts, secrets, and data stores. <span class="text-fail">Destroys its stored data.</span></span>
             </label>
+            <p id="delete-owned-preview" class="hidden text-xs text-warn mb-5"></p>
             <div class="flex items-center justify-end gap-2.5">
                 <button type="button" onclick="closeDeleteModal()" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</button>
                 <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete plugin</button>
@@ -156,6 +157,14 @@ function openDeleteModal(btn) {
     var form = document.getElementById('delete-form');
     form.action = btn.dataset.url;
     document.getElementById('delete-name').textContent = btn.dataset.name;
+    var preview = document.getElementById('delete-owned-preview');
+    if (btn.dataset.owned) {
+        preview.textContent = 'With "Also delete" checked, this removes ' + btn.dataset.owned + ' owned by this plugin.';
+        preview.classList.remove('hidden');
+    } else {
+        preview.textContent = '';
+        preview.classList.add('hidden');
+    }
     var m = document.getElementById('delete-modal');
     m.classList.remove('hidden');
     m.classList.add('flex');

@@ -337,6 +337,22 @@ class PluginService:
         return warnings
 
     @staticmethod
+    def owned_resource_counts(slug: str) -> dict:
+        """Count Script/Secret/DataStore rows owned by ``slug`` (for the delete
+        preview). Field-gated + best-effort, so it's safe on a pre-v2 schema."""
+        from core.models import DataStore, Script, Secret
+
+        counts = {}
+        for model, label in ((Script, "scripts"), (Secret, "secrets"), (DataStore, "datastores")):
+            try:
+                model._meta.get_field("owner_plugin")
+                counts[label] = model.objects.filter(owner_plugin=slug).count()
+            except Exception:
+                counts[label] = 0
+        counts["total"] = sum(counts.values())
+        return counts
+
+    @staticmethod
     def _cleanup_owned_resources(slug: str) -> dict:
         """Delete Script/Secret/DataStore rows owned by ``slug``. Returns counts.
 
