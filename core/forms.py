@@ -1262,6 +1262,107 @@ class WorkerSettingsForm(forms.Form):
         return instance
 
 
+class ExecutionIsolationForm(forms.Form):
+    """Form for the script-execution sandbox (FOUNDATIONS Seam 2, Stage 1).
+
+    Dashboard-managed, stored on ``GlobalSettings`` and resolved per-run at
+    execution time (no restart). Mirrors ``WorkerSettingsForm``. In Stage 1 the
+    resource limits below are active immediately; the isolation *mode* is stored
+    for the later filesystem/network sandbox stage.
+    """
+
+    from core.models import GlobalSettings
+
+    SANDBOX_MODE_CHOICES = GlobalSettings.SandboxMode.choices
+
+    sandbox_default = forms.ChoiceField(
+        choices=SANDBOX_MODE_CHOICES,
+        initial=GlobalSettings.SandboxMode.OFF,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Isolation default",
+        help_text="Instance-wide default. Gates the filesystem/network sandbox "
+        "(a later stage); the resource limits below apply regardless.",
+    )
+
+    sandbox_fail_closed = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Fail closed",
+        help_text="When a required sandbox is unavailable on the host, fail the "
+        "run instead of degrading to a lower tier with a warning.",
+    )
+
+    sandbox_rlimit_memory_mb = forms.IntegerField(
+        min_value=0,
+        max_value=1048576,
+        initial=0,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+        label="Memory limit (MB)",
+        help_text="Per-run address-space cap (RLIMIT_AS). 0 = unlimited. POSIX only.",
+    )
+
+    sandbox_rlimit_cpu_seconds = forms.IntegerField(
+        min_value=0,
+        max_value=86400,
+        initial=0,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+        label="CPU time limit (seconds)",
+        help_text="Per-run CPU-time cap (RLIMIT_CPU). 0 = unlimited. POSIX only.",
+    )
+
+    sandbox_rlimit_nproc = forms.IntegerField(
+        min_value=0,
+        max_value=100000,
+        initial=0,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+        label="Process limit",
+        help_text="Per-run process/thread cap (RLIMIT_NPROC, fork-bomb guard). "
+        "0 = unlimited. POSIX only.",
+    )
+
+    sandbox_rlimit_fsize_mb = forms.IntegerField(
+        min_value=0,
+        max_value=1048576,
+        initial=0,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+        label="Max file size (MB)",
+        help_text="Per-run largest single-file write (RLIMIT_FSIZE). 0 = unlimited. POSIX only.",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        """Initialize form with existing settings."""
+        super().__init__(*args, **kwargs)
+        if instance:
+            self.fields["sandbox_default"].initial = instance.sandbox_default
+            self.fields["sandbox_fail_closed"].initial = instance.sandbox_fail_closed
+            self.fields["sandbox_rlimit_memory_mb"].initial = instance.sandbox_rlimit_memory_mb
+            self.fields["sandbox_rlimit_cpu_seconds"].initial = instance.sandbox_rlimit_cpu_seconds
+            self.fields["sandbox_rlimit_nproc"].initial = instance.sandbox_rlimit_nproc
+            self.fields["sandbox_rlimit_fsize_mb"].initial = instance.sandbox_rlimit_fsize_mb
+
+    def save(self, instance):
+        """Save the isolation settings to the GlobalSettings instance."""
+        instance.sandbox_default = self.cleaned_data["sandbox_default"]
+        instance.sandbox_fail_closed = self.cleaned_data.get("sandbox_fail_closed", False)
+        instance.sandbox_rlimit_memory_mb = self.cleaned_data.get("sandbox_rlimit_memory_mb") or 0
+        instance.sandbox_rlimit_cpu_seconds = self.cleaned_data.get("sandbox_rlimit_cpu_seconds") or 0
+        instance.sandbox_rlimit_nproc = self.cleaned_data.get("sandbox_rlimit_nproc") or 0
+        instance.sandbox_rlimit_fsize_mb = self.cleaned_data.get("sandbox_rlimit_fsize_mb") or 0
+        instance.save(
+            update_fields=[
+                "sandbox_default",
+                "sandbox_fail_closed",
+                "sandbox_rlimit_memory_mb",
+                "sandbox_rlimit_cpu_seconds",
+                "sandbox_rlimit_nproc",
+                "sandbox_rlimit_fsize_mb",
+                "updated_at",
+            ]
+        )
+        return instance
+
+
 class BackupCreateForm(forms.Form):
     """Form for configuring backup creation."""
 

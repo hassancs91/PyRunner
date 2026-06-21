@@ -23,7 +23,7 @@ from core.executor_backends import RunSpec, get_run_backend
 # (TaskService.force_stop_task imports it). The implementation now lives with
 # the local backend; force-stop stays pid-based for the local backend.
 from core.executor_backends.local import kill_process_tree as _kill_process_tree
-from core.models import Run, Secret, Workspace
+from core.models import GlobalSettings, Run, Secret, Workspace
 from core.services import ClaudeService, EncryptionService
 
 logger = logging.getLogger(__name__)
@@ -274,11 +274,12 @@ def _validate_environment(run: Run) -> str:
 
 
 def _run_resource_limits() -> dict | None:
-    """Build the posix resource-cap dict from settings, or None if all off.
+    """Build the posix resource-cap dict from the legacy env settings, or None.
 
-    Off by default (every setting 0), so the spec carries no limits and behavior
-    is unchanged. When configured, the local backend applies these via
-    ``resource.setrlimit`` in a posix ``preexec_fn`` (no-op on Windows).
+    These ``PYRUNNER_RUN_RLIMIT_*`` env vars predate the dashboard sandbox
+    controls and are now the break-glass fallback: they apply only for caps the
+    dashboard leaves unset (see ``_resolve_run_limits``). Off by default (every
+    setting 0), so an unconfigured instance carries no limits — unchanged.
     """
     mem = settings.PYRUNNER_RUN_RLIMIT_MEMORY_MB
     cpu = settings.PYRUNNER_RUN_RLIMIT_CPU_SECONDS
@@ -293,6 +294,55 @@ def _run_resource_limits() -> dict | None:
     if nproc:
         limits["nproc"] = nproc
     return limits
+
+
+def _resolve_run_limits() -> dict | None:
+    """Resolve the posix resource caps for a run, dashboard-managed (DB) first.
+
+    Sandbox plan Stage 1 (Seam 2): isolation config lives in ``GlobalSettings``
+    and is resolved per-run at execution time (no restart, no env reliance). Each
+    cap is read from the DB; a DB value of 0 means "unset" and falls back to the
+    legacy ``PYRUNNER_RUN_RLIMIT_*`` env var for that one cap (break-glass), so
+    the two layers degrade independently. ``RLIMIT_FSIZE`` is dashboard-only.
+
+    Returns a ``{...}`` limits dict for ``RunSpec.limits`` (consumed by the posix
+    ``preexec_fn`` in ``LocalSubprocessBackend``; a no-op on Windows), or ``None``
+    when nothing is configured anywhere — a default instance, byte-for-byte today.
+    """
+    try:
+        gs = GlobalSettings.get_settings()
+    except Exception as e:
+        # DB not ready (e.g. mid-migration boot window) — fall back to env only
+        # rather than failing the run.
+        logger.warning("Could not load GlobalSettings for run limits: %s", e)
+        return _run_resource_limits()
+
+    env_limits = _run_resource_limits() or {}
+    limits = {}
+
+    mem_mb = gs.sandbox_rlimit_memory_mb
+    if mem_mb:
+        limits["memory_bytes"] = mem_mb * 1024 * 1024
+    elif "memory_bytes" in env_limits:
+        limits["memory_bytes"] = env_limits["memory_bytes"]
+
+    cpu_s = gs.sandbox_rlimit_cpu_seconds
+    if cpu_s:
+        limits["cpu_seconds"] = cpu_s
+    elif "cpu_seconds" in env_limits:
+        limits["cpu_seconds"] = env_limits["cpu_seconds"]
+
+    nproc = gs.sandbox_rlimit_nproc
+    if nproc:
+        limits["nproc"] = nproc
+    elif "nproc" in env_limits:
+        limits["nproc"] = env_limits["nproc"]
+
+    fsize_mb = gs.sandbox_rlimit_fsize_mb
+    if fsize_mb:
+        limits["fsize_bytes"] = fsize_mb * 1024 * 1024
+
+    return limits or None
 
 
 def execute_run(run: Run, webhook_data: dict | None = None) -> None:
@@ -397,7 +447,7 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
                 env=script_env,
                 cwd=str(workdir),
                 timeout=run.script.timeout_seconds,
-                limits=_run_resource_limits(),
+                limits=_resolve_run_limits(),
             )
             handle = backend.start(spec)
 

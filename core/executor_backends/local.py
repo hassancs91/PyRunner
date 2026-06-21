@@ -51,7 +51,12 @@ def kill_process_tree(pid: int) -> None:
 
 
 def _make_rlimit_preexec(limits: dict):
-    """Build a posix ``preexec_fn`` that applies resource caps in the child."""
+    """Build a posix ``preexec_fn`` that applies resource caps in the child.
+
+    Runs in the forked child just before ``exec`` (posix only). Each cap is
+    applied independently and only when set, so an unconfigured limit leaves the
+    inherited (unlimited) value untouched — the sandbox's rlimits floor.
+    """
 
     def _apply():
         import resource
@@ -65,6 +70,9 @@ def _make_rlimit_preexec(limits: dict):
         nproc = limits.get("nproc")
         if nproc:
             resource.setrlimit(resource.RLIMIT_NPROC, (nproc, nproc))
+        fsize = limits.get("fsize_bytes")
+        if fsize:
+            resource.setrlimit(resource.RLIMIT_FSIZE, (fsize, fsize))
 
     return _apply
 

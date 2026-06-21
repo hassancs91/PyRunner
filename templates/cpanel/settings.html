@@ -22,6 +22,7 @@
                     <button type="button" onclick="showTab('notifications')" id="tab-notifications" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Email</button>
                     <button type="button" onclick="showTab('retention')" id="tab-retention" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Retention</button>
                     <button type="button" onclick="showTab('workers')" id="tab-workers" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Workers</button>
+                    <button type="button" onclick="showTab('isolation')" id="tab-isolation" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Isolation</button>
                     <button type="button" onclick="showTab('system')" id="tab-system" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">System</button>
                     <button type="button" onclick="showTab('backup')" id="tab-backup" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Backup</button>
                     <button type="button" onclick="showTab('api')" id="tab-api" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">API</button>
@@ -430,6 +431,102 @@
                                 </button>
                             </div>
                             <div id="restart-result" class="hidden mt-4 p-4 rounded-lg"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution / Isolation Tab -->
+            <div id="panel-isolation" class="tab-panel hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    <!-- Primary column: isolation configuration -->
+                    <form method="post" action="{% url 'cpanel:execution_isolation_settings' %}" class="lg:col-span-7">
+                        {% csrf_token %}
+                        <div class="bg-panel border border-line rounded-2xl p-6">
+                            <h3 class="text-base font-semibold text-text mb-1">Execution &amp; isolation</h3>
+                            <p class="text-sm text-muted mb-5">Contain what one script run can do to this instance. Resource limits apply immediately to every run; the filesystem/network sandbox arrives in a later release. All limits are POSIX-only and have no effect on Windows.</p>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ isolation_form.sandbox_default.label }}</label>
+                                    {{ isolation_form.sandbox_default }}
+                                    <p class="mt-1.5 text-xs text-faint">{{ isolation_form.sandbox_default.help_text }}</p>
+                                    {% if isolation_form.sandbox_default.errors %}<p class="mt-1.5 text-xs text-fail">{{ isolation_form.sandbox_default.errors.0 }}</p>{% endif %}
+                                </div>
+
+                                <label class="flex items-center justify-between p-4 bg-panel-hi/40 border border-line-soft rounded-lg cursor-pointer">
+                                    <div class="pr-4">
+                                        <p class="text-text font-medium">{{ isolation_form.sandbox_fail_closed.label }}</p>
+                                        <p class="text-sm text-muted">{{ isolation_form.sandbox_fail_closed.help_text }}</p>
+                                    </div>
+                                    {{ isolation_form.sandbox_fail_closed }}
+                                </label>
+                            </div>
+
+                            <h4 class="text-sm font-semibold text-text mt-6 mb-1">Resource limits</h4>
+                            <p class="text-sm text-muted mb-4">Caps applied to each run via <code class="bg-ink border border-line-soft px-1.5 py-0.5 rounded font-mono text-info">setrlimit</code>. Use 0 to leave a limit unset.</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ isolation_form.sandbox_rlimit_memory_mb.label }}</label>
+                                    {{ isolation_form.sandbox_rlimit_memory_mb }}
+                                    <p class="mt-1.5 text-xs text-faint">{{ isolation_form.sandbox_rlimit_memory_mb.help_text }}</p>
+                                    {% if isolation_form.sandbox_rlimit_memory_mb.errors %}<p class="mt-1.5 text-xs text-fail">{{ isolation_form.sandbox_rlimit_memory_mb.errors.0 }}</p>{% endif %}
+                                </div>
+                                <div>
+                                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ isolation_form.sandbox_rlimit_cpu_seconds.label }}</label>
+                                    {{ isolation_form.sandbox_rlimit_cpu_seconds }}
+                                    <p class="mt-1.5 text-xs text-faint">{{ isolation_form.sandbox_rlimit_cpu_seconds.help_text }}</p>
+                                    {% if isolation_form.sandbox_rlimit_cpu_seconds.errors %}<p class="mt-1.5 text-xs text-fail">{{ isolation_form.sandbox_rlimit_cpu_seconds.errors.0 }}</p>{% endif %}
+                                </div>
+                                <div>
+                                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ isolation_form.sandbox_rlimit_nproc.label }}</label>
+                                    {{ isolation_form.sandbox_rlimit_nproc }}
+                                    <p class="mt-1.5 text-xs text-faint">{{ isolation_form.sandbox_rlimit_nproc.help_text }}</p>
+                                    {% if isolation_form.sandbox_rlimit_nproc.errors %}<p class="mt-1.5 text-xs text-fail">{{ isolation_form.sandbox_rlimit_nproc.errors.0 }}</p>{% endif %}
+                                </div>
+                                <div>
+                                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ isolation_form.sandbox_rlimit_fsize_mb.label }}</label>
+                                    {{ isolation_form.sandbox_rlimit_fsize_mb }}
+                                    <p class="mt-1.5 text-xs text-faint">{{ isolation_form.sandbox_rlimit_fsize_mb.help_text }}</p>
+                                    {% if isolation_form.sandbox_rlimit_fsize_mb.errors %}<p class="mt-1.5 text-xs text-fail">{{ isolation_form.sandbox_rlimit_fsize_mb.errors.0 }}</p>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="mt-5 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
+                    </form>
+
+                    <!-- Side column: active-tier status -->
+                    <div class="lg:col-span-5 space-y-5">
+                        <div class="bg-panel border border-line rounded-2xl p-6">
+                            <h3 class="text-base font-semibold text-text mb-4">Active protection</h3>
+                            <div class="space-y-3">
+                                <div class="flex items-start gap-3 p-3 bg-panel-hi/40 border border-line-soft rounded-lg">
+                                    {% if settings.sandbox_rlimits_configured %}
+                                        <span class="mt-0.5 w-2 h-2 rounded-full bg-ok flex-shrink-0"></span>
+                                        <div>
+                                            <p class="text-text font-medium text-sm">Resource limits active</p>
+                                            <p class="text-xs text-muted">Per-run memory / CPU / process / file-size caps are enforced (POSIX hosts).</p>
+                                        </div>
+                                    {% else %}
+                                        <span class="mt-0.5 w-2 h-2 rounded-full bg-faint flex-shrink-0"></span>
+                                        <div>
+                                            <p class="text-text font-medium text-sm">No resource limits set</p>
+                                            <p class="text-xs text-muted">Runs are uncapped — set limits to contain runaway scripts.</p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="flex items-start gap-3 p-3 bg-panel-hi/40 border border-line-soft rounded-lg">
+                                    <span class="mt-0.5 w-2 h-2 rounded-full bg-faint flex-shrink-0"></span>
+                                    <div>
+                                        <p class="text-text font-medium text-sm">Filesystem / network sandbox</p>
+                                        <p class="text-xs text-muted">
+                                            Not yet available on this instance
+                                            {% if settings.sandbox_checked_at %}— last host check: {{ settings.get_sandbox_capability_display }} ({{ settings.sandbox_checked_at|timesince }} ago){% else %}— host capability not yet tested{% endif %}.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-4 text-xs text-faint">The isolation default and fail-closed switch are stored now and take effect once the filesystem/network sandbox ships in a later release.</p>
                         </div>
                     </div>
                 </div>
@@ -1081,6 +1178,8 @@ if (hash === '#security') {
     showTab('retention');
 } else if (hash === '#workers') {
     showTab('workers');
+} else if (hash === '#isolation') {
+    showTab('isolation');
 } else if (hash === '#system') {
     showTab('system');
 } else if (hash === '#backup') {

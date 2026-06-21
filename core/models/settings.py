@@ -377,6 +377,64 @@ class GlobalSettings(models.Model):
         help_text="reCAPTCHA v2 secret key (encrypted)",
     )
 
+    # Execution / Isolation — the script-execution sandbox (FOUNDATIONS Seam 2).
+    # Fully dashboard-managed; resolved per-run at execution time (no restart),
+    # no env reliance. All defaults reproduce today's behavior byte-for-byte:
+    # mode off + every rlimit 0 (unlimited) => the executor carries no limits.
+    class SandboxMode(models.TextChoices):
+        OFF = "off", "Off"
+        OPTIONAL = "optional", "Optional"
+        REQUIRED = "required", "Required"
+
+    class SandboxCapability(models.TextChoices):
+        UNKNOWN = "unknown", "Not yet tested"
+        FULL = "full", "Full sandbox"
+        RLIMITS_ONLY = "rlimits_only", "Resource limits only"
+        NONE = "none", "Unavailable"
+
+    sandbox_default = models.CharField(
+        max_length=20,
+        choices=SandboxMode.choices,
+        default=SandboxMode.OFF,
+        help_text="Instance-wide isolation default (off = today's behavior). "
+        "Gates the filesystem/network sandbox, which arrives in a later stage; "
+        "the resource limits below apply independently of this setting.",
+    )
+    sandbox_fail_closed = models.BooleanField(
+        default=False,
+        help_text="When the sandbox is required but unavailable on the host, fail "
+        "the run instead of degrading to a lower tier with a warning.",
+    )
+    # Per-run resource caps (POSIX RLIMIT_*; a no-op on Windows). 0 = unlimited.
+    sandbox_rlimit_memory_mb = models.PositiveIntegerField(
+        default=0,
+        help_text="Per-run memory cap in MB (RLIMIT_AS). 0 = unlimited.",
+    )
+    sandbox_rlimit_cpu_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text="Per-run CPU-time cap in seconds (RLIMIT_CPU). 0 = unlimited.",
+    )
+    sandbox_rlimit_nproc = models.PositiveIntegerField(
+        default=0,
+        help_text="Per-run process/thread cap (RLIMIT_NPROC, fork-bomb guard). 0 = unlimited.",
+    )
+    sandbox_rlimit_fsize_mb = models.PositiveIntegerField(
+        default=0,
+        help_text="Per-run max single-file write size in MB (RLIMIT_FSIZE). 0 = unlimited.",
+    )
+    sandbox_capability = models.CharField(
+        max_length=20,
+        choices=SandboxCapability.choices,
+        default=SandboxCapability.UNKNOWN,
+        help_text="Cached result of the host sandbox capability probe "
+        "(populated by the Test button / sandbox_check command in a later stage).",
+    )
+    sandbox_checked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the host sandbox capability was last probed.",
+    )
+
     class Meta:
         db_table = "global_settings"
         verbose_name = "global settings"
@@ -409,4 +467,13 @@ class GlobalSettings(models.Model):
             self.recaptcha_enabled
             and self.recaptcha_site_key
             and self.recaptcha_secret_key_encrypted
+        )
+
+    def sandbox_rlimits_configured(self) -> bool:
+        """True when any per-run resource cap is set (the rlimits floor is active)."""
+        return bool(
+            self.sandbox_rlimit_memory_mb
+            or self.sandbox_rlimit_cpu_seconds
+            or self.sandbox_rlimit_nproc
+            or self.sandbox_rlimit_fsize_mb
         )
