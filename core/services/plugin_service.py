@@ -256,6 +256,22 @@ class PluginService:
         Returns (ok, output). On failure the plugin keeps its current installed
         state and the error is stored on the row — the live site is untouched.
         """
+        # Tier-1 doctor (static lint) runs FIRST, in this process, so a
+        # rule-breaker is refused BEFORE the preflight subprocess could apply any
+        # plugin migration. It only reads files + AST-parses (no plugin import),
+        # so it is safe here. The boot path never runs it (contract: an
+        # already-active plugin stays active across upgrade regardless of new rules).
+        from core.services.plugin_doctor import run_doctor
+
+        report = run_doctor(Path(settings.PLUGINS_DIR) / plugin.slug)
+        if not report.ok:
+            plugin.error_message = report.format()[:4000]
+            if plugin.status == Plugin.Status.ACTIVE:
+                plugin.status = Plugin.Status.ERRORED
+            plugin.save(update_fields=["status", "error_message", "updated_at"])
+            logger.warning("Plugin %r refused by doctor (%d fail)", plugin.slug, report.fail_count)
+            return False, "Plugin doctor blocked activation:\n" + report.failures_text()
+
         ok, output = PluginService._run_preflight(plugin.slug)
         if ok:
             plugin.status = Plugin.Status.ACTIVE
@@ -270,6 +286,9 @@ class PluginService:
                 plugin.status = Plugin.Status.ERRORED
             plugin.save(update_fields=["status", "error_message", "updated_at"])
             logger.warning("Plugin %r failed activation preflight", plugin.slug)
+        # On success, surface any advisory doctor warnings (non-blocking).
+        if ok and report.warn_count:
+            output = report.warnings_text()
         return ok, output
 
     @staticmethod

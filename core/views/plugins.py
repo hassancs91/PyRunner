@@ -82,6 +82,8 @@ def plugin_activate_view(request: HttpRequest, pk) -> HttpResponse:
             f'Plugin "{plugin.name}" passed preflight and is now active. '
             "Restart to apply.",
         )
+        if output.strip():  # advisory doctor warnings (non-blocking)
+            messages.warning(request, f"Doctor warnings for \"{plugin.name}\":\n{output}")
     else:
         first = (output or "").strip().splitlines()
         detail = first[-1] if first else "see plugin error for details"
