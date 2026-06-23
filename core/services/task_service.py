@@ -415,6 +415,55 @@ class TaskService:
             return False, str(e)
 
     @classmethod
+    def force_stop_run(cls, run) -> tuple[bool, str]:
+        """Force-stop a single Run — the shared, run-level kill path.
+
+        This is the ONE place the process kill + terminal-status flip lives, so
+        the tasks force-stop view (via ``force_stop_task``) and the plugin SDK
+        (``core.plugins.api.ScriptAPI.cancel_latest_run``) never duplicate the
+        process-killing logic. A RUNNING run has its script's OS process tree
+        killed (the job only — the long-lived django-q worker keeps running) and
+        is marked CANCELLED; a PENDING run is marked CANCELLED. Any queue entry
+        for the run's task is removed either way.
+
+        Workspace scoping is NOT enforced here — the caller must scope first (the
+        view via ``_task_in_workspace``; the SDK via its owner+workspace
+        queryset). Returns ``(changed, message)``; ``changed`` is False when
+        ``run`` is None or already in a terminal (non-cancellable) state.
+        """
+        from django_q.models import OrmQ
+
+        from core.executor import _kill_process_tree
+        from core.models import Run
+
+        if run is None:
+            return False, "No running or pending task found with this ID"
+
+        # Drop any queue entry for this task (covers pending / not-yet-claimed).
+        if run.task_id:
+            OrmQ.objects.filter(key=run.task_id).delete()
+
+        if run.status == Run.Status.RUNNING:
+            # Belt-and-suspenders: only kill while still RUNNING (avoids killing
+            # an unrelated, reused PID if the job just finished).
+            if run.pid:
+                _kill_process_tree(run.pid)
+            run.status = Run.Status.CANCELLED
+            run.ended_at = timezone.now()
+            run.stderr = (run.stderr or "") + "\n[Killed by user]"
+            run.pid = None
+            run.save(update_fields=["status", "ended_at", "stderr", "pid"])
+            return True, "Run stopped — the script process was killed."
+
+        if run.status == Run.Status.PENDING:
+            run.status = Run.Status.CANCELLED
+            run.ended_at = timezone.now()
+            run.save(update_fields=["status", "ended_at"])
+            return True, "Pending run cancelled successfully"
+
+        return False, "No running or pending task found with this ID"
+
+    @classmethod
     def force_stop_task(cls, task_id: str, workspace=None) -> tuple[bool, str]:
         """
         Force stop a task.
@@ -422,7 +471,8 @@ class TaskService:
         For a RUNNING run, this kills the script's OS process tree (the job
         only — the long-lived django-q worker keeps running) and marks the Run
         as CANCELLED. For a not-yet-started run it removes the queue entry and
-        marks the Run CANCELLED.
+        marks the Run CANCELLED. The actual kill is delegated to
+        ``force_stop_run`` (shared with the plugin SDK).
 
         Args:
             task_id: The task ID to stop
@@ -435,7 +485,6 @@ class TaskService:
         """
         from django_q.models import OrmQ
 
-        from core.executor import _kill_process_tree
         from core.models import Run
 
         # Cross-workspace guard FIRST — never kill another tenant's process tree
@@ -444,39 +493,20 @@ class TaskService:
             return False, "No running or pending task found with this ID"
 
         try:
-            # Delete from OrmQ if still there (covers pending / not-yet-claimed)
+            # Resolve the controllable run for this task — RUNNING preferred over
+            # a PENDING one (preserving the original precedence; a task_id maps to
+            # a single run, so this is unambiguous in practice).
+            run = (
+                Run.objects.filter(task_id=task_id, status=Run.Status.RUNNING).first()
+                or Run.objects.filter(task_id=task_id, status=Run.Status.PENDING).first()
+            )
+
+            if run is not None:
+                return cls.force_stop_run(run)
+
+            # No controllable run (system/infra task, or already finished): still
+            # clear any lingering queue entry, then report nothing to stop.
             OrmQ.objects.filter(key=task_id).delete()
-
-            # Running run -> kill the actual job process tree.
-            run = Run.objects.filter(
-                task_id=task_id,
-                status=Run.Status.RUNNING,
-            ).first()
-
-            if run:
-                # Belt-and-suspenders: only kill while still RUNNING (avoids
-                # killing an unrelated, reused PID if the job just finished).
-                if run.pid:
-                    _kill_process_tree(run.pid)
-                run.status = Run.Status.CANCELLED
-                run.ended_at = timezone.now()
-                run.stderr = (run.stderr or "") + "\n[Killed by user]"
-                run.pid = None
-                run.save(update_fields=["status", "ended_at", "stderr", "pid"])
-                return True, "Run stopped — the script process was killed."
-
-            # Check if it's a pending run
-            pending_run = Run.objects.filter(
-                task_id=task_id,
-                status=Run.Status.PENDING,
-            ).first()
-
-            if pending_run:
-                pending_run.status = Run.Status.CANCELLED
-                pending_run.ended_at = timezone.now()
-                pending_run.save(update_fields=["status", "ended_at"])
-                return True, "Pending run cancelled successfully"
-
             return False, "No running or pending task found with this ID"
 
         except Exception as e:

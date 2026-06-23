@@ -31,6 +31,24 @@ PASS, WARN, FAIL = "pass", "warn", "fail"
 RESERVED_SLUGS = {"core", "theme", "landing", "plugins", "admin", "static", "api"}
 SLUG_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
+# Stage 6 (marketplace-prep metadata) validation.
+# Semver MAJOR.MINOR.PATCH with optional pre-release / build metadata.
+SEMVER_RE = re.compile(
+    r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
+)
+PUBLISHER_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+# Icons are served via <img src>; bitmap + svg are safe in that context (svg is
+# never inlined). Keep the set small and explicit.
+ALLOWED_ICON_EXTS = {".png", ".svg", ".webp", ".jpg", ".jpeg"}
+SUPPORTED_MANIFEST_VERSIONS = {1}
+# Optional string fields that, when present, must be strings.
+_STR_META_FIELDS = (
+    "name", "summary", "description", "author", "author_url", "license",
+    "homepage", "repository", "documentation", "max_pyrunner",
+)
+# Fields a marketplace listing wants; missing ones are advisory (never block).
+_RECOMMENDED_FIELDS = ("author", "license", "summary", "icon")
+
 # core.models at module top in apps.py breaks the light-import boot guard (it runs
 # before the app registry is ready). core.plugins (incl .api) is import-light.
 _CORE_INTERNAL_PREFIXES = ("core.models", "core.tasks", "core.services", "core.executor")
@@ -94,6 +112,7 @@ def run_doctor(path) -> DoctorReport:
 
     _check_slug(folder, report)
     _check_manifest(folder, report)
+    _check_metadata(folder, report)
     _check_package_files(folder, report)
     _check_no_ddl(folder, report)
     _check_apps(folder, report)
@@ -133,6 +152,113 @@ def _check_manifest(folder: Path, report: DoctorReport):
         report.add("manifest", FAIL, f"plugin.json slug ({manifest.get('slug')!r}) must match the folder name ({folder.name!r}).")
     else:
         report.add("manifest", PASS, "plugin.json present and slug matches the folder.")
+
+
+def _check_metadata(folder: Path, report: DoctorReport):
+    """Validate the marketplace-prep manifest fields (Stage 6).
+
+    FAIL on *malformed* values (bad semver, icon escaping ``<slug>/`` or an
+    unsupported type/extension, unknown ``manifest_version``, wrong ``provisions``
+    shape, wrong field types). WARN on *missing* recommended fields
+    (``author``/``license``/``summary``/``icon``). All fields are optional, so a
+    legacy manifest with only slug/name/version activates cleanly (warnings only).
+    """
+    path = folder / "plugin.json"
+    if not path.exists():
+        return  # already FAILed in _check_manifest
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return  # already FAILed in _check_manifest
+    if not isinstance(manifest, dict):
+        return
+
+    failures = []  # collect malformed-value messages
+
+    # --- manifest_version: when present, must be a supported format version.
+    if "manifest_version" in manifest:
+        mv = manifest["manifest_version"]
+        if not isinstance(mv, int) or isinstance(mv, bool) or mv not in SUPPORTED_MANIFEST_VERSIONS:
+            failures.append(
+                f"manifest_version {mv!r} is not supported (supported: "
+                f"{sorted(SUPPORTED_MANIFEST_VERSIONS)})."
+            )
+
+    # --- version: when present, must be semver (update-detection depends on it).
+    version = manifest.get("version")
+    if version is not None and (not isinstance(version, str) or not SEMVER_RE.match(version)):
+        failures.append(f"version {version!r} is not valid semver (MAJOR.MINOR.PATCH).")
+
+    # --- string fields must be strings when present.
+    for field_name in _STR_META_FIELDS:
+        if field_name in manifest and not isinstance(manifest[field_name], str):
+            failures.append(f"'{field_name}' must be a string.")
+
+    # --- publisher: marketplace namespace; format-validated when present.
+    publisher = manifest.get("publisher")
+    if publisher is not None and (
+        not isinstance(publisher, str) or not PUBLISHER_RE.match(publisher)
+    ):
+        failures.append(
+            f"publisher {publisher!r} must be lowercase letters/digits/_/- "
+            "(it forms the marketplace id publisher/slug)."
+        )
+
+    # --- categories / keywords: lists of strings when present.
+    for field_name in ("categories", "keywords"):
+        if field_name in manifest:
+            value = manifest[field_name]
+            if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+                failures.append(f"'{field_name}' must be a list of strings.")
+
+    # --- icon: bundled file, must resolve UNDER the plugin folder + allowed ext.
+    icon = manifest.get("icon")
+    if icon is not None:
+        if not isinstance(icon, str) or not icon.strip():
+            failures.append("'icon' must be a non-empty relative path string.")
+        else:
+            norm = icon.replace("\\", "/")
+            parts = [p for p in norm.split("/") if p not in ("", ".")]
+            ext = ("." + norm.rsplit(".", 1)[-1].lower()) if "." in norm else ""
+            if norm.startswith("/") or any(p == ".." for p in parts):
+                failures.append(f"'icon' path {icon!r} must stay inside the plugin folder.")
+            elif ext not in ALLOWED_ICON_EXTS:
+                failures.append(
+                    f"'icon' must be one of {sorted(ALLOWED_ICON_EXTS)} (got {ext or 'no extension'})."
+                )
+            elif not (folder / norm).is_file():
+                # Declared but not shipped — advisory (a cosmetic miss, not a security/break).
+                report.add("metadata-icon", WARN, f"'icon' {icon!r} is declared but the file is missing.")
+
+    # --- provisions: declared resource counts + secret_keys (the trust surface).
+    provisions = manifest.get("provisions")
+    if provisions is not None:
+        if not isinstance(provisions, dict):
+            failures.append("'provisions' must be an object.")
+        else:
+            for count_key in ("scripts", "secrets", "datastores", "schedules"):
+                if count_key in provisions:
+                    n = provisions[count_key]
+                    if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+                        failures.append(f"provisions.{count_key} must be a non-negative integer.")
+            if "secret_keys" in provisions:
+                sk = provisions["secret_keys"]
+                if not isinstance(sk, list) or not all(isinstance(v, str) for v in sk):
+                    failures.append("provisions.secret_keys must be a list of strings.")
+
+    if failures:
+        report.add("metadata", FAIL, " ".join(failures))
+
+    # --- advisory: recommended marketplace fields that are missing.
+    missing = [f for f in _RECOMMENDED_FIELDS if not manifest.get(f)]
+    if missing:
+        report.add(
+            "metadata", WARN,
+            f"missing recommended field(s): {', '.join(missing)} "
+            "(required when publishing to a marketplace).",
+        )
+    elif not failures:
+        report.add("metadata", PASS, "manifest metadata is well-formed.")
 
 
 def _check_package_files(folder: Path, report: DoctorReport):
@@ -254,6 +380,8 @@ def _check_sdk_usage(folder: Path, report: DoctorReport):
     for py in folder.rglob("*.py"):
         if py.name == "apps.py":
             continue  # handled (fatally) by _check_apps
+        if py.name == "tests.py" or py.name.startswith("test_"):
+            continue  # tests legitimately import core.models to assert behavior
         try:
             tree = ast.parse(py.read_text(encoding="utf-8"))
         except (SyntaxError, OSError):

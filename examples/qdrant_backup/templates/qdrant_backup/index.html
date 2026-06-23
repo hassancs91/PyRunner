@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Qdrant Backup - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1100px] mx-auto space-y-5">
+
+            <!-- ================= Header ================= -->
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="min-w-0">
+                    <h1 class="text-[22px] font-semibold tracking-tight">Qdrant Backup</h1>
+                    {% if is_configured %}
+                    <div class="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-muted mt-1.5">
+                        <span class="inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Connected</span>
+                        {% if schedule %}<span class="text-line-soft">·</span><span>{{ schedule.label }}</span>{% endif %}
+                        {% if schedule.next_run %}<span class="text-line-soft">·</span><span>Next {{ schedule.next_run|date:"M j, H:i" }} UTC</span>{% endif %}
+                        {% if latest %}<span class="text-line-soft">·</span><span>Last backup {{ latest.ts }}</span>{% endif %}
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-muted mt-1">Snapshots every Qdrant collection to Cloudflare R2 on a schedule.</p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <!-- Always-visible "running" pill (any tab) -->
+                    <button type="button" id="hdr-running" onclick="showTab('backups')"
+                            class="{% if not is_active %}hidden {% endif %}inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-warn/10 text-warn border border-warn/30">
+                        <span class="w-2 h-2 rounded-full bg-warn animate-pulse"></span>Backing up…
+                    </button>
+                    {% if can_run %}
+                    <form id="btn-run-form" method="post" action="{% url 'qdrant_backup:run' %}" class="{% if is_active %}hidden{% endif %}">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9"/></svg>
+                            Back up now
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ================= Tabs ================= -->
+            <div class="flex items-center gap-1.5 border-b border-line-soft pb-px">
+                <button type="button" onclick="showTab('settings')" id="tab-settings" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Settings</button>
+                <button type="button" onclick="showTab('backups')" id="tab-backups" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Backups</button>
+            </div>
+
+            <!-- ================= Settings panel ================= -->
+            <div id="panel-settings" class="tab-panel">
+                {% if not has_environments %}
+                <section class="rounded-2xl border border-warn/30 bg-warn/10 p-4 text-sm text-muted mb-5">
+                    No environments yet. Create one with <span class="font-mono text-text">requests</span> and
+                    <span class="font-mono text-text">boto3</span> under
+                    <a href="{% url 'cpanel:environment_list' %}" class="text-ok hover:underline">Environments</a>,
+                    then come back to configure the backup.
+                </section>
+                {% endif %}
+
+                <form id="settings-form" method="post" action="{% url 'qdrant_backup:save' %}" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                    {% csrf_token %}
+                    <div class="px-5 py-4 border-b border-line-soft">
+                        <h2 class="text-sm font-semibold">Settings</h2>
+                        <p class="text-xs text-faint mt-0.5">Saving provisions the managed backup script, its secrets, a data store and the schedule. Re-saving updates them in place.</p>
+                    </div>
+
+                    <div class="p-5 space-y-6">
+                        <!-- Connection: Qdrant -->
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="eyebrow text-faint">Qdrant</h3>
+                                <button type="button" id="btn-test-qdrant" onclick="testConn('qdrant')" class="text-xs font-medium px-2.5 py-1 rounded-md border border-line text-muted hover:text-text hover:bg-panel-hi transition">Test connection</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {% include "qdrant_backup/_field.html" with field=form.qdrant_url %}
+                                {% include "qdrant_backup/_field.html" with field=form.qdrant_api_key %}
+                            </div>
+                            <div id="test-qdrant-result" class="hidden text-xs mt-2"></div>
+                        </div>
+
+                        <!-- Connection: R2 -->
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="eyebrow text-faint">Cloudflare R2</h3>
+                                <button type="button" id="btn-test-r2" onclick="testConn('r2')" class="text-xs font-medium px-2.5 py-1 rounded-md border border-line text-muted hover:text-text hover:bg-panel-hi transition">Test connection</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {% include "qdrant_backup/_field.html" with field=form.r2_endpoint_url %}
+                                {% include "qdrant_backup/_field.html" with field=form.r2_bucket_name %}
+                                {% include "qdrant_backup/_field.html" with field=form.r2_access_key_id %}
+                                {% include "qdrant_backup/_field.html" with field=form.r2_secret_access_key %}
+                            </div>
+                            <div id="test-r2-result" class="hidden text-xs mt-2"></div>
+                        </div>
+
+                        <!-- Backup behavior -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Backup</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {% include "qdrant_backup/_field.html" with field=form.environment %}
+                                {% include "qdrant_backup/_field.html" with field=form.retention_days %}
+                                {% include "qdrant_backup/_field.html" with field=form.backup_prefix %}
+                            </div>
+                            <label class="flex items-start gap-2.5 mt-4 cursor-pointer">
+                                <span class="mt-0.5">{{ form.keep_zip }}</span>
+                                <span>
+                                    <span class="text-sm text-text">{{ form.keep_zip.label }}</span>
+                                    <span class="block text-xs text-faint mt-0.5">{{ form.keep_zip.help_text }}</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <!-- Alerts -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Alerts</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {% include "qdrant_backup/_field.html" with field=form.notify_on %}
+                                {% include "qdrant_backup/_field.html" with field=form.notify_email %}
+                            </div>
+                            <p class="text-xs text-faint mt-2">Emails are sent through the provider configured in
+                                <a href="{% url 'cpanel:settings' %}" class="text-ok hover:underline">Settings → Notifications</a>.</p>
+                        </div>
+
+                        <!-- Schedule -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Schedule</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {% include "qdrant_backup/_field.html" with field=form.schedule_mode %}
+                                {% include "qdrant_backup/_field.html" with field=form.schedule_time row_id="row-time" %}
+                                {% include "qdrant_backup/_field.html" with field=form.schedule_weekday row_id="row-weekday" %}
+                                {% include "qdrant_backup/_field.html" with field=form.schedule_interval row_id="row-interval" %}
+                                {% include "qdrant_backup/_field.html" with field=form.timezone %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4 border-t border-line-soft flex justify-end">
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            Save settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ================= Backups panel ================= -->
+            <div id="panel-backups" class="tab-panel hidden space-y-5">
+
+                <!-- Live run banner (shown while a backup is running) -->
+                <section id="run-banner" class="{% if not is_active %}hidden {% endif %}rounded-2xl border border-warn/30 bg-warn/5 p-5">
+                    <div class="flex items-center justify-between gap-4 flex-wrap">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="flex-none w-2.5 h-2.5 rounded-full bg-warn animate-pulse"></span>
+                            <div class="min-w-0">
+                                <h2 class="text-sm font-semibold text-text">Backup in progress</h2>
+                                <p id="run-label" class="text-xs text-muted mt-0.5">Starting…</p>
+                            </div>
+                        </div>
+                        <form method="post" action="{% url 'qdrant_backup:stop' %}">
+                            {% csrf_token %}
+                            <button type="submit" onclick="return confirm('Stop the running backup?');" class="text-[13px] font-medium px-3 py-1.5 rounded-lg border border-fail/30 text-fail hover:bg-fail/10 transition">Stop</button>
+                        </form>
+                    </div>
+                    <div class="mt-4 h-1.5 w-full rounded-full bg-panel-hi overflow-hidden">
+                        <div id="run-bar" class="h-full bg-warn rounded-full transition-all duration-500" style="width: 8%"></div>
+                    </div>
+                </section>
+
+                {% if not is_configured %}
+                <section class="rounded-2xl border border-line bg-panel px-6 py-14 text-center">
+                    <h3 class="text-base font-semibold mb-1">Not configured yet</h3>
+                    <p class="text-sm text-muted mb-6">Add your Qdrant + R2 details in <button type="button" onclick="showTab('settings')" class="text-ok hover:underline">Settings</button> and save to start backing up.</p>
+                </section>
+                {% elif not has_data %}
+                <section class="rounded-2xl border border-line bg-panel px-6 py-14 text-center">
+                    <h3 class="text-base font-semibold mb-1">No backups recorded yet</h3>
+                    <p class="text-sm text-muted mb-6">Use <span class="font-mono text-text">Back up now</span> above, or wait for the first scheduled run.</p>
+                </section>
+                {% else %}
+
+                <!-- Health banner -->
+                {% if latest.status == 'success' %}
+                <section class="rounded-2xl border border-ok/30 bg-ok/10 p-5 flex items-start justify-between gap-4">
+                    <div class="flex items-start gap-3.5">
+                        <span class="mt-0.5 flex-none w-9 h-9 rounded-xl bg-ok/15 flex items-center justify-center text-ok">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        </span>
+                        <div>
+                            <h2 class="text-sm font-semibold text-text">All backups healthy</h2>
+                            <p class="text-sm text-muted mt-0.5">
+                                {{ latest.collection_count }} collection{{ latest.collection_count|pluralize }} backed up · {{ latest.total_size_mb }} MB · {{ latest.duration_s }}s
+                                {% if latest.deleted_old %}· cleaned {{ latest.deleted_old }} old file{{ latest.deleted_old|pluralize }}{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% if latest.zip_url %}<a href="{{ latest.zip_url }}" class="flex-none inline-flex items-center gap-2 text-[13px] font-medium px-3 py-1.5 rounded-lg border border-line text-text hover:bg-panel-hi transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>.zip</a>{% endif %}
+                </section>
+                {% elif latest.status == 'partial' %}
+                <section class="rounded-2xl border border-warn/30 bg-warn/10 p-5 flex items-start justify-between gap-4">
+                    <div class="flex items-start gap-3.5">
+                        <span class="mt-0.5 flex-none w-9 h-9 rounded-xl bg-warn/15 flex items-center justify-center text-warn">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                        </span>
+                        <div>
+                            <h2 class="text-sm font-semibold text-text">Last backup completed with issues</h2>
+                            <p class="text-sm text-muted mt-0.5">{{ latest.failed_count }} collection{{ latest.failed_count|pluralize }} failed · {{ latest.collection_count }} succeeded · {{ latest.total_size_mb }} MB</p>
+                        </div>
+                    </div>
+                    {% if latest.zip_url %}<a href="{{ latest.zip_url }}" class="flex-none inline-flex items-center gap-2 text-[13px] font-medium px-3 py-1.5 rounded-lg border border-line text-text hover:bg-panel-hi transition">.zip</a>{% endif %}
+                </section>
+                {% else %}
+                <section class="rounded-2xl border border-fail/30 bg-fail/10 p-5 flex items-start gap-3.5">
+                    <span class="mt-0.5 flex-none w-9 h-9 rounded-xl bg-fail/15 flex items-center justify-center text-fail">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-sm font-semibold text-text">Last backup failed</h2>
+                        <p class="text-sm text-muted mt-0.5">Ran {{ latest.ts }} · check the logs in <a href="{% url 'cpanel:run_list' %}" class="text-ok hover:underline">Runs</a>.</p>
+                        {% if latest.error %}<pre class="mt-2 text-xs text-fail bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{{ latest.error }}</pre>{% endif %}
+                    </div>
+                </section>
+                {% endif %}
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                    <!-- Backup history -->
+                    <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                        <div class="px-5 py-4 border-b border-line-soft"><h2 class="text-sm font-semibold">Backup history</h2></div>
+                        <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead><tr class="border-b border-line-soft text-left">
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal">When</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal">Status</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Cols</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Failed</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Size</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Time</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Zip</th>
+                            </tr></thead>
+                            <tbody class="divide-y divide-line-soft">
+                                {% for r in history %}
+                                <tr class="hover:bg-panel-hi/50 transition-colors">
+                                    <td class="px-5 py-2.5 text-xs font-mono text-faint whitespace-nowrap">{{ r.ts }}</td>
+                                    <td class="px-5 py-2.5"><span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md {{ r.badge.cls }}"><span class="w-1.5 h-1.5 rounded-full {{ r.badge.dot }}"></span>{{ r.badge.label }}</span></td>
+                                    <td class="px-5 py-2.5 text-sm text-muted text-right font-mono">{{ r.collection_count }}</td>
+                                    <td class="px-5 py-2.5 text-sm text-right font-mono {% if r.failed_count %}text-fail{% else %}text-faint{% endif %}">{{ r.failed_count }}</td>
+                                    <td class="px-5 py-2.5 text-sm text-muted text-right font-mono">{{ r.total_size_mb }} MB</td>
+                                    <td class="px-5 py-2.5 text-sm text-faint text-right font-mono">{{ r.duration_s }}s</td>
+                                    <td class="px-5 py-2.5 text-right">{% if r.zip_url %}<a href="{{ r.zip_url }}" class="text-ok hover:underline text-xs font-medium">.zip ↓</a>{% else %}<span class="text-faint text-xs">—</span>{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        </div>
+                    </section>
+
+                    <!-- Latest collections -->
+                    <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                        <div class="px-5 py-4 border-b border-line-soft"><h2 class="text-sm font-semibold">Collections — latest run</h2></div>
+                        <table class="w-full">
+                            <thead><tr class="border-b border-line-soft text-left">
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal">Collection</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Size</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Status</th>
+                                <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Get</th>
+                            </tr></thead>
+                            <tbody class="divide-y divide-line-soft">
+                                {% for c in collections %}
+                                <tr class="hover:bg-panel-hi/50 transition-colors">
+                                    <td class="px-5 py-2.5 text-[13.5px] text-text">
+                                        {{ c.collection }}
+                                        {% if c.error %}<div class="text-xs text-fail font-mono mt-0.5 truncate max-w-[260px]" title="{{ c.error }}">{{ c.error }}</div>{% endif %}
+                                    </td>
+                                    <td class="px-5 py-2.5 text-sm text-muted text-right font-mono">{{ c.size_mb }} MB</td>
+                                    <td class="px-5 py-2.5 text-right">
+                                        {% if c.status == 'ok' %}<span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>OK</span>
+                                        {% else %}<span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span>Failed</span>{% endif %}
+                                    </td>
+                                    <td class="px-5 py-2.5 text-right">{% if c.download_url %}<a href="{{ c.download_url }}" class="text-ok hover:underline text-xs font-medium" title="Download this collection's snapshot">↓</a>{% else %}<span class="text-faint text-xs">—</span>{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // ---- Tabs (mirrors the console showTab pattern) ----
+    const IS_CONFIGURED = {{ is_configured|yesno:"true,false" }};
+    window.showTab = function (name) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(t => {
+            t.classList.remove('bg-panel-hi', 'text-text');
+            t.classList.add('text-muted', 'hover:text-text', 'hover:bg-panel-hi/50');
+        });
+        const panel = document.getElementById('panel-' + name);
+        const tab = document.getElementById('tab-' + name);
+        if (!panel || !tab) return;
+        panel.classList.remove('hidden');
+        tab.classList.remove('text-muted', 'hover:text-text', 'hover:bg-panel-hi/50');
+        tab.classList.add('bg-panel-hi', 'text-text');
+        if (history.replaceState) history.replaceState(null, '', '#' + name);
+    };
+    const initial = (location.hash === '#settings' || location.hash === '#backups')
+        ? location.hash.slice(1)
+        : (IS_CONFIGURED ? 'backups' : 'settings');
+    showTab(initial);
+
+    // ---- Schedule fields: show only what the chosen mode needs ----
+    const modeSel = document.getElementById("{{ form.schedule_mode.id_for_label }}");
+    if (modeSel) {
+        const rows = {
+            time: document.getElementById("row-time"),
+            weekday: document.getElementById("row-weekday"),
+            interval: document.getElementById("row-interval"),
+        };
+        const applyMode = function () {
+            const m = modeSel.value;
+            if (rows.time) rows.time.style.display = (m === "daily" || m === "weekly") ? "" : "none";
+            if (rows.weekday) rows.weekday.style.display = (m === "weekly") ? "" : "none";
+            if (rows.interval) rows.interval.style.display = (m === "interval") ? "" : "none";
+        };
+        modeSel.addEventListener("change", applyMode);
+        applyMode();
+    }
+
+    // ---- Test connection (web process, SSRF-guarded server-side) ----
+    function csrf() {
+        const el = document.querySelector('#settings-form [name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+    const TEST = {
+        qdrant: { url: "{% url 'qdrant_backup:test_qdrant' %}", fields: ['qdrant_url', 'qdrant_api_key'] },
+        r2: { url: "{% url 'qdrant_backup:test_r2' %}", fields: ['r2_endpoint_url', 'r2_bucket_name', 'r2_access_key_id', 'r2_secret_access_key'] },
+    };
+    window.testConn = function (kind) {
+        const cfg = TEST[kind];
+        const btn = document.getElementById('btn-test-' + kind);
+        const out = document.getElementById('test-' + kind + '-result');
+        const body = new URLSearchParams();
+        body.append('csrfmiddlewaretoken', csrf());
+        cfg.fields.forEach(f => { const el = document.getElementById('id_' + f); if (el) body.append(f, el.value); });
+        btn.disabled = true;
+        const orig = btn.textContent; btn.textContent = 'Testing…';
+        out.className = 'text-xs mt-2 text-muted'; out.classList.remove('hidden'); out.textContent = 'Testing connection…';
+        fetch(cfg.url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body })
+            .then(r => r.json())
+            .then(d => {
+                out.textContent = d.message || (d.ok ? 'Connected.' : 'Failed.');
+                out.className = 'text-xs mt-2 ' + (d.ok ? 'text-ok' : 'text-fail');
+            })
+            .catch(() => { out.textContent = 'Test failed to run.'; out.className = 'text-xs mt-2 text-fail'; })
+            .finally(() => { btn.disabled = false; btn.textContent = orig; });
+    };
+
+    // ---- Live status polling ----
+    const STATUS_URL = "{% url 'qdrant_backup:status' %}";
+    let wasActive = {{ is_active|yesno:"true,false" }};
+    function render(d) {
+        const banner = document.getElementById('run-banner');
+        const hdr = document.getElementById('hdr-running');
+        const runForm = document.getElementById('btn-run-form');
+        if (d.active) {
+            if (banner) banner.classList.remove('hidden');
+            if (hdr) hdr.classList.remove('hidden');
+            if (runForm) runForm.classList.add('hidden');
+            const bar = document.getElementById('run-bar');
+            const label = document.getElementById('run-label');
+            const p = d.progress;
+            if (p && p.total > 0) {
+                const pct = Math.max(4, Math.min(100, Math.round((p.index / p.total) * 100)));
+                if (bar) bar.style.width = pct + '%';
+                if (label) label.textContent = 'Backing up ' + (p.collection || '') + ' (' + p.index + '/' + p.total + ')';
+            } else {
+                if (bar) bar.style.width = '12%';
+                const st = d.run ? d.run.status : 'running';
+                if (label) label.textContent = (st === 'pending') ? 'Queued…' : 'Running…';
+            }
+        } else {
+            if (wasActive) { window.location.reload(); return; }  // finished → refresh dashboard
+            if (banner) banner.classList.add('hidden');
+            if (hdr) hdr.classList.add('hidden');
+            if (runForm) runForm.classList.remove('hidden');
+        }
+    }
+    function poll() {
+        fetch(STATUS_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(d => { render(d); if (d.active) { wasActive = true; setTimeout(poll, 2500); } })
+            .catch(() => setTimeout(poll, 5000));
+    }
+    if (IS_CONFIGURED) poll();
+})();
+</script>
+{% endblock %}

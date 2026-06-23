@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}SDK Showcase - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[920px] mx-auto space-y-5">
+
+            <!-- ================= Header ================= -->
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="min-w-0">
+                    <h1 class="text-[22px] font-semibold tracking-tight">SDK Showcase</h1>
+                    <p class="text-sm text-muted mt-1">A live tour of the plugin SDK (<span class="font-mono text-text">core.plugins.api</span>) — each card is one capability, with the code behind it. Study a card, lift the pattern.</p>
+                </div>
+                <div id="hdr-running" class="{% if not is_active %}hidden {% endif %}inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-warn/10 text-warn border border-warn/30">
+                    <span class="w-2 h-2 rounded-full bg-warn animate-pulse"></span>Demo running…
+                </div>
+            </div>
+
+            {% if not has_environments %}
+            <section class="rounded-2xl border border-warn/30 bg-warn/10 p-4 text-sm text-muted">
+                No environments yet. Create one under
+                <a href="{% url 'cpanel:environment_list' %}" class="text-ok hover:underline">Environments</a>
+                (any will do — the demo worker is standard-library only), then set up the demo.
+            </section>
+            {% endif %}
+
+            <!-- ================= 0 · Setup ================= -->
+            <section id="setup" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft flex items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm font-semibold">{% if is_setup %}Demo settings{% else %}Set up the demo{% endif %}</h2>
+                        <p class="text-xs text-faint mt-0.5">One save provisions a data store, an owner-scoped secret, a managed script and a schedule — all idempotent.</p>
+                    </div>
+                    {% if is_setup %}<span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok flex-none"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Provisioned</span>{% endif %}
+                </div>
+                <form method="post" action="{% url 'sdk_showcase:setup' %}" class="p-5 space-y-4">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for field in form %}
+                        <div>
+                            <label class="block text-xs font-medium text-muted mb-1.5" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="text-fail">*</span>{% endif %}</label>
+                            {{ field }}
+                            {% if field.help_text %}<p class="text-xs text-faint mt-1">{{ field.help_text }}</p>{% endif %}
+                            {% for error in field.errors %}<p class="text-xs text-fail mt-1">{{ error }}</p>{% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">{% if is_setup %}Update demo{% else %}Set up demo{% endif %}</button>
+                    </div>
+                </form>
+            </section>
+
+            {% if is_setup %}
+
+            <!-- ================= 1 · Data store ================= -->
+            <section id="datastore" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">1 · Data store <span class="text-faint font-normal">— the plugin's database</span></h2>
+                    <p class="eyebrow text-faint mt-1">DataStoreAPI · store.set / store.get</p>
+                </div>
+                <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5 items-center">
+                    <div>
+                        <div class="flex items-center gap-4">
+                            <div class="text-4xl font-semibold tabular-nums">{{ counter }}</div>
+                            <form method="post" action="{% url 'sdk_showcase:increment' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-text hover:bg-panel-hi transition">+1 counter</button>
+                            </form>
+                        </div>
+                        <p class="text-xs text-faint mt-3">Config in the store: message <span class="font-mono text-text">{{ config.message }}</span> · steps <span class="font-mono text-text">{{ config.steps }}</span></p>
+                        <p class="text-xs text-faint mt-1">Entries: {% for k in store_keys %}<span class="font-mono text-text">{{ k }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                    </div>
+                    <pre class="text-xs text-muted bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto">store = DataStoreAPI("sdk_showcase").upsert("state")
+value = store.get("counter", 0) + 1
+store.set("counter", value)</pre>
+                </div>
+            </section>
+
+            <!-- ================= 2 · Secrets ================= -->
+            <section id="secrets" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">2 · Secrets <span class="text-faint font-normal">— owner-scoped, encrypted, injected</span></h2>
+                    <p class="eyebrow text-faint mt-1">SecretAPI · upsert / grant</p>
+                </div>
+                <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5 items-center">
+                    <div class="text-sm text-muted space-y-1">
+                        {% if secret_redacted %}
+                        <p><span class="font-mono text-text">DEMO_TOKEN</span> = <span class="font-mono text-text">{{ secret_redacted }}</span> <span class="text-faint">(stored encrypted)</span></p>
+                        <p class="text-xs text-faint">Granted to the demo script → injected into its run as the clean env var <span class="font-mono text-text">$DEMO_TOKEN</span> (selected-mode). The worker prints it redacted.</p>
+                        {% else %}
+                        <p class="text-faint text-xs">No demo secret set — add one in the setup form above.</p>
+                        {% endif %}
+                    </div>
+                    <pre class="text-xs text-muted bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto">secrets = SecretAPI("sdk_showcase")
+s = secrets.upsert("DEMO_TOKEN", value)
+secrets.grant(script, s)   # selected-mode</pre>
+                </div>
+            </section>
+
+            <!-- ================= 3 · Run lifecycle ================= -->
+            <section id="runs" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft flex items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm font-semibold">3 · Managed script &amp; run lifecycle</h2>
+                        <p class="eyebrow text-faint mt-1">ScriptAPI · queue_run / latest_run / runs / cancel_latest_run</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-none">
+                        <form id="btn-run-form" method="post" action="{% url 'sdk_showcase:run' %}" class="{% if is_active %}hidden{% endif %}">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Run demo</button>
+                        </form>
+                        <form id="btn-stop-form" method="post" action="{% url 'sdk_showcase:stop' %}" class="{% if not is_active %}hidden{% endif %}">
+                            {% csrf_token %}
+                            <button type="submit" class="text-[13px] font-medium px-3 py-2 rounded-lg border border-fail/30 text-fail hover:bg-fail/10 transition">Stop</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="run-banner" class="{% if not is_active %}hidden {% endif %}px-5 py-4 border-b border-line-soft bg-warn/5">
+                    <div class="flex items-center gap-3">
+                        <span class="flex-none w-2.5 h-2.5 rounded-full bg-warn animate-pulse"></span>
+                        <p id="run-label" class="text-xs text-muted">Starting…</p>
+                    </div>
+                    <div class="mt-3 h-1.5 w-full rounded-full bg-panel-hi overflow-hidden">
+                        <div id="run-bar" class="h-full bg-warn rounded-full transition-all duration-500" style="width: 8%"></div>
+                    </div>
+                </div>
+
+                <div class="p-5">
+                    <p class="eyebrow text-faint mb-2">Run history (authoritative, via ScriptAPI.runs)</p>
+                    {% if sdk_runs %}
+                    <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead><tr class="border-b border-line-soft text-left">
+                            <th class="py-2 eyebrow text-faint font-normal">Status</th>
+                            <th class="py-2 eyebrow text-faint font-normal">Trigger</th>
+                            <th class="py-2 eyebrow text-faint font-normal text-right">Exit</th>
+                            <th class="py-2 eyebrow text-faint font-normal text-right">When</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-line-soft">
+                            {% for r in sdk_runs %}
+                            <tr>
+                                <td class="py-2 text-sm">{{ r.status }}</td>
+                                <td class="py-2 text-sm text-muted">{{ r.trigger_type }}</td>
+                                <td class="py-2 text-sm text-faint text-right font-mono">{{ r.exit_code|default_if_none:"—" }}</td>
+                                <td class="py-2 text-xs text-faint text-right font-mono">{{ r.created_at|slice:":19" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-faint">No runs yet — click <span class="font-mono text-text">Run demo</span>.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- ================= 4 · Worker output ================= -->
+            <section id="worker" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">4 · Worker output <span class="text-faint font-normal">— the script side</span></h2>
+                    <p class="eyebrow text-faint mt-1">pyrunner_datastore · the worker appends its own summaries</p>
+                </div>
+                <div class="p-5">
+                    {% if worker_runs %}
+                    <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead><tr class="border-b border-line-soft text-left">
+                            <th class="py-2 eyebrow text-faint font-normal">When</th>
+                            <th class="py-2 eyebrow text-faint font-normal text-right">Steps</th>
+                            <th class="py-2 eyebrow text-faint font-normal text-right">Secret seen</th>
+                            <th class="py-2 eyebrow text-faint font-normal text-right">Time</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-line-soft">
+                            {% for r in worker_runs %}
+                            <tr>
+                                <td class="py-2 text-xs font-mono text-faint">{{ r.ts }}</td>
+                                <td class="py-2 text-sm text-muted text-right font-mono">{{ r.steps }}</td>
+                                <td class="py-2 text-sm text-right">{% if r.token_seen %}<span class="text-ok">yes</span>{% else %}<span class="text-faint">no</span>{% endif %}</td>
+                                <td class="py-2 text-sm text-faint text-right font-mono">{{ r.duration_s }}s</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-faint">No worker output yet — run the demo; the worker records a summary into the data store each run.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- ================= 5 · Schedule ================= -->
+            <section id="schedule" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">5 · Schedule</h2>
+                    <p class="eyebrow text-faint mt-1">ScheduleAPI · sync / list</p>
+                </div>
+                <div class="p-5 flex items-center justify-between gap-4 flex-wrap">
+                    <div class="text-sm text-muted">
+                        Current: <span class="font-medium text-text">{{ schedule.label|default:"Manual" }}</span>
+                        {% if schedule.next_run %}<span class="text-faint">· next {{ schedule.next_run|date:"M j, H:i" }} UTC</span>{% endif %}
+                    </div>
+                    <form method="post" action="{% url 'sdk_showcase:schedule' %}" class="flex items-center gap-2">
+                        {% csrf_token %}
+                        <select name="mode" class="px-3 py-2 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30">
+                            <option value="manual" {% if schedule.mode == 'manual' %}selected{% endif %}>Manual only</option>
+                            <option value="interval" {% if schedule.mode == 'interval' %}selected{% endif %}>Every 60 min</option>
+                            <option value="daily" {% if schedule.mode == 'daily' %}selected{% endif %}>Daily 09:00</option>
+                        </select>
+                        <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-text hover:bg-panel-hi transition">Apply</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- ================= 6 · Ownership & cleanup ================= -->
+            <section id="ownership" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">6 · Ownership &amp; cleanup</h2>
+                    <p class="eyebrow text-faint mt-1">every resource is owner-stamped → grouped, filtered, delete-guarded</p>
+                </div>
+                <div class="p-5 flex items-center justify-between gap-4 flex-wrap">
+                    <div class="flex items-center gap-5 text-sm">
+                        <span><span class="font-semibold tabular-nums">{{ inventory.datastores }}</span> <span class="text-faint">data store</span></span>
+                        <span><span class="font-semibold tabular-nums">{{ inventory.secrets }}</span> <span class="text-faint">secret</span></span>
+                        <span><span class="font-semibold tabular-nums">{{ inventory.scripts }}</span> <span class="text-faint">script</span></span>
+                        <span><span class="font-semibold tabular-nums">{{ inventory.schedules }}</span> <span class="text-faint">schedule</span></span>
+                    </div>
+                    <form method="post" action="{% url 'sdk_showcase:reset' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:bg-panel-hi transition">Reset demo data</button>
+                    </form>
+                </div>
+                <p class="px-5 pb-5 text-xs text-faint">“Reset” clears the demo <em>data</em>. The provisioned rows above are removed automatically when the plugin is <strong>uninstalled</strong> — that's the ownership model doing a clean sweep.</p>
+            </section>
+
+            {% endif %}{# is_setup #}
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const STATUS_URL = "{% url 'sdk_showcase:status' %}";
+    let wasActive = {{ is_active|yesno:"true,false" }};
+
+    function render(d) {
+        const banner = document.getElementById('run-banner');
+        const hdr = document.getElementById('hdr-running');
+        const runForm = document.getElementById('btn-run-form');
+        const stopForm = document.getElementById('btn-stop-form');
+        if (d.active) {
+            if (banner) banner.classList.remove('hidden');
+            if (hdr) hdr.classList.remove('hidden');
+            if (runForm) runForm.classList.add('hidden');
+            if (stopForm) stopForm.classList.remove('hidden');
+            const bar = document.getElementById('run-bar');
+            const label = document.getElementById('run-label');
+            const p = d.progress;
+            if (p && p.total > 0) {
+                const pct = Math.max(4, Math.min(100, Math.round((p.index / p.total) * 100)));
+                if (bar) bar.style.width = pct + '%';
+                if (label) label.textContent = 'Working — step ' + p.index + '/' + p.total;
+            } else {
+                if (bar) bar.style.width = '12%';
+                const st = d.run ? d.run.status : 'running';
+                if (label) label.textContent = (st === 'pending') ? 'Queued…' : 'Running…';
+            }
+        } else {
+            if (wasActive) { window.location.reload(); return; }  // finished → refresh tables
+            if (banner) banner.classList.add('hidden');
+            if (hdr) hdr.classList.add('hidden');
+            if (runForm) runForm.classList.remove('hidden');
+            if (stopForm) stopForm.classList.add('hidden');
+        }
+    }
+    function poll() {
+        fetch(STATUS_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(d => { render(d); if (d.active) { wasActive = true; setTimeout(poll, 2000); } })
+            .catch(() => setTimeout(poll, 4000));
+    }
+    {% if is_setup %}poll();{% endif %}
+})();
+</script>
+{% endblock %}

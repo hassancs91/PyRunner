@@ -1,0 +1,27 @@
+{
+    "manifest_version": 1,
+    "slug": "sdk_showcase",
+    "publisher": "learnwithhasan",
+    "name": "SDK Showcase",
+    "version": "1.0.0",
+    "api": "2.1",
+    "min_pyrunner": "1.13.0",
+    "summary": "A live tour of the PyRunner plugin SDK — every capability on one page.",
+    "description": "Reference plugin that demonstrates each core.plugins.api surface (data stores, owner-scoped secrets, managed scripts, the run lifecycle, schedules, environments) as small, isolated, annotated sections. Study one card, lift the pattern into your own plugin.",
+    "icon": "assets/icon.svg",
+    "icon_fallback": "🧩",
+    "categories": ["example", "reference"],
+    "keywords": ["sdk", "example", "reference", "tutorial", "api"],
+    "author": "Hasan Aboul Hasan",
+    "author_url": "https://learnwithhasan.com",
+    "license": "MIT",
+    "homepage": "https://learnwithhasan.com",
+    "documentation": "https://learnwithhasan.com",
+    "provisions": {
+        "scripts": 1,
+        "secrets": 1,
+        "datastores": 1,
+        "schedules": 1,
+        "secret_keys": ["DEMO_TOKEN"]
+    }
+}

@@ -120,6 +120,8 @@ from core.views.services import (
 )
 from core.views.plugins import (
     plugin_list_view,
+    plugin_detail_view,
+    plugin_icon_view,
     plugin_upload_view,
     plugin_activate_view,
     plugin_deactivate_view,
@@ -290,4 +292,7 @@ urlpatterns = [
     path("plugins/<uuid:pk>/activate/", plugin_activate_view, name="plugin_activate"),
     path("plugins/<uuid:pk>/deactivate/", plugin_deactivate_view, name="plugin_deactivate"),
     path("plugins/<uuid:pk>/delete/", plugin_delete_view, name="plugin_delete"),
+    # Slug routes LAST so the literal/uuid plugin routes above always win.
+    path("plugins/<slug:slug>/icon/", plugin_icon_view, name="plugin_icon"),
+    path("plugins/<slug:slug>/", plugin_detail_view, name="plugin_detail"),
 ]

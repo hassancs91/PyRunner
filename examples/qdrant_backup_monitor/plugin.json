@@ -1,7 +1,0 @@
-{
-    "slug": "qdrant_backup_monitor",
-    "name": "Qdrant Backup Monitor",
-    "version": "1.0.0",
-    "min_pyrunner": "1.10.0",
-    "description": "Monitoring dashboard for the 'Qdrant Backup' script. Reads run history from the 'qdrant_backups' DataStore and renders health status, KPIs, per-run history, and per-collection sizes."
-}

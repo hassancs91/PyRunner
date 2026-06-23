@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}{{ plugin.name }} - Plugins - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-3xl mx-auto space-y-5">
+
+            <!-- Breadcrumb -->
+            <nav class="flex items-center gap-1.5 eyebrow text-faint">
+                <a href="{% url 'cpanel:plugin_list' %}" class="hover:text-text transition-colors">Plugins</a>
+                <span>/</span>
+                <span class="text-muted">{{ plugin.name }}</span>
+            </nav>
+
+            <!-- Restart-required banner -->
+            {% if pending_restart %}
+            <div class="rounded-xl border border-warn/30 bg-warn/10 p-4 flex items-center justify-between gap-4">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-warn flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z"/></svg>
+                    <div class="text-sm">
+                        <p class="font-medium text-text">Restart required</p>
+                        <p class="text-muted mt-0.5">Plugin changes won't take effect until PyRunner restarts.</p>
+                    </div>
+                </div>
+                <form method="post" action="{% url 'cpanel:plugin_restart' %}" onsubmit="return confirm('Restart PyRunner now? It will be briefly unavailable.');">
+                    {% csrf_token %}
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-warn text-ink hover:opacity-90 transition whitespace-nowrap">Restart now</button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Header card -->
+            <section class="rounded-2xl border border-line bg-panel p-6">
+                <div class="flex items-start gap-4">
+                    <!-- Icon (bundled file with emoji fallback) -->
+                    {% if plugin.icon_url %}
+                    <img src="{{ plugin.icon_url }}" alt="" class="w-14 h-14 rounded-xl object-cover border border-line-soft bg-panel-hi flex-shrink-0" onerror="this.style.display='none';this.nextElementSibling.style.display='grid';">
+                    <div class="w-14 h-14 rounded-xl bg-panel-hi border border-line-soft place-items-center text-2xl flex-shrink-0" style="display:none">{{ plugin.icon_fallback|default:"🧩" }}</div>
+                    {% else %}
+                    <div class="w-14 h-14 rounded-xl bg-panel-hi border border-line-soft grid place-items-center text-2xl flex-shrink-0">{{ plugin.icon_fallback|default:"🧩" }}</div>
+                    {% endif %}
+
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <h1 class="text-[22px] font-semibold tracking-tight">{{ plugin.name }}</h1>
+                            {% if plugin.status == 'active' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Active</span>
+                            {% elif plugin.status == 'errored' %}
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span>Errored</span>
+                            {% elif plugin.status == 'disabled' %}
+                            <span class="px-2 py-0.5 text-xs rounded-md bg-panel-hi text-muted">Disabled</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs rounded-md bg-info/10 text-info">Installed</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs font-mono text-faint mt-1">
+                            {{ plugin.slug }}{% if plugin.version %} · v{{ plugin.version }}{% endif %}{% if plugin.publisher %} · {{ plugin.publisher }}/{{ plugin.slug }}{% endif %}
+                        </div>
+                        {% if plugin.summary %}
+                        <p class="text-sm text-muted mt-2">{{ plugin.summary }}</p>
+                        {% endif %}
+                        {% if plugin.categories %}
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            {% for cat in plugin.categories %}
+                            <span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-panel-hi text-muted border border-line-soft">{{ cat }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-2 mt-5 pt-5 border-t border-line-soft">
+                    {% if plugin.status == 'active' %}
+                    <form method="post" action="{% url 'cpanel:plugin_deactivate' pk=plugin.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Deactivate</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{% url 'cpanel:plugin_activate' pk=plugin.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">{% if plugin.status == 'errored' %}Retry activation{% else %}Activate{% endif %}</button>
+                    </form>
+                    {% endif %}
+                    <button type="button"
+                            data-url="{% url 'cpanel:plugin_delete' pk=plugin.pk %}"
+                            data-name="{{ plugin.name }}"
+                            data-owned="{% if plugin.owned_counts.total %}{{ plugin.owned_counts.scripts }} script{{ plugin.owned_counts.scripts|pluralize }}, {{ plugin.owned_counts.secrets }} secret{{ plugin.owned_counts.secrets|pluralize }}, {{ plugin.owned_counts.datastores }} data store{{ plugin.owned_counts.datastores|pluralize }}{% endif %}"
+                            onclick="openDeleteModal(this)"
+                            class="text-[13px] px-3.5 py-2 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete</button>
+                </div>
+            </section>
+
+            <!-- Error details -->
+            {% if plugin.error_message %}
+            <section class="rounded-2xl border border-fail/30 bg-fail/10 p-5">
+                <p class="text-sm font-medium text-fail mb-2">Last activation error</p>
+                <pre class="text-[11px] text-muted bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{{ plugin.error_message }}</pre>
+            </section>
+            {% endif %}
+
+            <!-- Provisions (trust surface) -->
+            {% if plugin.provisions_summary or plugin.provisions.secret_keys %}
+            <section class="rounded-2xl border border-line bg-panel p-6">
+                <h2 class="text-sm font-semibold text-text mb-1">What this plugin creates</h2>
+                <p class="text-xs text-faint mb-3">Declared by the plugin. Owned resources are grouped under it and removed cleanly on uninstall.</p>
+                {% if plugin.provisions_summary %}
+                <p class="text-sm text-muted">{{ plugin.provisions_summary }}</p>
+                {% endif %}
+                {% if plugin.provisions.secret_keys %}
+                <div class="flex flex-wrap gap-1.5 mt-3">
+                    {% for key in plugin.provisions.secret_keys %}
+                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-mono rounded-full bg-panel-hi text-muted border border-line-soft">{{ key }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            <!-- About / metadata -->
+            <section class="rounded-2xl border border-line bg-panel p-6 space-y-5">
+                {% if plugin.description %}
+                <div>
+                    <h2 class="text-sm font-semibold text-text mb-1.5">About</h2>
+                    <p class="text-sm text-muted leading-relaxed">{{ plugin.description }}</p>
+                </div>
+                {% endif %}
+
+                <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-4 text-sm">
+                    <div>
+                        <dt class="eyebrow text-faint font-normal mb-1">Author</dt>
+                        <dd class="text-text">
+                            {% if plugin.author_url %}<a href="{{ plugin.author_url }}" target="_blank" rel="noopener noreferrer" class="text-info hover:underline">{{ plugin.author|default:"—" }}</a>{% else %}{{ plugin.author|default:"—" }}{% endif %}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint font-normal mb-1">License</dt>
+                        <dd class="text-text">{{ plugin.license|default:"—" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint font-normal mb-1">Source</dt>
+                        <dd class="text-text">{{ plugin.get_source_display }}</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint font-normal mb-1">Version</dt>
+                        <dd class="text-text font-mono">{{ plugin.version|default:"—" }}</dd>
+                    </div>
+                    {% if plugin.manifest.min_pyrunner %}
+                    <div>
+                        <dt class="eyebrow text-faint font-normal mb-1">Requires</dt>
+                        <dd class="text-text font-mono">PyRunner ≥ {{ plugin.manifest.min_pyrunner }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if plugin.manifest.api %}
+                    <div>
+                        <dt class="eyebrow text-faint font-normal mb-1">SDK API</dt>
+                        <dd class="text-text font-mono">{{ plugin.manifest.api }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+
+                {% if plugin.homepage or plugin.repository or plugin.documentation %}
+                <div class="flex flex-wrap gap-x-5 gap-y-2 pt-4 border-t border-line-soft text-[13px]">
+                    {% if plugin.homepage %}<a href="{{ plugin.homepage }}" target="_blank" rel="noopener noreferrer" class="text-info hover:underline">Homepage ↗</a>{% endif %}
+                    {% if plugin.repository %}<a href="{{ plugin.repository }}" target="_blank" rel="noopener noreferrer" class="text-info hover:underline">Repository ↗</a>{% endif %}
+                    {% if plugin.documentation %}<a href="{{ plugin.documentation }}" target="_blank" rel="noopener noreferrer" class="text-info hover:underline">Documentation ↗</a>{% endif %}
+                </div>
+                {% endif %}
+            </section>
+
+        </div>
+    </div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div id="delete-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[60] p-4">
+    <div class="bg-panel border border-line rounded-2xl p-6 max-w-md w-full">
+        <h3 class="text-base font-semibold text-text mb-2">Delete plugin</h3>
+        <p class="text-sm text-muted mb-4">Delete <span id="delete-name" class="font-medium text-text"></span>? This removes its files and registry entry. This cannot be undone.</p>
+        <form method="post" id="delete-form">
+            {% csrf_token %}
+            <label class="flex items-start gap-2.5 mb-2 p-3 rounded-lg border border-line-soft bg-panel-hi/40">
+                <input type="checkbox" name="remove_data" class="mt-0.5 w-4 h-4 rounded text-fail bg-ink border-line focus:ring-fail/40 focus:ring-2">
+                <span class="text-sm text-muted">Also delete this plugin's owned scripts, secrets, and data stores. <span class="text-fail">Destroys its stored data.</span></span>
+            </label>
+            <p id="delete-owned-preview" class="hidden text-xs text-warn mb-5"></p>
+            <div class="flex items-center justify-end gap-2.5">
+                <button type="button" onclick="closeDeleteModal()" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</button>
+                <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete plugin</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openDeleteModal(btn) {
+    var form = document.getElementById('delete-form');
+    form.action = btn.dataset.url;
+    document.getElementById('delete-name').textContent = btn.dataset.name;
+    var preview = document.getElementById('delete-owned-preview');
+    if (btn.dataset.owned) {
+        preview.textContent = 'With "Also delete" checked, this removes ' + btn.dataset.owned + ' owned by this plugin.';
+        preview.classList.remove('hidden');
+    } else {
+        preview.textContent = '';
+        preview.classList.add('hidden');
+    }
+    var m = document.getElementById('delete-modal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+function closeDeleteModal() {
+    var m = document.getElementById('delete-modal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+</script>
+{% endblock %}

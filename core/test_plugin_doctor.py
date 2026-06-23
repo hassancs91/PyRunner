@@ -135,6 +135,16 @@ class DoctorTests(SimpleTestCase):
         self.assertTrue(report.ok)  # advisory only
         self.assertIn("sdk-usage", _rules(report, "warn"))
 
+    def test_core_internal_import_in_test_file_is_exempt(self):
+        # A plugin's own tests legitimately import core.models to assert behavior;
+        # the sdk-usage advisory must not nudge authors away from shipping tests.
+        report = run_doctor(self.b.make(
+            extra={"tests.py": "from core.models import Script\n"}
+        ))
+        self.assertTrue(report.ok)
+        self.assertNotIn("sdk-usage", _rules(report, "warn"))
+        self.assertIn("sdk-usage", _rules(report, "pass"))
+
     def test_two_appconfigs_fails(self):
         bad = VALID_APPS + "\n\nclass Second(PluginAppConfig):\n    name = 'plugins.{slug}'\n    label = '{slug}'\n"
         report = run_doctor(self.b.make(apps=bad))

@@ -166,7 +166,11 @@ echo "    - Starting web server on port ${PORT:-8000}..."
 echo ""
 echo "=========================================="
 echo "  PyRunner is ready!"
-echo "  Open http://localhost:${PORT:-8000}"
+# PUBLIC_PORT is the host-side published port (set by compose from the host
+# PORT). PORT here is the container-internal bind (pinned 8000), so it would be
+# wrong to show whenever the host maps a different port. Fall back to it only
+# when PUBLIC_PORT is unset (e.g. Coolify, where access is via FQDN anyway).
+echo "  Open http://localhost:${PUBLIC_PORT:-${PORT:-8000}}"
 echo "=========================================="
 echo ""
 

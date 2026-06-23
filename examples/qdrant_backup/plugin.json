@@ -1,0 +1,27 @@
+{
+    "manifest_version": 1,
+    "slug": "qdrant_backup",
+    "publisher": "learnwithhasan",
+    "name": "Qdrant Backup",
+    "version": "1.0.0",
+    "api": "2.1",
+    "min_pyrunner": "1.13.0",
+    "summary": "Scheduled backups of every Qdrant collection to Cloudflare R2.",
+    "description": "Schedule automatic backups of every Qdrant collection to Cloudflare R2 (S3-compatible). Configure once in a form; the plugin provisions a managed Script, secrets, a data store, and a schedule for you, and shows a backup dashboard.",
+    "icon": "assets/icon.svg",
+    "icon_fallback": "🗄️",
+    "categories": ["backup", "vector-db"],
+    "keywords": ["qdrant", "r2", "s3", "backup", "vector database"],
+    "author": "Hasan Aboul Hasan",
+    "author_url": "https://learnwithhasan.com",
+    "license": "MIT",
+    "homepage": "https://learnwithhasan.com",
+    "documentation": "https://learnwithhasan.com",
+    "provisions": {
+        "scripts": 1,
+        "secrets": 3,
+        "datastores": 1,
+        "schedules": 1,
+        "secret_keys": ["QDRANT_API_KEY", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]
+    }
+}

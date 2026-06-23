@@ -7,11 +7,12 @@ gate on superuser, call the service, set messages, and redirect.
 """
 
 import logging
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import HttpRequest, HttpResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -20,6 +21,16 @@ from core.models import Plugin
 from core.services import PluginInstallError, PluginService
 
 logger = logging.getLogger(__name__)
+
+# Content types for bundled plugin icons (kept in sync with the doctor's
+# ALLOWED_ICON_EXTS). SVG is served only as an <img> source, never inlined.
+_ICON_CONTENT_TYPES = {
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
 
 
 def superuser_required(view_func):
@@ -47,6 +58,54 @@ def plugin_list_view(request: HttpRequest) -> HttpResponse:
 
 @login_required
 @superuser_required
+def plugin_detail_view(request: HttpRequest, slug: str) -> HttpResponse:
+    """Plugin detail page — the local analogue of a marketplace listing.
+
+    Surfaces the packaged metadata (icon, author, license, links, categories,
+    description, declared provisions) plus lifecycle actions. Reads from disk via
+    the manifest accessors, so it works for INSTALLED-but-not-active plugins too.
+    """
+    plugin = get_object_or_404(Plugin, slug=slug)
+    plugin.owned_counts = PluginService.owned_resource_counts(plugin.slug)
+    context = {
+        "plugin": plugin,
+        "pending_restart": PluginService.pending_restart(),
+    }
+    return render(request, "cpanel/plugins/detail.html", context)
+
+
+@login_required
+@superuser_required
+def plugin_icon_view(request: HttpRequest, slug: str) -> HttpResponse:
+    """Serve a plugin's bundled icon straight from PLUGINS_DIR.
+
+    Reads the file from disk (not staticfiles), so an INSTALLED-but-not-active
+    plugin's icon still renders and there is no network dependency. The icon path
+    comes from the manifest and is re-validated here to stay inside the plugin
+    folder (defense-in-depth alongside the doctor's static check).
+    """
+    plugin = get_object_or_404(Plugin, slug=slug)
+    icon_rel = plugin.manifest_value("icon")
+    if not icon_rel:
+        raise Http404("Plugin has no icon.")
+
+    folder = (Path(settings.PLUGINS_DIR) / plugin.slug).resolve()
+    target = (folder / str(icon_rel)).resolve()
+    # Path-traversal guard: the resolved file must live under the plugin folder.
+    if folder != target and folder not in target.parents:
+        raise Http404("Icon path escapes the plugin folder.")
+    ext = target.suffix.lower()
+    if ext not in _ICON_CONTENT_TYPES or not target.is_file():
+        raise Http404("Icon not found.")
+
+    response = FileResponse(open(target, "rb"), content_type=_ICON_CONTENT_TYPES[ext])
+    response["Cache-Control"] = "private, max-age=300"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@login_required
+@superuser_required
 def plugin_upload_view(request: HttpRequest) -> HttpResponse:
     """Upload + install a plugin .zip (does not load/activate it)."""
     if request.method == "POST":
@@ -62,11 +121,14 @@ def plugin_upload_view(request: HttpRequest) -> HttpResponse:
                 messages.error(request, "Upload failed unexpectedly. Check the logs.")
                 return render(request, "cpanel/plugins/upload.html", {"form": form})
 
+            provisions = plugin.provisions_summary
+            provision_note = f" It will create {provisions}." if provisions else ""
             messages.success(
                 request,
-                f'Plugin "{plugin.name}" installed. Click Activate to validate and enable it.',
+                f'Plugin "{plugin.name}" installed.{provision_note} '
+                "Click Activate to validate and enable it.",
             )
-            return redirect("cpanel:plugin_list")
+            return redirect("cpanel:plugin_detail", slug=plugin.slug)
     else:
         form = PluginUploadForm()
     return render(request, "cpanel/plugins/upload.html", {"form": form})

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Plugin Template - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-2xl mx-auto space-y-5">
+
+            <div>
+                <h1 class="text-[22px] font-semibold tracking-tight">Plugin Template</h1>
+                <p class="text-sm text-muted mt-1">The smallest correct plugin: a superuser page that stores and reads one value through <span class="font-mono">DataStoreAPI</span>. Copy this folder and build from here.</p>
+            </div>
+
+            <form method="post" action="{% url 'plugin_template:save' %}" class="rounded-2xl border border-line bg-panel p-6 space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="note" class="block text-xs font-medium text-muted mb-1.5">Note (saved to the data store)</label>
+                    <input type="text" name="note" id="note" value="{{ note }}"
+                           class="w-full px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors"
+                           placeholder="type anything and save">
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save</button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

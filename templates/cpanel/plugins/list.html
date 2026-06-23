@@ -70,14 +70,27 @@
                         {% for plugin in plugins %}
                         <tr class="hover:bg-panel-hi/50 transition-colors align-top">
                             <td class="px-6 py-3.5 max-w-md">
-                                <div class="text-[13.5px] font-medium text-text">{{ plugin.name }}</div>
-                                <div class="text-xs font-mono text-faint mt-0.5">{{ plugin.slug }}</div>
-                                {% if plugin.error_message %}
-                                <details class="mt-1.5">
-                                    <summary class="text-xs text-fail cursor-pointer">Error details</summary>
-                                    <pre class="mt-1 text-[11px] text-muted bg-ink border border-line-soft rounded-lg p-2.5 overflow-x-auto whitespace-pre-wrap">{{ plugin.error_message }}</pre>
-                                </details>
-                                {% endif %}
+                                <div class="flex items-start gap-3">
+                                    {% if plugin.icon_url %}
+                                    <img src="{{ plugin.icon_url }}" alt="" class="w-9 h-9 rounded-lg object-cover border border-line-soft bg-panel-hi flex-shrink-0 mt-0.5" onerror="this.style.display='none';this.nextElementSibling.style.display='grid';">
+                                    <div class="w-9 h-9 rounded-lg bg-panel-hi border border-line-soft place-items-center text-lg flex-shrink-0 mt-0.5" style="display:none">{{ plugin.icon_fallback|default:"🧩" }}</div>
+                                    {% else %}
+                                    <div class="w-9 h-9 rounded-lg bg-panel-hi border border-line-soft grid place-items-center text-lg flex-shrink-0 mt-0.5">{{ plugin.icon_fallback|default:"🧩" }}</div>
+                                    {% endif %}
+                                    <div class="min-w-0">
+                                        <a href="{% url 'cpanel:plugin_detail' slug=plugin.slug %}" class="text-[13.5px] font-medium text-text hover:text-info transition-colors">{{ plugin.name }}</a>
+                                        <div class="text-xs font-mono text-faint mt-0.5">{{ plugin.slug }}</div>
+                                        {% if plugin.summary %}
+                                        <p class="text-xs text-muted mt-1 line-clamp-2">{{ plugin.summary }}</p>
+                                        {% endif %}
+                                        {% if plugin.error_message %}
+                                        <details class="mt-1.5">
+                                            <summary class="text-xs text-fail cursor-pointer">Error details</summary>
+                                            <pre class="mt-1 text-[11px] text-muted bg-ink border border-line-soft rounded-lg p-2.5 overflow-x-auto whitespace-pre-wrap">{{ plugin.error_message }}</pre>
+                                        </details>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </td>
                             <td class="px-6 py-3.5"><span class="font-mono text-sm text-muted">{{ plugin.version }}</span></td>
                             <td class="px-6 py-3.5"><span class="text-sm text-muted">{{ plugin.get_source_display }}</span></td>

@@ -1,0 +1,13 @@
+{
+    "manifest_version": 1,
+    "slug": "plugin_template",
+    "name": "Plugin Template",
+    "version": "0.1.0",
+    "api": "2.1",
+    "min_pyrunner": "1.13.0",
+    "summary": "The smallest correct PyRunner plugin — copy, rename, build.",
+    "author": "Your Name",
+    "license": "MIT",
+    "icon": "assets/icon.svg",
+    "icon_fallback": "🧱"
+}

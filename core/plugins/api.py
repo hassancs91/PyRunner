@@ -31,10 +31,15 @@ CONTRACT NOTES
 """
 
 import json
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
 
 # Plugins declare the SDK version they target in plugin.json (e.g. "2.0"); bump
 # on a breaking change to the facade. The wrapped CORE services stay stable.
-API_VERSION = "2.0"
+# 2.1 (additive): ScriptAPI run-lifecycle surface (latest_run/runs/
+# cancel_latest_run + the RunView read-model).
+API_VERSION = "2.1"
 
 
 # --------------------------------------------------------------------------- #
@@ -136,6 +141,76 @@ class SecretAPI:
             grant.active = active
             grant.save(update_fields=["active"])
         return grant
+
+
+# --------------------------------------------------------------------------- #
+# Runs — a read-model DECOUPLED from the ORM
+# --------------------------------------------------------------------------- #
+
+@dataclass(frozen=True)
+class RunView:
+    """An immutable, ORM-free snapshot of a single Run.
+
+    Plugins OBSERVE runs through this read-model instead of holding a live
+    ``core.models.Run``: no ORM object leaks past the SDK boundary, so a plugin's
+    status endpoint can't accidentally trigger a query or couple itself to the
+    core schema (the very coupling the "sdk-usage" doctor warn discourages).
+    ``as_dict()`` returns only JSON-serializable values (datetimes → ISO 8601),
+    so a plugin can hand it straight to ``JsonResponse``.
+    """
+
+    id: str
+    status: str
+    trigger_type: str
+    created_at: Optional[datetime]
+    started_at: Optional[datetime]
+    ended_at: Optional[datetime]
+    duration: Optional[float]
+    exit_code: Optional[int]
+    pid: Optional[int]
+    task_id: str
+    is_finished: bool
+    is_running: bool
+
+    @classmethod
+    def _from_run(cls, run):
+        """Build a RunView from a Run instance (no module-top core import — the
+        instance carries its own ``Status`` choices, so we stay import-light)."""
+        return cls(
+            id=str(run.id),
+            status=str(run.status),
+            trigger_type=str(run.trigger_type),
+            created_at=run.created_at,
+            started_at=run.started_at,
+            ended_at=run.ended_at,
+            duration=run.duration,
+            exit_code=run.exit_code,
+            pid=run.pid,
+            task_id=run.task_id or "",
+            is_finished=run.is_finished,
+            is_running=run.status == run.Status.RUNNING,
+        )
+
+    def as_dict(self) -> dict:
+        """JSON-serializable dict (datetimes → ISO 8601) for a status endpoint."""
+
+        def _iso(value):
+            return value.isoformat() if value is not None else None
+
+        return {
+            "id": self.id,
+            "status": self.status,
+            "trigger_type": self.trigger_type,
+            "created_at": _iso(self.created_at),
+            "started_at": _iso(self.started_at),
+            "ended_at": _iso(self.ended_at),
+            "duration": self.duration,
+            "exit_code": self.exit_code,
+            "pid": self.pid,
+            "task_id": self.task_id,
+            "is_finished": self.is_finished,
+            "is_running": self.is_running,
+        }
 
 
 # --------------------------------------------------------------------------- #
@@ -271,6 +346,67 @@ class ScriptAPI:
 
     def list(self):
         return list(self._qs().order_by("name"))
+
+    # -- Run lifecycle: OBSERVE + CONTROL a provisioned script's runs --------- #
+
+    def _runs_qs(self, key):
+        """Runs of the owned script ``key``, newest first (owner+workspace scoped).
+
+        Scoping is exact and free: we resolve the single Script via ``get()``
+        (already owner+workspace filtered) and return its runs, so a plugin can
+        never observe another owner's or another workspace's runs. Empty when no
+        such owned script exists.
+        """
+        from core.models import Run
+
+        script = self.get(key)
+        if script is None:
+            return Run.objects.none()
+        return Run.objects.filter(script=script).order_by("-created_at")
+
+    def latest_run(self, key):
+        """Return the most recent Run of the owned script ``key`` as a RunView,
+        or None when the script has never run (or doesn't exist). Poll this for a
+        plugin's live status badge."""
+        run = self._runs_qs(key).first()
+        return RunView._from_run(run) if run is not None else None
+
+    def runs(self, key, *, limit=20):
+        """Return recent run history (newest first) as RunViews, owner-scoped.
+
+        ``limit`` caps the count (default 20); a non-positive limit yields []. The
+        result is a list of plain RunViews — no ORM objects leak to the caller.
+        """
+        return [RunView._from_run(r) for r in self._runs_qs(key)[: max(0, int(limit))]]
+
+    def cancel_latest_run(self, key):
+        """Cancel the latest pending/running run of the owned script ``key``.
+
+        Reuses the shared force-stop path (``TaskService.force_stop_run``) — the
+        SAME code the tasks Stop button calls — so a RUNNING run's process tree is
+        killed and a PENDING run is dequeued, both flipped to CANCELLED. Returns
+        True if a run was cancelled, False when nothing was cancellable (no run in
+        a pending/running state, or no such owned script). Drives a plugin's
+        "Stop" button without importing core.models.
+        """
+        from core.models import Run
+        from core.services.task_service import TaskService
+
+        script = self.get(key)
+        if script is None:
+            return False
+        run = (
+            Run.objects.filter(
+                script=script,
+                status__in=[Run.Status.RUNNING, Run.Status.PENDING],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if run is None:
+            return False
+        changed, _msg = TaskService.force_stop_run(run)
+        return changed
 
 
 # --------------------------------------------------------------------------- #

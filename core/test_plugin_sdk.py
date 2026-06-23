@@ -6,18 +6,22 @@ auto-stamping, DataStore auto-naming, the legacy (owner=None) lane, bulk
 set_environment, and that the SDK is import-light (no core.models at module top).
 """
 
+import json
 import subprocess
 import sys
 
+from datetime import timedelta
 from unittest import mock
 
 from django.conf import settings
 from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
 
 from core.plugins.api import (
     API_VERSION,
     DataStoreAPI,
     EnvironmentAPI,
+    RunView,
     ScheduleAPI,
     ScriptAPI,
     SecretAPI,
@@ -111,6 +115,168 @@ class ScriptAPITests(TestCase):
         q.assert_called_once()
         self.assertEqual(run.workspace_id, self.ws.id)
         self.assertEqual(run.status, Run.Status.PENDING)
+
+
+class RunLifecycleAPITests(TestCase):
+    """ScriptAPI run-lifecycle surface (API 2.1): latest_run / runs /
+    cancel_latest_run + the ORM-decoupled RunView read-model."""
+
+    def setUp(self):
+        self.ws = Workspace.get_default()
+        self.env = Environment.objects.create(name="e", path="runenv")
+        self.api = ScriptAPI("myplugin")
+        self.script = self.api.upsert(key="backup", code="x", environment=self.env)
+
+    def _make_run(self, *, script=None, status=Run.Status.SUCCESS, offset=0, **kwargs):
+        """Create a Run with a deterministic created_at (offset seconds from now).
+
+        ``auto_now_add`` ignores a passed created_at on create, so stamp the
+        ordering explicitly via update().
+        """
+        script = script or self.script
+        run = Run.objects.create(
+            script=script,
+            workspace_id=script.workspace_id,
+            status=status,
+            **kwargs,
+        )
+        Run.objects.filter(pk=run.pk).update(
+            created_at=timezone.now() + timedelta(seconds=offset)
+        )
+        run.refresh_from_db()
+        return run
+
+    # -- latest_run ---------------------------------------------------------- #
+
+    def test_latest_run_none_when_no_runs(self):
+        self.assertIsNone(self.api.latest_run("backup"))
+
+    def test_latest_run_none_for_unknown_key(self):
+        self.assertIsNone(self.api.latest_run("nope"))
+
+    def test_latest_run_returns_newest_as_runview(self):
+        self._make_run(status=Run.Status.SUCCESS, offset=-10)
+        newest = self._make_run(
+            status=Run.Status.RUNNING,
+            offset=0,
+            trigger_type=Run.TriggerType.MANUAL,
+            pid=4321,
+            task_id="t-xyz",
+        )
+        view = self.api.latest_run("backup")
+        self.assertIsInstance(view, RunView)
+        self.assertEqual(view.id, str(newest.id))
+        self.assertEqual(view.status, "running")
+        self.assertEqual(view.trigger_type, "manual")
+        self.assertEqual(view.pid, 4321)
+        self.assertEqual(view.task_id, "t-xyz")
+        self.assertTrue(view.is_running)
+        self.assertFalse(view.is_finished)
+
+    # -- runs ---------------------------------------------------------------- #
+
+    def test_runs_newest_first_and_respects_limit(self):
+        r_old = self._make_run(offset=-30)
+        r_mid = self._make_run(offset=-20)
+        r_new = self._make_run(offset=-10)
+        ids = [v.id for v in self.api.runs("backup")]
+        self.assertEqual(ids, [str(r_new.id), str(r_mid.id), str(r_old.id)])
+        limited = self.api.runs("backup", limit=2)
+        self.assertEqual([v.id for v in limited], [str(r_new.id), str(r_mid.id)])
+        self.assertEqual(self.api.runs("backup", limit=0), [])
+
+    def test_runs_owner_scoped(self):
+        # Another owner's same-key script + run must NOT appear for myplugin.
+        other = ScriptAPI("otherplugin").upsert(
+            key="backup", code="y", environment=self.env
+        )
+        self._make_run(script=other)
+        self.assertEqual(self.api.runs("backup"), [])  # myplugin's "backup" has no runs
+        self.assertEqual(len(ScriptAPI("otherplugin").runs("backup")), 1)
+
+    # -- cancel_latest_run --------------------------------------------------- #
+
+    def test_cancel_latest_run_cancels_running(self):
+        self._make_run(status=Run.Status.RUNNING, offset=0, pid=None, task_id="t-run")
+        self.assertTrue(self.api.cancel_latest_run("backup"))
+        run = Run.objects.get(task_id="t-run")
+        self.assertEqual(run.status, Run.Status.CANCELLED)
+        self.assertIsNotNone(run.ended_at)
+
+    def test_cancel_latest_run_cancels_pending(self):
+        self._make_run(status=Run.Status.PENDING, offset=0, task_id="t-pend")
+        self.assertTrue(self.api.cancel_latest_run("backup"))
+        run = Run.objects.get(task_id="t-pend")
+        self.assertEqual(run.status, Run.Status.CANCELLED)
+        self.assertIsNotNone(run.ended_at)
+
+    def test_cancel_latest_run_false_when_nothing_cancellable(self):
+        self._make_run(status=Run.Status.SUCCESS, offset=0)
+        self.assertFalse(self.api.cancel_latest_run("backup"))
+
+    def test_cancel_latest_run_false_for_unknown_key(self):
+        self.assertFalse(self.api.cancel_latest_run("nope"))
+
+    def test_cancel_latest_run_targets_latest_cancellable(self):
+        # A newer finished run must not mask the latest PENDING/RUNNING one.
+        running = self._make_run(
+            status=Run.Status.RUNNING, offset=-5, pid=None, task_id="t-r"
+        )
+        self._make_run(status=Run.Status.SUCCESS, offset=0)  # newest overall, terminal
+        self.assertTrue(self.api.cancel_latest_run("backup"))
+        running.refresh_from_db()
+        self.assertEqual(running.status, Run.Status.CANCELLED)
+
+    def test_cancel_latest_run_owner_scoped(self):
+        # owner A cannot cancel owner B's run.
+        other = ScriptAPI("otherplugin").upsert(
+            key="backup", code="y", environment=self.env
+        )
+        self._make_run(
+            script=other, status=Run.Status.RUNNING, pid=None, task_id="t-b"
+        )
+        self.assertFalse(self.api.cancel_latest_run("backup"))  # myplugin has no run
+        run_b = Run.objects.get(task_id="t-b")
+        self.assertEqual(run_b.status, Run.Status.RUNNING)  # untouched
+
+    # -- RunView decoupling + serialization ---------------------------------- #
+
+    def test_runview_decoupled_and_as_dict_json_serializable(self):
+        self._make_run(
+            status=Run.Status.SUCCESS,
+            offset=0,
+            exit_code=0,
+            started_at=timezone.now(),
+            ended_at=timezone.now(),
+            task_id="t-json",
+        )
+        view = self.api.latest_run("backup")
+        self.assertIsInstance(view, RunView)
+        # Frozen: no accidental mutation, and no live ORM object behind it.
+        with self.assertRaises(Exception):
+            view.status = "mutated"
+        d = view.as_dict()
+        self.assertIsInstance(d["created_at"], str)  # datetime -> ISO 8601
+        self.assertIsInstance(d["started_at"], str)
+        self.assertIsInstance(d["ended_at"], str)
+        self.assertEqual(d["status"], "success")
+        json.dumps(d)  # must round-trip through JSON without a custom encoder
+
+    # -- legacy (owner=None) lane mirrors .get() ----------------------------- #
+
+    def test_legacy_owner_none_lane_like_get(self):
+        legacy_script = Script.objects.create(
+            name="legacy-script", code="z", environment=self.env, workspace=self.ws
+        )
+        self._make_run(script=legacy_script, status=Run.Status.SUCCESS)
+        legacy_api = ScriptAPI()  # owner=None — resolves by NAME, like .get()
+        self.assertIsNotNone(legacy_api.get("legacy-script"))
+        self.assertIsNotNone(legacy_api.latest_run("legacy-script"))
+        self.assertEqual(len(legacy_api.runs("legacy-script")), 1)
+        # An owned script is invisible in the legacy lane (mirrors .get()).
+        self.assertIsNone(legacy_api.get("backup"))
+        self.assertIsNone(legacy_api.latest_run("backup"))
+        self.assertFalse(legacy_api.cancel_latest_run("backup"))
 
 
 class SecretAPITests(TestCase):

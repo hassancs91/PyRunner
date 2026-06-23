@@ -25,11 +25,12 @@ the live process.
 <slug>/                      # e.g. my_flows — a self-contained Django app
   __init__.py
   apps.py                    # subclass core.plugins.PluginAppConfig (import-light!)
-  plugin.json                # manifest: slug (must match folder), name, version
+  plugin.json                # manifest: slug + marketplace metadata (see below)
   urls.py                    # app_name = "<slug>"; auto-mounted at /plugins/<slug>/
   views.py
   provisioning.py            # optional; your SDK calls (create owned scripts/secrets/…)
   worker_body.py             # optional; the body of a managed Script you provision
+  assets/icon.svg            # optional; the manifest "icon" path (any path under <slug>/)
   templates/<slug>/...       # extend "base.html" so pages match the console
   static/<slug>/...          # optional
 ```
@@ -46,19 +47,75 @@ It must not be a reserved name (`core`, `theme`, `landing`, `plugins`, `admin`,
 
 ## `plugin.json`
 
+The manifest is the single carrier for a plugin's packaged metadata. It is stored
+verbatim on install and surfaced on the plugin's detail page — and it is the
+contract a future plugin **marketplace** reads. Keep it to **static, packaged,
+author-owned** facts: anything that can change without shipping a new version
+(ratings, install counts, price) is the marketplace server's job, not the
+manifest's.
+
 ```json
 {
+    "manifest_version": 1,
     "slug": "my_flows",
+    "publisher": "your_handle",
     "name": "My Flows",
-    "version": "1.0.0",
+    "version": "1.2.0",
+
+    "summary": "Short one-liner shown on cards.",
+    "description": "What this plugin does, in a sentence or two.",
+    "icon": "assets/icon.svg",
+    "icon_fallback": "🧩",
+    "categories": ["automation"],
+    "keywords": ["flows", "etl"],
+
+    "author": "Your Name",
+    "author_url": "https://example.com",
+    "license": "MIT",
+    "homepage": "https://example.com/my_flows",
+    "repository": "https://github.com/you/my_flows",
+    "documentation": "https://example.com/my_flows/docs",
+
     "api": "2.0",
     "min_pyrunner": "1.11.0",
-    "description": "What this plugin does."
+    "max_pyrunner": "",
+
+    "provisions": {
+        "scripts": 1,
+        "secrets": 3,
+        "datastores": 1,
+        "schedules": 1,
+        "secret_keys": ["MY_API_KEY"]
+    }
 }
 ```
 
-Only `slug` is strictly required. `api` declares the `core.plugins.api` version
-you target (see `API_VERSION`); `name`/`version` default to the slug / `0.0.0`.
+Only `slug` is strictly required; **every other field is optional** and a legacy
+manifest with just `slug`/`name`/`version` still installs and activates. Field
+reference:
+
+| Field | Notes |
+|---|---|
+| `manifest_version` | Format version of the manifest itself. Currently `1` (omit ⇒ treated as 1). |
+| `slug` | Must match the folder name + `apps.py` `app_name`. Instance-unique. |
+| `publisher` | Marketplace namespace → global id is `publisher/slug`. Lowercase letters/digits/`_`/`-`. Local install stays slug-only. |
+| `name`, `version` | `version` should be **semver** (`MAJOR.MINOR.PATCH`) — update-detection depends on it. Default to the slug / `0.0.0`. |
+| `summary` | Short tagline for list cards (falls back to `description`). |
+| `description` | Longer prose for the detail page. |
+| `icon` | **Bundled file**, relative path that must stay under `<slug>/`. `.png` / `.svg` / `.webp` / `.jpg` / `.jpeg`. Served from disk, so it shows for installed-but-not-active plugins and works offline. SVG is served only as an `<img>` source, never inlined. |
+| `icon_fallback` | Emoji shown when there's no bundled icon (or it fails to load). |
+| `categories`, `keywords` | Lists of strings for discovery/filtering. |
+| `author`, `author_url`, `license`, `homepage`, `repository`, `documentation` | Authorship + support. `license` is an SPDX id (e.g. `MIT`). |
+| `api` | The `core.plugins.api` version you target (see `API_VERSION`). |
+| `min_pyrunner`, `max_pyrunner` | Compatibility bounds. |
+| `provisions` | **Declares what the plugin creates** (resource counts + the secret keys it needs). Rendered before install/activation as a trust surface ("creates 1 script, 3 secrets, 1 schedule"). Counts are non-negative integers; `secret_keys` is a list of strings. |
+
+The doctor `warn`s (advisory, never blocks) when the marketplace-recommended
+fields — `author`, `license`, `summary`, `icon` — are missing, and `fail`s on
+*malformed* values (bad semver, an `icon` that escapes the folder or has an
+unsupported extension, an unknown `manifest_version`, or a wrong-shaped
+`provisions`). Those recommended fields become **required at marketplace
+submission**, not at local install.
 
 ## `apps.py` (keep it import-light)
 
@@ -186,6 +243,11 @@ ScriptAPI(OWNER).set_environment(env)
 # Schedule + run, through the real RunBackend + scheduler:
 ScheduleAPI(OWNER).sync(script, mode="daily", time_str="02:00", tz="UTC")
 ScriptAPI(OWNER).queue_run("backup")
+
+# Observe + control that run — no core.models import:
+view = ScriptAPI(OWNER).latest_run("backup")     # most recent run, or None
+history = ScriptAPI(OWNER).runs("backup", limit=10)  # newest-first RunViews
+ScriptAPI(OWNER).cancel_latest_run("backup")     # Stop button → True if cancelled
 ```
 
 Key behaviors:
@@ -202,6 +264,51 @@ Key behaviors:
   unowned, global/user-namespace row — handy for porting old code gradually.
 - **No seam bypass.** `queue_run` goes through `queue_script_run` (RunBackend +
   `resolve_isolation`); the SDK never touches raw SQLite or the scheduler directly.
+
+### Observe & control runs (API 2.1)
+
+Once you've provisioned and queued a Script, watch and stop its runs through the
+SDK — never by importing `core.models.Run` (which couples you to the schema and
+trips the doctor's `sdk-usage` warn). Three owner+workspace-scoped methods on
+`ScriptAPI`:
+
+| Method | Returns | Use |
+|---|---|---|
+| `latest_run(key)` | `RunView \| None` | the most recent run of your script `key` |
+| `runs(key, *, limit=20)` | `list[RunView]` | recent history, newest first |
+| `cancel_latest_run(key)` | `bool` | cancel the latest pending/running run; `True` if one was cancelled |
+
+`cancel_latest_run` reuses the **same** force-stop path as the tasks Stop button
+(`TaskService.force_stop_run`): a *running* run has its process tree killed, a
+*pending* run is dequeued, both flipped to `cancelled`. It returns `False` when
+nothing is cancellable.
+
+A **`RunView`** is an immutable, ORM-free snapshot — no live `Run` leaks past the
+SDK. Fields: `id, status, trigger_type, created_at, started_at, ended_at,
+duration, exit_code, pid, task_id, is_finished, is_running`. Its `.as_dict()`
+returns JSON-serializable values (datetimes → ISO 8601), so a status endpoint can
+return it directly:
+
+```python
+from django.http import JsonResponse
+from core.plugins.api import ScriptAPI
+
+OWNER = "my_flows"
+
+def backup_status(request):
+    """Live status for the plugin's dashboard — poll this from JS."""
+    view = ScriptAPI(OWNER).latest_run("backup")
+    return JsonResponse({
+        "running": bool(view and view.is_running),   # drives a "backup running…" badge
+        "latest": view.as_dict() if view else None,
+        "history": [v.as_dict() for v in ScriptAPI(OWNER).runs("backup", limit=5)],
+    })
+
+def backup_stop(request):
+    """A Stop button in the plugin UI."""
+    stopped = ScriptAPI(OWNER).cancel_latest_run("backup")
+    return JsonResponse({"stopped": stopped})
+```
 
 `worker_body.py` (the runtime script you provision) reads its credentials from the
 injected, masked env vars (clean names), opens datastores with the normal
@@ -285,8 +392,10 @@ and run automatically at activation). Tier-1 is a **static lint** — file check
 | `apps.py` imports `core.models` at module top | fail |
 | `urls.py` `app_name == slug` | fail |
 | Templates/static namespaced under `<slug>/` (no shadowing) | fail |
+| Manifest metadata is malformed (bad semver, `icon` escapes folder / bad ext, unknown `manifest_version`, wrong `provisions` shape) | fail |
 | `apps.py` has heavy/third-party top-level imports | warn |
 | Imports core internals directly instead of `core.plugins.api` | warn |
+| Missing recommended marketplace fields (`author` / `license` / `summary` / `icon`) | warn |
 
 The doctor runs **before** the preflight subprocess at activation, so a
 rule-breaker is refused before any plugin code or migration could run. It never

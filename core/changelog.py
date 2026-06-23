@@ -8,6 +8,94 @@ When you cut a release, bump ``pyrunner/version.py`` and add an entry here.
 
 CHANGELOG = [
     {
+        "version": "1.13.0",
+        "date": "June 22, 2026",
+        "headline": (
+            "Operational plugins can now watch and stop the runs they create — "
+            "live status, run history, and a Stop button — straight from the "
+            "plugin SDK, with no coupling to PyRunner's internals."
+        ),
+        "changes": [
+            {
+                "tag": "Added",
+                "title": "Plugin SDK run-lifecycle surface (API 2.1)",
+                "body": (
+                    "ScriptAPI gains latest_run(), runs(), and "
+                    "cancel_latest_run(), so a plugin can show a live “running…” "
+                    "badge, list recent run history, and offer a Stop button for "
+                    "the scripts it provisions — all owner- and workspace-scoped, "
+                    "and without importing core.models. Runs are returned as a "
+                    "small, JSON-serializable RunView read-model rather than live "
+                    "database objects. Purely additive; existing plugins are "
+                    "unaffected."
+                ),
+            },
+            {
+                "tag": "Improved",
+                "title": "One shared force-stop path",
+                "body": (
+                    "Stopping a run from the plugin SDK reuses the exact same "
+                    "kill path as the Tasks page Stop button (a running job's "
+                    "process tree is killed, a queued one is dequeued, both marked "
+                    "cancelled), so there is a single, consistent way a run is "
+                    "force-stopped across the whole product."
+                ),
+            },
+        ],
+    },
+    {
+        "version": "1.12.0",
+        "date": "June 22, 2026",
+        "headline": (
+            "Plugins now carry rich, packaged metadata — author, license, an "
+            "icon, links, categories, and a declaration of what they create — "
+            "shown on a new plugin detail page. Groundwork for a plugin marketplace."
+        ),
+        "changes": [
+            {
+                "tag": "Added",
+                "title": "Plugin metadata + detail page",
+                "body": (
+                    "A plugin's plugin.json can now declare an author, license, "
+                    "icon, summary, homepage/repository/documentation links, and "
+                    "categories. Each plugin gets a detail page that surfaces all "
+                    "of it, and the plugins list shows the icon and tagline. Every "
+                    "field is optional, so existing plugins are unaffected."
+                ),
+            },
+            {
+                "tag": "Added",
+                "title": "Bundled plugin icons",
+                "body": (
+                    "Plugins can ship an icon file (e.g. assets/icon.svg) referenced "
+                    "from the manifest. It's served straight from the plugin folder, "
+                    "so it renders even before a plugin is activated and needs no "
+                    "external hosting, with an emoji fallback when none is provided."
+                ),
+            },
+            {
+                "tag": "Added",
+                "title": "“What this plugin creates”",
+                "body": (
+                    "A plugin can declare the resources it provisions (scripts, "
+                    "secrets, data stores, schedules) in its manifest. You see "
+                    "“creates 1 script, 3 secrets, 1 schedule” at install time "
+                    "and on the detail page — before granting it anything."
+                ),
+            },
+            {
+                "tag": "Improved",
+                "title": "Doctor checks plugin metadata",
+                "body": (
+                    "The activation doctor now validates manifest metadata: it "
+                    "refuses malformed values (bad version, an icon path that "
+                    "escapes the plugin folder, a wrong-shaped provisions block) "
+                    "and advises when marketplace-recommended fields are missing."
+                ),
+            },
+        ],
+    },
+    {
         "version": "1.11.0",
         "date": "June 21, 2026",
         "headline": (

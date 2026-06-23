@@ -30,6 +30,47 @@
                 </div>
             </div>
 
+            <!-- Recent operations (live) -->
+            {% if operations %}
+            <section id="operations-panel" class="rounded-2xl border border-line bg-panel p-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <h3 class="eyebrow text-faint">Recent operations</h3>
+                    <span id="operations-working" class="inline-flex items-center gap-1.5 text-xs text-info{% if not has_running_operation %} hidden{% endif %}">
+                        <span class="w-1.5 h-1.5 rounded-full bg-info animate-pulse"></span>
+                        Working…
+                    </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                    {% for op in operations %}
+                    <div class="rounded-lg border border-line-soft bg-panel-hi/40 p-3" data-operation-id="{{ op.id }}" data-status="{{ op.status }}">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="text-xs font-medium text-text">{{ op.get_operation_display }}</span>
+                            <span data-op-badge>
+                                {% if op.status == "pending" %}
+                                <span class="px-2 py-0.5 text-xs rounded-md bg-warn/10 text-warn">Pending</span>
+                                {% elif op.status == "running" %}
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-info/10 text-info"><span class="w-1.5 h-1.5 rounded-full bg-info animate-pulse"></span>Running</span>
+                                {% elif op.status == "success" %}
+                                <span class="px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok">Success</span>
+                                {% elif op.status == "failed" %}
+                                <span class="px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail">Failed</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <p class="text-xs text-muted font-mono truncate" title="{{ op.package_spec }}">{% if op.operation == "bulk_install" %}{{ op.package_spec|linebreaksbr|truncatewords:10 }}{% else %}{{ op.package_spec }}{% endif %}</p>
+                        {% if op.error %}
+                        <details class="mt-1">
+                            <summary class="text-xs text-fail cursor-pointer truncate hover:underline" title="{{ op.error }}">{{ op.error|truncatechars:50 }}</summary>
+                            <pre class="mt-1.5 text-[11px] leading-relaxed text-fail/90 whitespace-pre-wrap break-words max-h-40 overflow-auto rounded-md bg-fail/5 p-2">{{ op.error }}</pre>
+                        </details>
+                        {% endif %}
+                        <p class="text-xs text-faint mt-1">{{ op.created_at|timesince }} ago{% if op.duration %} · {{ op.duration_display }}{% endif %}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <!-- Left: package list -->
                 <div class="lg:col-span-2 space-y-5">
@@ -63,7 +104,7 @@
                                     <td class="px-6 py-3 font-mono text-sm text-text">{{ package.name }}</td>
                                     <td class="px-6 py-3 font-mono text-sm text-muted">{{ package.version }}</td>
                                     <td class="px-6 py-3 text-right">
-                                        <form method="post" action="{% url 'cpanel:package_uninstall' pk=environment.pk %}" onsubmit="return confirm('Uninstall {{ package.name }}?');" class="inline">
+                                        <form method="post" action="{% url 'cpanel:package_uninstall' pk=environment.pk %}" onsubmit="return confirm('Uninstall {{ package.name }}?');" class="inline" data-loading-form>
                                             {% csrf_token %}
                                             <input type="hidden" name="package_name" value="{{ package.name }}">
                                             <button type="submit" class="text-xs font-medium text-fail hover:underline">Uninstall</button>
@@ -85,12 +126,12 @@
                     </section>
                 </div>
 
-                <!-- Right: install + operations -->
+                <!-- Right: install forms -->
                 <div class="space-y-5">
                     <!-- Install single -->
                     <section class="rounded-2xl border border-line bg-panel p-5">
                         <h3 class="eyebrow text-faint mb-4">Install package</h3>
-                        <form method="post" action="{% url 'cpanel:package_install' pk=environment.pk %}" class="space-y-3">
+                        <form method="post" action="{% url 'cpanel:package_install' pk=environment.pk %}" class="space-y-3" data-loading-form>
                             {% csrf_token %}
                             {{ install_form.package_spec }}
                             <p class="text-xs text-faint">Examples: requests, django&gt;=4.0, numpy==1.24.0</p>
@@ -101,7 +142,7 @@
                     <!-- Bulk install -->
                     <section class="rounded-2xl border border-line bg-panel p-5">
                         <h3 class="eyebrow text-faint mb-4">Bulk install</h3>
-                        <form method="post" action="{% url 'cpanel:bulk_install' pk=environment.pk %}" enctype="multipart/form-data" class="space-y-3">
+                        <form method="post" action="{% url 'cpanel:bulk_install' pk=environment.pk %}" enctype="multipart/form-data" class="space-y-3" data-loading-form>
                             {% csrf_token %}
                             <div>
                                 <label class="block text-[13px] font-medium text-text mb-1.5">Paste requirements.txt</label>
@@ -114,34 +155,6 @@
                             <button type="submit" class="w-full text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Install from requirements</button>
                         </form>
                     </section>
-
-                    <!-- Recent operations -->
-                    {% if operations %}
-                    <section class="rounded-2xl border border-line bg-panel p-5">
-                        <h3 class="eyebrow text-faint mb-4">Recent operations</h3>
-                        <div class="space-y-2.5">
-                            {% for op in operations %}
-                            <div class="rounded-lg border border-line-soft bg-panel-hi/40 p-3" data-operation-id="{{ op.id }}">
-                                <div class="flex items-center justify-between gap-2 mb-1">
-                                    <span class="text-xs font-medium text-text">{{ op.get_operation_display }}</span>
-                                    {% if op.status == "pending" %}
-                                    <span class="px-2 py-0.5 text-xs rounded-md bg-warn/10 text-warn">Pending</span>
-                                    {% elif op.status == "running" %}
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-info/10 text-info"><span class="w-1.5 h-1.5 rounded-full bg-info animate-pulse"></span>Running</span>
-                                    {% elif op.status == "success" %}
-                                    <span class="px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok">Success</span>
-                                    {% elif op.status == "failed" %}
-                                    <span class="px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail">Failed</span>
-                                    {% endif %}
-                                </div>
-                                <p class="text-xs text-muted font-mono truncate" title="{{ op.package_spec }}">{% if op.operation == "bulk_install" %}{{ op.package_spec|linebreaksbr|truncatewords:10 }}{% else %}{{ op.package_spec }}{% endif %}</p>
-                                {% if op.error %}<p class="text-xs text-fail mt-1 truncate" title="{{ op.error }}">{{ op.error|truncatechars:50 }}</p>{% endif %}
-                                <p class="text-xs text-faint mt-1">{{ op.created_at|timesince }} ago{% if op.duration %} · {{ op.duration_display }}{% endif %}</p>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </section>
-                    {% endif %}
                 </div>
             </div>
 
@@ -149,9 +162,74 @@
     </div>
 </div>
 
-{% if has_running_operation %}
 <script>
-(function () { setTimeout(function () { location.reload(); }, 3000); })();
+(function () {
+    // ── Button loading state: give instant feedback on submit ──
+    document.querySelectorAll('form[data-loading-form]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (e.defaultPrevented) return; // e.g. uninstall confirm() cancelled
+            var btn = form.querySelector('button[type="submit"]');
+            if (!btn || btn.disabled) return;
+            btn.disabled = true;
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="inline-flex items-center justify-center gap-2">'
+                + '<span class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>'
+                + 'Working…</span>';
+        });
+    });
+
+    // ── Live polling for in-flight package operations ──
+    // Replaces the old reload-every-3s loop: the spinner stays visible while
+    // pip runs, and we reload exactly once when every operation has finished.
+    var urlTemplate = "{% url 'cpanel:package_operation_status' operation_id='00000000-0000-0000-0000-000000000000' %}";
+    function statusUrl(id) { return urlTemplate.replace('00000000-0000-0000-0000-000000000000', id); }
+
+    function badgeHtml(status) {
+        switch (status) {
+            case 'pending':
+                return '<span class="px-2 py-0.5 text-xs rounded-md bg-warn/10 text-warn">Pending</span>';
+            case 'running':
+                return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-info/10 text-info"><span class="w-1.5 h-1.5 rounded-full bg-info animate-pulse"></span>Running</span>';
+            case 'success':
+                return '<span class="px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok">Success</span>';
+            case 'failed':
+                return '<span class="px-2 py-0.5 text-xs rounded-md bg-fail/10 text-fail">Failed</span>';
+            default:
+                return '';
+        }
+    }
+
+    var active = {};
+    document.querySelectorAll('[data-operation-id][data-status]').forEach(function (card) {
+        var s = card.dataset.status;
+        if (s === 'pending' || s === 'running') { active[card.dataset.operationId] = true; }
+    });
+    if (!Object.keys(active).length) return;
+
+    function pollOne(id) {
+        return fetch(statusUrl(id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (data) {
+                if (!data) return;
+                var card = document.querySelector('[data-operation-id="' + id + '"]');
+                if (card) {
+                    card.dataset.status = data.status;
+                    var slot = card.querySelector('[data-op-badge]');
+                    if (slot) slot.innerHTML = badgeHtml(data.status);
+                }
+                if (data.completed) { delete active[id]; }
+            })
+            .catch(function () { /* transient error — retry on next tick */ });
+    }
+
+    var timer = setInterval(function () {
+        Promise.all(Object.keys(active).map(pollOne)).then(function () {
+            if (!Object.keys(active).length) {
+                clearInterval(timer);
+                location.reload(); // one final refresh: updated package list + count
+            }
+        });
+    }, 2000);
+})();
 </script>
-{% endif %}
 {% endblock %}

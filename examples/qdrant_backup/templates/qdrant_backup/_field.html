@@ -1,0 +1,10 @@
+{# Renders one bound form field: label + widget + help + errors. #}
+<div{% if row_id %} id="{{ row_id }}"{% endif %}>
+    <label class="block text-xs font-medium text-muted mb-1.5" for="{{ field.id_for_label }}">
+        {{ field.label }}{% if field.field.required %} <span class="text-fail">*</span>{% endif %}
+    </label>
+    {{ field }}
+    {% for error in field.errors %}
+    <p class="text-xs text-fail mt-1">{{ error }}</p>
+    {% endfor %}
+</div>

@@ -93,6 +93,106 @@ class Plugin(models.Model):
     def is_active(self) -> bool:
         return self.status == self.Status.ACTIVE
 
+    # ------------------------------------------------------------- metadata
+    # Plugin Platform v2 Stage 6: the manifest (plugin.json) is the single carrier
+    # for marketplace-prep metadata. It is stored verbatim in ``manifest`` on
+    # install, so these read-only accessors expose new fields with NO migration.
+    # Every field is optional; missing ⇒ "" / [] / {} (the console renders calmly).
+
+    def manifest_value(self, key, default=""):
+        """Read a key from the manifest JSONField (the Stage 6 metadata carrier)."""
+        manifest = self.manifest if isinstance(self.manifest, dict) else {}
+        value = manifest.get(key, default)
+        return value if value is not None else default
+
+    @property
+    def summary(self) -> str:
+        """Short tagline for cards (falls back to the long description)."""
+        return self.manifest_value("summary") or self.manifest_value("description")
+
+    @property
+    def description(self) -> str:
+        return self.manifest_value("description")
+
+    @property
+    def author(self) -> str:
+        return self.manifest_value("author")
+
+    @property
+    def author_url(self) -> str:
+        return self.manifest_value("author_url")
+
+    @property
+    def publisher(self) -> str:
+        return self.manifest_value("publisher")
+
+    @property
+    def license(self) -> str:
+        return self.manifest_value("license")
+
+    @property
+    def homepage(self) -> str:
+        return self.manifest_value("homepage")
+
+    @property
+    def repository(self) -> str:
+        return self.manifest_value("repository")
+
+    @property
+    def documentation(self) -> str:
+        return self.manifest_value("documentation")
+
+    @property
+    def categories(self) -> list:
+        value = self.manifest_value("categories", [])
+        return [str(c) for c in value] if isinstance(value, list) else []
+
+    @property
+    def keywords(self) -> list:
+        value = self.manifest_value("keywords", [])
+        return [str(k) for k in value] if isinstance(value, list) else []
+
+    @property
+    def has_icon(self) -> bool:
+        """True when the manifest declares a bundled icon file path."""
+        return bool(self.manifest_value("icon"))
+
+    @property
+    def icon_fallback(self) -> str:
+        """Emoji shown when there's no bundled icon (or it fails to load)."""
+        return self.manifest_value("icon_fallback")
+
+    @property
+    def icon_url(self):
+        """URL of the bundled-icon serve view, or None when no icon is declared."""
+        if not self.has_icon:
+            return None
+        from django.urls import reverse
+
+        return reverse("cpanel:plugin_icon", args=[self.slug])
+
+    @property
+    def provisions(self) -> dict:
+        """Declared resources the plugin creates (counts + secret_keys)."""
+        value = self.manifest_value("provisions", {})
+        return value if isinstance(value, dict) else {}
+
+    @property
+    def provisions_summary(self) -> str:
+        """Human one-liner, e.g. '1 script, 3 secrets, 1 schedule' (or '')."""
+        p = self.provisions
+        parts = []
+        for key, label in (
+            ("scripts", "script"),
+            ("secrets", "secret"),
+            ("datastores", "data store"),
+            ("schedules", "schedule"),
+        ):
+            n = p.get(key)
+            if isinstance(n, int) and not isinstance(n, bool) and n > 0:
+                parts.append(f"{n} {label}{'' if n == 1 else 's'}")
+        return ", ".join(parts)
+
     def mark_errored(self, message: str) -> None:
         """Quarantine this plugin so the next boot will not load it."""
         self.status = self.Status.ERRORED

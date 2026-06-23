@@ -65,6 +65,10 @@ services:
       # Worker / gunicorn settings
       - Q_WORKERS=${Q_WORKERS:-2}
       - PORT=8000
+      # Display-only: the host-published port, used by entrypoint.sh's "Open
+      # http://localhost:..." banner so it matches the real mapping (PORT above
+      # is the fixed container-internal bind, not what you reach from the host).
+      - PUBLIC_PORT=${PORT:-8000}
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
       - GUNICORN_THREADS=${GUNICORN_THREADS:-4}
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
