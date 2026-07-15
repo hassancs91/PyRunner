@@ -519,12 +519,14 @@ class ScheduleAPI:
         time_str=None,
         weekday=None,
         interval_minutes=None,
+        cron=None,
         tz="UTC",
     ):
         """Create/update the script's schedule and push it to django-q2.
 
         ``mode`` is a ``ScriptSchedule.RunMode`` value ('manual'/'interval'/'daily'
-        /'weekly'). Mirrors the hand-rolled qdrant sync_schedule, generalized.
+        /'weekly'/'monthly'/'cron'). Mirrors the hand-rolled qdrant sync_schedule,
+        generalized. For ``cron`` mode pass a raw 5-field expression via ``cron``.
         """
         from core.models import ScriptSchedule
         from core.services.schedule_service import ScheduleService
@@ -540,6 +542,7 @@ class ScheduleAPI:
         sched.weekly_times = []
         sched.monthly_days = []
         sched.monthly_times = []
+        sched.cron_expression = ""
 
         if mode == ScriptSchedule.RunMode.INTERVAL:
             sched.interval_minutes = int(interval_minutes)
@@ -548,6 +551,11 @@ class ScheduleAPI:
         elif mode == ScriptSchedule.RunMode.WEEKLY:
             sched.weekly_days = [int(weekday)]
             sched.weekly_times = [time_str]
+        elif mode == ScriptSchedule.RunMode.CRON:
+            is_valid, error = ScheduleService.validate_cron_expression(cron)
+            if not is_valid:
+                raise ValueError(f"Invalid cron expression: {error}")
+            sched.cron_expression = (cron or "").strip()
 
         sched.is_active = mode != ScriptSchedule.RunMode.MANUAL
         sched.save()

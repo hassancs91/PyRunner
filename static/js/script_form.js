@@ -10,11 +10,76 @@ function toggleSection(sectionId) {
 
 // Show the option group that matches the selected schedule run mode.
 function toggleScheduleOptions(mode) {
-    ['interval', 'daily', 'weekly', 'monthly'].forEach(function (m) {
+    ['interval', 'daily', 'weekly', 'monthly', 'cron'].forEach(function (m) {
         var el = document.getElementById(m + '-options');
         if (el) el.classList.toggle('hidden', m !== mode);
     });
+    if (mode === 'cron') updateCronPreview();
 }
+
+// Live cron validation + "next runs" preview.
+(function () {
+    var debounceTimer = null;
+
+    function els() {
+        return {
+            input: document.getElementById('id_cron_expression'),
+            wrap: document.getElementById('cron-options'),
+            preview: document.getElementById('cron-preview'),
+            status: document.getElementById('cron-preview-status'),
+            runs: document.getElementById('cron-preview-runs'),
+        };
+    }
+
+    window.updateCronPreview = function () {
+        var e = els();
+        if (!e.input || !e.wrap || !e.preview) return;
+
+        var expr = e.input.value.trim();
+        if (!expr) {
+            e.preview.classList.add('hidden');
+            return;
+        }
+
+        var url = e.wrap.getAttribute('data-preview-url') +
+            '?expression=' + encodeURIComponent(expr);
+
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                e.preview.classList.remove('hidden');
+                if (!data.valid) {
+                    e.status.textContent = data.error || 'Invalid cron expression.';
+                    e.status.className = 'font-medium text-fail';
+                    e.runs.innerHTML = '';
+                    return;
+                }
+                e.status.textContent = 'Next runs (server time):';
+                e.status.className = 'font-medium text-ok';
+                e.runs.innerHTML = '';
+                (data.runs || []).forEach(function (run) {
+                    var li = document.createElement('li');
+                    li.textContent = run;
+                    e.runs.appendChild(li);
+                });
+            })
+            .catch(function () {
+                e.preview.classList.add('hidden');
+            });
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var input = document.getElementById('id_cron_expression');
+        if (!input) return;
+        input.addEventListener('input', function () {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(updateCronPreview, 350);
+        });
+        // Show preview immediately if cron mode is the current selection.
+        var checked = document.querySelector('input[name="run_mode"]:checked');
+        if (checked && checked.value === 'cron') updateCronPreview();
+    });
+})();
 
 // Monaco code editor — initialised over the hidden <textarea id="id_code">.
 (function () {

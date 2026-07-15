@@ -224,6 +224,7 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
                 "run_mode": schedule.run_mode,
                 "interval_minutes": schedule.interval_minutes,
                 "daily_times": schedule.daily_times,
+                "cron_expression": schedule.cron_expression,
                 "timezone": schedule.timezone,
                 "is_active": schedule.is_active,
             }
@@ -240,6 +241,7 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
                 "run_mode": schedule.run_mode,
                 "interval_minutes": schedule.interval_minutes,
                 "daily_times": schedule.daily_times,
+                "cron_expression": schedule.cron_expression,
                 "timezone": schedule.timezone,
                 "is_active": schedule.is_active,
             }
@@ -331,6 +333,28 @@ def script_toggle_view(request: HttpRequest, pk) -> HttpResponse:
     status = "enabled" if script.is_enabled else "disabled"
     messages.success(request, f'Script "{script.name}" is now {status}.')
     return redirect("cpanel:script_detail", pk=pk)
+
+
+@login_required
+def cron_preview_view(request: HttpRequest) -> JsonResponse:
+    """
+    Validate a cron expression and return its next few run times.
+
+    Used by the schedule form for live feedback. Query param: ``expression``.
+    """
+    expression = request.GET.get("expression", "")
+    is_valid, error = ScheduleService.validate_cron_expression(expression)
+    if not is_valid:
+        return JsonResponse({"valid": False, "error": error, "runs": []})
+
+    runs = ScheduleService.preview_cron_runs(expression, count=3)
+    return JsonResponse(
+        {
+            "valid": True,
+            "error": None,
+            "runs": [dt.strftime("%a %d %b %Y, %H:%M") for dt in runs],
+        }
+    )
 
 
 @login_required

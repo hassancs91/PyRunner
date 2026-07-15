@@ -287,6 +287,19 @@ class ScheduleForm(forms.ModelForm):
         help_text="Comma-separated times in HH:MM format (24-hour)",
     )
 
+    # Cron mode field (raw 5-field expression)
+    cron_expression = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS + " font-mono",
+                "placeholder": "0 9 * * 1-5",
+            }
+        ),
+        label="Cron Expression",
+        help_text="5 fields: minute hour day-of-month month day-of-week (server timezone)",
+    )
+
     timezone = forms.ChoiceField(
         choices=get_timezone_choices,
         initial="UTC",
@@ -295,7 +308,7 @@ class ScheduleForm(forms.ModelForm):
 
     class Meta:
         model = ScriptSchedule
-        fields = ["run_mode", "interval_minutes", "timezone", "is_active"]
+        fields = ["run_mode", "interval_minutes", "cron_expression", "timezone", "is_active"]
         widgets = {
             "run_mode": forms.RadioSelect(
                 attrs={
@@ -430,6 +443,16 @@ class ScheduleForm(forms.ModelForm):
                     "monthly_times_input",
                     "At least one time is required for monthly mode.",
                 )
+
+        elif run_mode == ScriptSchedule.RunMode.CRON:
+            from core.services.schedule_service import ScheduleService
+
+            expression = (cleaned_data.get("cron_expression") or "").strip()
+            is_valid, error = ScheduleService.validate_cron_expression(expression)
+            if not is_valid:
+                self.add_error("cron_expression", error)
+            else:
+                cleaned_data["cron_expression"] = expression
 
         return cleaned_data
 
