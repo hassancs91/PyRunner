@@ -36,9 +36,11 @@ Desktop.ini
 # Project specific
 data/
 nul
-# Internal docs stay local, except the public plugin author guide.
+# Internal docs stay local, except the public plugin author guide and the
+# user-facing scheduling guide.
 docs/*
 !docs/plugins.md
+!docs/scheduling.md
 
 # Plugins are installed at runtime onto the data volume — keep the package
 # marker + readme in the repo, ignore everything actually uploaded.

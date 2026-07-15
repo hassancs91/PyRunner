@@ -64,6 +64,8 @@ class ScheduleService:
             q_schedule_ids = cls._create_weekly_schedules(script_schedule)
         elif script_schedule.run_mode == ScriptSchedule.RunMode.MONTHLY:
             q_schedule_ids = cls._create_monthly_schedules(script_schedule)
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.CRON:
+            q_schedule_ids = cls._create_cron_schedule(script_schedule)
 
         # Update the ScriptSchedule with new IDs and next_run
         script_schedule.q_schedule_ids = q_schedule_ids
@@ -197,6 +199,39 @@ class ScheduleService:
         return q_schedule_ids
 
     @classmethod
+    def _create_cron_schedule(cls, script_schedule) -> list[int]:
+        """
+        Create a single CRON type django-q2 schedule from a raw cron expression.
+
+        The expression is passed straight through to django-q2, which uses
+        croniter to compute run times. It is interpreted in the cluster's
+        configured timezone (Django ``TIME_ZONE`` / ``Q_CLUSTER`` timezone),
+        consistent with the daily/weekly/monthly modes.
+        """
+        cron_expr = (script_schedule.cron_expression or "").strip()
+        if not cron_expr:
+            logger.warning(
+                f"Cron schedule for script {script_schedule.script.name} has no "
+                f"expression - skipping"
+            )
+            return []
+
+        q_schedule = QSchedule.objects.create(
+            name=f"pyrunner-{script_schedule.script.id}-cron",
+            func=cls.TASK_FUNC,
+            args=f"'{script_schedule.script.id}'",
+            schedule_type=QSchedule.CRON,
+            cron=cron_expr,
+            repeats=-1,  # Run forever
+            next_run=timezone.now(),
+        )
+        logger.info(
+            f"Created cron schedule {q_schedule.id} for script "
+            f"{script_schedule.script.name} ('{cron_expr}')"
+        )
+        return [q_schedule.id]
+
+    @classmethod
     def delete_q_schedules(cls, script_schedule) -> int:
         """Delete all django-q2 schedules associated with a ScriptSchedule."""
         if not script_schedule.q_schedule_ids:
@@ -323,7 +358,69 @@ class ScheduleService:
 
             return min(candidates) if candidates else None
 
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.CRON:
+            cron_expr = (script_schedule.cron_expression or "").strip()
+            if not cron_expr:
+                return None
+            try:
+                from croniter import croniter
+
+                return croniter(cron_expr, now).get_next(datetime)
+            except (ValueError, KeyError) as exc:
+                logger.warning(
+                    f"Could not compute next run for cron '{cron_expr}': {exc}"
+                )
+                return None
+
         return None
+
+    @staticmethod
+    def validate_cron_expression(expression: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate a raw 5-field cron expression.
+
+        Returns ``(is_valid, error_message)``. ``error_message`` is None when
+        the expression is valid.
+        """
+        expr = (expression or "").strip()
+        if not expr:
+            return False, "Cron expression is required."
+
+        # django-q2 / croniter operate on the standard 5-field cron format.
+        # Reject 6-field (seconds) or named @-shortcuts to avoid surprising
+        # behaviour, since those are not what django-q2's scheduler expects.
+        if expr.startswith("@"):
+            return False, "Named shortcuts like '@daily' are not supported - use a 5-field expression."
+        if len(expr.split()) != 5:
+            return False, "Expected 5 fields: minute hour day-of-month month day-of-week."
+
+        try:
+            from croniter import croniter
+
+            if not croniter.is_valid(expr):
+                return False, "Not a valid cron expression."
+        except ImportError:  # pragma: no cover - croniter ships with django-q2
+            return False, "Cron validation is unavailable (croniter not installed)."
+
+        return True, None
+
+    @classmethod
+    def preview_cron_runs(cls, expression: str, count: int = 3) -> list[datetime]:
+        """
+        Return the next ``count`` run times for a cron expression.
+
+        Returns an empty list if the expression is invalid. Times are computed
+        in the cluster's timezone, matching how django-q2 will actually run it.
+        """
+        is_valid, _ = cls.validate_cron_expression(expression)
+        if not is_valid:
+            return []
+
+        from croniter import croniter
+
+        base = timezone.localtime(timezone.now())
+        itr = croniter(expression.strip(), base)
+        return [itr.get_next(datetime) for _ in range(count)]
 
     @classmethod
     def pause_all_schedules(cls, user=None) -> int:
@@ -371,6 +468,7 @@ class ScheduleService:
                 ScriptSchedule.RunMode.DAILY,
                 ScriptSchedule.RunMode.WEEKLY,
                 ScriptSchedule.RunMode.MONTHLY,
+                ScriptSchedule.RunMode.CRON,
             ],
         ).select_related("script"):
             ids = cls.sync_schedule(schedule)

@@ -15,6 +15,7 @@ from core.views.scripts import (
     script_delete_view,
     schedule_toggle_view,
     schedule_history_view,
+    cron_preview_view,
     webhook_enable_view,
     webhook_disable_view,
     webhook_regenerate_view,
@@ -161,6 +162,7 @@ urlpatterns = [
     path("scripts/<uuid:pk>/toggle/", script_toggle_view, name="script_toggle"),
     path("scripts/<uuid:pk>/schedule/toggle/", schedule_toggle_view, name="schedule_toggle"),
     path("scripts/<uuid:pk>/schedule/history/", schedule_history_view, name="schedule_history"),
+    path("scripts/cron/preview/", cron_preview_view, name="cron_preview"),
     # Script archive/restore/delete
     path("scripts/<uuid:pk>/archive/", script_archive_view, name="script_archive"),
     path("scripts/<uuid:pk>/restore/", script_restore_view, name="script_restore"),

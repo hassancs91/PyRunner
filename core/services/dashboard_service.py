@@ -119,7 +119,13 @@ class DashboardService:
             next_run__isnull=False,
             next_run__gt=now,
             is_active=True,
-            run_mode__in=[ScriptSchedule.RunMode.INTERVAL, ScriptSchedule.RunMode.DAILY],
+            run_mode__in=[
+                ScriptSchedule.RunMode.INTERVAL,
+                ScriptSchedule.RunMode.DAILY,
+                ScriptSchedule.RunMode.WEEKLY,
+                ScriptSchedule.RunMode.MONTHLY,
+                ScriptSchedule.RunMode.CRON,
+            ],
         )
         if workspace is not None:
             schedules = schedules.filter(script__workspace=workspace)
