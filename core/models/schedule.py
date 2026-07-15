@@ -23,6 +23,7 @@ class ScriptSchedule(models.Model):
         DAILY = "daily", "Daily"
         WEEKLY = "weekly", "Weekly"
         MONTHLY = "monthly", "Monthly"
+        CRON = "cron", "Cron expression"
 
     class IntervalChoice(models.IntegerChoices):
         FIVE_MINUTES = 5, "Every 5 minutes"
@@ -110,6 +111,14 @@ class ScriptSchedule(models.Model):
         help_text='List of times in HH:MM format for monthly mode',
     )
 
+    # Cron mode configuration - a raw 5-field cron expression
+    cron_expression = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text='Raw cron expression, e.g. "0 9 * * 1-5" (minute hour day-of-month month day-of-week)',
+    )
+
     # Schedule state
     is_active = models.BooleanField(
         default=True,
@@ -184,6 +193,9 @@ class ScriptSchedule(models.Model):
             days = ", ".join(str(d) for d in sorted(self.monthly_days)) if self.monthly_days else "No days set"
             times = ", ".join(self.monthly_times) if self.monthly_times else "No times set"
             return f"Monthly on day {days} at {times} ({self.timezone})"
+        elif self.run_mode == self.RunMode.CRON:
+            expr = self.cron_expression or "No expression set"
+            return f"Cron: {expr}"
         return "Unknown"
 
     def config_snapshot(self) -> dict:
@@ -202,6 +214,7 @@ class ScriptSchedule(models.Model):
             "weekly_times": self.weekly_times,
             "monthly_days": self.monthly_days,
             "monthly_times": self.monthly_times,
+            "cron_expression": self.cron_expression,
             "timezone": self.timezone,
             "is_active": self.is_active,
         }

@@ -36,9 +36,11 @@ Desktop.ini
 # Project specific
 data/
 nul
-# Internal docs stay local, except the public plugin author guide.
+# Internal docs stay local, except the public plugin author guide and the
+# user-facing scheduling guide.
 docs/*
 !docs/plugins.md
+!docs/scheduling.md
 
 # plugins/ = runtime install target AND the local workspace for private
 # plugins under development (they import natively as plugins.<slug>). Keep the

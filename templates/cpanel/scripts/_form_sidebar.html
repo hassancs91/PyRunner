@@ -242,10 +242,29 @@
             field name; hidden panels are still submitted, so Django kept the last
             (monthly) copy and silently discarded the timezone the user picked.
             {% endcomment %}
-            <div id="timezone-option" class="{% if schedule_form.instance.run_mode != 'daily' and schedule_form.instance.run_mode != 'weekly' and schedule_form.instance.run_mode != 'monthly' %}hidden{% endif %}">
+            <div id="timezone-option" class="{% if schedule_form.instance.run_mode != 'daily' and schedule_form.instance.run_mode != 'weekly' and schedule_form.instance.run_mode != 'monthly' and schedule_form.instance.run_mode != 'cron' %}hidden{% endif %}">
                 <label for="id_timezone" class="block text-[13px] font-medium text-text mb-1.5">Timezone</label>
                 {{ schedule_form.timezone }}
                 {% if schedule_form.timezone.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.timezone.errors.0 }}</p>{% endif %}
+            </div>
+
+            <!-- Cron -->
+            <div id="cron-options" data-preview-url="{% url 'cpanel:cron_preview' %}" class="space-y-4 {% if schedule_form.instance.run_mode != 'cron' %}hidden{% endif %}">
+                <div>
+                    <label for="id_cron_expression" class="block text-[13px] font-medium text-text mb-1.5">{{ schedule_form.cron_expression.label }}</label>
+                    {{ schedule_form.cron_expression }}
+                    <p class="mt-1.5 text-xs text-faint">
+                        {{ schedule_form.cron_expression.help_text }}
+                        Need help? Build one at
+                        <a href="https://crontab.guru" target="_blank" rel="noopener" class="text-info hover:underline">crontab.guru</a>.
+                    </p>
+                    {% if schedule_form.cron_expression.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.cron_expression.errors.0 }}</p>{% endif %}
+                    <!-- Live preview populated by script_form.js -->
+                    <div id="cron-preview" class="mt-2 text-xs hidden">
+                        <span id="cron-preview-status" class="font-medium"></span>
+                        <ul id="cron-preview-runs" class="mt-1 space-y-0.5 font-mono text-faint"></ul>
+                    </div>
+                </div>
             </div>
 
             <label class="flex items-center gap-3 pt-3 border-t border-line-soft cursor-pointer">

@@ -138,6 +138,8 @@ class ScheduleService:
             q_schedule_ids = cls._create_weekly_schedules(script_schedule)
         elif script_schedule.run_mode == ScriptSchedule.RunMode.MONTHLY:
             q_schedule_ids = cls._create_monthly_schedules(script_schedule)
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.CRON:
+            q_schedule_ids = cls._create_cron_schedule(script_schedule)
 
         # Update the ScriptSchedule with new IDs and next_run
         script_schedule.q_schedule_ids = q_schedule_ids
@@ -286,6 +288,165 @@ class ScheduleService:
 
         return q_schedule_ids
 
+    @staticmethod
+    def _expand_cron(expression: str):
+        """Expand a 5-field cron expression into per-field value lists.
+
+        Returns ``(minutes, hours, doms, months, dows, nth_weekdays)`` as croniter
+        sees them: a wildcard field is ``['*']``, everything else a list of ints
+        (day-of-month may hold croniter's ``'l'`` = last day; ``nth_weekdays`` is
+        non-empty for ``#`` modifiers). Raises ValueError on anything croniter
+        can't parse.
+        """
+        from croniter import croniter
+
+        expanded, nth = croniter.expand(expression)
+        minutes, hours, doms, months, dows = expanded
+        return minutes, hours, doms, months, dows, nth
+
+    @classmethod
+    def cron_to_utc_expressions(cls, expression: str, tz: ZoneInfo) -> list[str]:
+        """Rewrite a cron expression authored in ``tz`` into UTC expressions.
+
+        django-q2 evaluates cron strings in the cluster timezone (UTC), so a
+        schedule in another zone is converted before it is stored - the same
+        conversion the daily/weekly/monthly modes do, generalized to arbitrary
+        expressions:
+
+        - UTC, or a zone whose offset is currently zero: pass-through.
+        - Otherwise every (hour, minute) pair is converted with TODAY's offset
+          (like ``_local_time_to_utc``; ``resync_schedules_task`` rebuilds the
+          expressions daily so DST drift lasts at most a day), and pairs are
+          regrouped into as few expressions as possible. A pair that crosses
+          UTC midnight drags the day-of-month / day-of-week fields with it
+          (``30 0 * * 1-5`` in Tokyo is 15:30 UTC Sunday-Thursday), which is
+          why one non-UTC expression can become two or three django-q2 rows.
+
+        Raises ValueError for the few shapes that can't be shifted exactly:
+        a ``*`` minute field under a fractional-hour offset (India +05:30),
+        and ``#`` / ``L`` day modifiers when the time crosses UTC midnight.
+        """
+        expr = " ".join(expression.split())
+        offset = datetime.now(tz).utcoffset() or timedelta(0)
+        if offset == timedelta(0):
+            return [expr]
+
+        minutes, hours, doms, _months, dows, nth = cls._expand_cron(expr)
+        _raw_min, _raw_hour, raw_dom, raw_month, raw_dow = expr.split()
+        offset_minutes = int(offset.total_seconds() // 60)
+        day_fields_are_wild = raw_dom == "*" and raw_dow == "*"
+
+        if hours == ["*"] and minutes == ["*"]:
+            return [expr]  # every minute: offset-independent
+        if hours == ["*"] and day_fields_are_wild and offset_minutes % 60 == 0:
+            return [expr]  # every hour at fixed minutes, whole-hour offset: same in UTC
+
+        if minutes == ["*"]:
+            if offset_minutes % 60:
+                raise ValueError(
+                    "A '*' minute field can't be shifted by a fractional-hour timezone "
+                    "offset - use UTC, or list specific minutes."
+                )
+            minute_values, star_minute = [0], True
+        else:
+            minute_values, star_minute = minutes, False
+        hour_values = list(range(24)) if hours == ["*"] else hours
+
+        # (day_shift, utc_minute) -> set of utc hours; then merge minutes that
+        # share (day_shift, hours) so each group is an exact cron cross-product.
+        by_key: dict = {}
+        for h in hour_values:
+            for m in minute_values:
+                utc_hour, utc_minute, day_shift = cls._local_time_to_utc(tz, h, m)
+                if day_fields_are_wild:
+                    day_shift = 0  # nothing to shift, keep one expression
+                by_key.setdefault((day_shift, utc_minute), set()).add(utc_hour)
+        groups: dict = {}
+        for (day_shift, utc_minute), utc_hours in by_key.items():
+            groups.setdefault((day_shift, tuple(sorted(utc_hours))), set()).add(utc_minute)
+
+        if any(day_shift for day_shift, _ in groups) and nth:
+            raise ValueError(
+                "'#' day-of-week modifiers can't cross UTC midnight in this timezone - "
+                "use UTC or a time that stays on the same UTC day."
+            )
+
+        results = []
+        for (day_shift, utc_hours), utc_minutes in sorted(groups.items()):
+            minute_field = "*" if star_minute else ",".join(str(m) for m in sorted(utc_minutes))
+            hour_field = "*" if len(utc_hours) == 24 else ",".join(str(h) for h in utc_hours)
+            if day_shift == 0:
+                dom_field, dow_field = raw_dom, raw_dow
+            else:
+                if doms == ["*"]:
+                    dom_field = "*"
+                elif any(not isinstance(d, int) for d in doms):
+                    raise ValueError(
+                        "'L' (last day) can't cross UTC midnight in this timezone - "
+                        "use UTC or a time that stays on the same UTC day."
+                    )
+                else:
+                    dom_field = ",".join(cls._shift_month_days(doms, day_shift))
+                if dows == ["*"]:
+                    dow_field = "*"
+                elif any(not isinstance(d, int) for d in dows):
+                    raise ValueError(
+                        "Day-of-week modifiers can't cross UTC midnight in this timezone - "
+                        "use UTC or a time that stays on the same UTC day."
+                    )
+                else:
+                    dow_field = ",".join(
+                        str(d) for d in sorted({(d + day_shift) % 7 for d in dows})
+                    )
+            results.append(f"{minute_field} {hour_field} {dom_field} {raw_month} {dow_field}")
+        return results
+
+    @classmethod
+    def _create_cron_schedule(cls, script_schedule) -> list[int]:
+        """
+        Create CRON type django-q2 schedules from a raw cron expression.
+
+        The expression is written in the schedule's timezone and converted to
+        UTC first (see ``cron_to_utc_expressions``) - one django-q2 row per
+        resulting UTC expression, usually one.
+        """
+        cron_expr = (script_schedule.cron_expression or "").strip()
+        if not cron_expr:
+            logger.warning(
+                f"Cron schedule for script {script_schedule.script.name} has no "
+                f"expression - skipping"
+            )
+            return []
+
+        tz = cls._schedule_tz(script_schedule)
+        tz_name = getattr(tz, "key", "UTC")
+        try:
+            utc_exprs = cls.cron_to_utc_expressions(cron_expr, tz)
+        except (ValueError, KeyError) as exc:
+            logger.warning(
+                f"Cron schedule for script {script_schedule.script.name} "
+                f"('{cron_expr}' in {tz_name}) can't be converted to UTC - skipping: {exc}"
+            )
+            return []
+
+        q_schedule_ids = []
+        for index, utc_expr in enumerate(utc_exprs):
+            q_schedule = QSchedule.objects.create(
+                name=f"pyrunner-{script_schedule.script.id}-cron-{index}",
+                func=cls.TASK_FUNC,
+                args=f"'{script_schedule.script.id}'",
+                schedule_type=QSchedule.CRON,
+                cron=utc_expr,
+                repeats=-1,  # Run forever
+                next_run=timezone.now(),
+            )
+            q_schedule_ids.append(q_schedule.id)
+            logger.info(
+                f"Created cron schedule {q_schedule.id} for script "
+                f"{script_schedule.script.name} ('{cron_expr}' in {tz_name} -> '{utc_expr}' UTC)"
+            )
+        return q_schedule_ids
+
     @classmethod
     def delete_q_schedules(cls, script_schedule) -> int:
         """Delete all django-q2 schedules associated with a ScriptSchedule."""
@@ -419,7 +580,87 @@ class ScheduleService:
 
             return min(candidates).astimezone(dt_timezone.utc) if candidates else None
 
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.CRON:
+            cron_expr = (script_schedule.cron_expression or "").strip()
+            if not cron_expr:
+                return None
+            try:
+                from croniter import croniter
+
+                # ``now`` is wall-clock in the schedule's timezone, so croniter
+                # walks the expression in that zone; store the instant in UTC.
+                return croniter(cron_expr, now).get_next(datetime).astimezone(dt_timezone.utc)
+            except (ValueError, KeyError) as exc:
+                logger.warning(
+                    f"Could not compute next run for cron '{cron_expr}': {exc}"
+                )
+                return None
+
         return None
+
+    @classmethod
+    def validate_cron_expression(
+        cls, expression: str, timezone_name: Optional[str] = None
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Validate a raw 5-field cron expression.
+
+        Returns ``(is_valid, error_message)``; ``error_message`` is None when the
+        expression is valid. With ``timezone_name`` the expression must also be
+        convertible to UTC in that zone (see ``cron_to_utc_expressions``).
+        """
+        expr = (expression or "").strip()
+        if not expr:
+            return False, "Cron expression is required."
+
+        # django-q2 / croniter operate on the standard 5-field cron format.
+        # Reject 6-field (seconds) or named @-shortcuts to avoid surprising
+        # behaviour, since those are not what django-q2's scheduler expects.
+        if expr.startswith("@"):
+            return False, "Named shortcuts like '@daily' are not supported - use a 5-field expression."
+        if len(expr.split()) != 5:
+            return False, "Expected 5 fields: minute hour day-of-month month day-of-week."
+
+        from croniter import croniter
+
+        if not croniter.is_valid(expr):
+            return False, "Not a valid cron expression."
+
+        if timezone_name:
+            from core.tz import safe_zoneinfo
+
+            try:
+                cls.cron_to_utc_expressions(
+                    expr, safe_zoneinfo(timezone_name, context="cron validation")
+                )
+            except (ValueError, KeyError) as exc:
+                return False, str(exc)
+
+        return True, None
+
+    @classmethod
+    def preview_cron_runs(
+        cls, expression: str, count: int = 3, timezone_name: Optional[str] = None
+    ) -> list[datetime]:
+        """
+        Return the next ``count`` run times for a cron expression.
+
+        Returns an empty list if the expression is invalid. Times are wall-clock
+        datetimes in ``timezone_name`` (UTC by default) - exactly what the
+        schedule will do once saved with that timezone.
+        """
+        is_valid, _ = cls.validate_cron_expression(expression, timezone_name)
+        if not is_valid:
+            return []
+
+        from croniter import croniter
+
+        from core.tz import safe_zoneinfo
+
+        tz = safe_zoneinfo(timezone_name or "UTC", context="cron preview")
+        base = timezone.now().astimezone(tz)
+        itr = croniter(expression.strip(), base)
+        return [itr.get_next(datetime) for _ in range(count)]
 
     @classmethod
     def pause_all_schedules(cls, user=None) -> int:
@@ -478,6 +719,7 @@ class ScheduleService:
                 ScriptSchedule.RunMode.DAILY,
                 ScriptSchedule.RunMode.WEEKLY,
                 ScriptSchedule.RunMode.MONTHLY,
+                ScriptSchedule.RunMode.CRON,
             ],
         ).select_related("script"):
             ids = cls.sync_schedule(schedule)

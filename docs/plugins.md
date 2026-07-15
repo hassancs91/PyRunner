@@ -245,6 +245,8 @@ ScriptAPI(OWNER).set_environment(env)
 
 # Schedule + run, through the real RunBackend + scheduler:
 ScheduleAPI(OWNER).sync(script, mode="daily", time_str="02:00", tz="UTC")
+# ...or any 5-field cron expression, written in ``tz`` (converted to UTC for you):
+ScheduleAPI(OWNER).sync(script, mode="cron", cron="0 9 * * 1-5", tz="Asia/Tokyo")
 ScriptAPI(OWNER).queue_run("backup")
 
 # Observe + control that run — no core.models import:

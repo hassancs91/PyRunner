@@ -8,6 +8,32 @@ begins tracking at the current release; earlier history is in the git log.
 
 ## [Unreleased]
 
+### Added
+- **Cron expression schedules** — a sixth run mode that takes a standard
+  5-field cron expression (`0 9 * * 1-5` for weekday mornings, `*/15 9-17 * * *`
+  for every quarter hour during business hours), for anything the guided
+  daily/weekly/monthly modes can't say. The form validates as you type and
+  previews the next three runs; the plugin SDK gets `ScheduleAPI.sync(...,
+  mode="cron", cron="...")`. Like the other clock-based modes the expression
+  is written in the schedule's **timezone** and converted to UTC for the
+  scheduler (day-of-week/month fields move with a midnight crossing, and the
+  daily DST resync covers cron too), so `0 9 * * 1-5` in `Asia/Tokyo` really
+  fires at 09:00 Tokyo time. Contributed by @cmcau (#5); timezone conversion
+  added on merge. Backup format 1.8.0 carries the new field.
+
+### Fixed
+- **Weekly and monthly schedules survive a backup/restore** — the export
+  omitted `weekly_days`/`weekly_times`/`monthly_days`/`monthly_times`, so a
+  restored weekly or monthly schedule came back with no days or times. (#5)
+- **Dashboard "upcoming runs" shows weekly and monthly schedules** — the
+  widget filtered on interval/daily only, so weekly and monthly schedules
+  never appeared even though they fired on time. (#5)
+- **CI is green again** — the workflow never passed since it was added:
+  tests needed `collectstatic` (the manifest storage rejects unknown static
+  files under the test runner's `DEBUG=False`), and an unpinned Ruff picked
+  up 0.16's much larger default rule set. Both pinned down; no product code
+  changed.
+
 ## [1.16.0] — July 29, 2026
 
 ### Added

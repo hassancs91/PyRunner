@@ -171,7 +171,7 @@ class BackupFidelityTests(TestCase):
         # a conscious edit here. Other suites assert their own feature's floor
         # instead, so an additive bump doesn't break them too.
         backup = BackupService.create_backup(include_datastores=False)
-        self.assertEqual(backup["backup_metadata"]["version"], "1.7.0")
+        self.assertEqual(backup["backup_metadata"]["version"], "1.8.0")
 
 
 class ScheduleHistorySnapshotTests(TestCase):

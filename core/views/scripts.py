@@ -395,6 +395,35 @@ def script_toggle_view(request: HttpRequest, pk) -> HttpResponse:
 
 
 @login_required
+def cron_preview_view(request: HttpRequest) -> JsonResponse:
+    """
+    Validate a cron expression and return its next few run times.
+
+    Used by the schedule form for live feedback. Query params: ``expression``
+    and ``timezone`` (IANA name; unknown values fall back to UTC).
+    """
+    from core.tz import safe_zoneinfo
+
+    expression = request.GET.get("expression", "")
+    tz_name = getattr(
+        safe_zoneinfo(request.GET.get("timezone") or "UTC", context="cron preview"), "key", "UTC"
+    )
+    is_valid, error = ScheduleService.validate_cron_expression(expression, tz_name)
+    if not is_valid:
+        return JsonResponse({"valid": False, "error": error, "runs": [], "timezone": tz_name})
+
+    runs = ScheduleService.preview_cron_runs(expression, count=3, timezone_name=tz_name)
+    return JsonResponse(
+        {
+            "valid": True,
+            "error": None,
+            "runs": [dt.strftime("%a %d %b %Y, %H:%M") for dt in runs],
+            "timezone": tz_name,
+        }
+    )
+
+
+@login_required
 @require_POST
 def schedule_toggle_view(request: HttpRequest, pk) -> HttpResponse:
     """Toggle schedule active/inactive state."""
