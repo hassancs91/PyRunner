@@ -167,6 +167,21 @@ class ScriptForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Only show active environments
         self.fields["environment"].queryset = Environment.objects.filter(is_active=True)
+        # Preselect the default environment on the create form (the field is
+        # required with no model default, so it otherwise renders on the empty
+        # "---------" choice even though a default environment exists).
+        # (instance pk can't distinguish create from edit here — Script's UUID
+        # pk is filled at instantiation — so use _state.adding.)
+        if (
+            not self.is_bound
+            and self.instance._state.adding
+            and "environment" not in self.initial
+        ):
+            default_env = Environment.objects.filter(
+                is_active=True, is_default=True
+            ).first()
+            if default_env:
+                self.initial["environment"] = default_env.pk
         # Optional: a form submitted without it (or legacy callers) defaults to
         # 'all' in clean_injection_mode, matching the model default.
         self.fields["injection_mode"].required = False

@@ -55,8 +55,16 @@ docker run -d \
   -e ENCRYPTION_KEY='<generated-fernet-key>' \
   -e DEBUG=False \
   -e ALLOWED_HOSTS=localhost \
+  -e SECURE_SSL_REDIRECT=False \
+  -e SESSION_COOKIE_SECURE=False \
+  -e CSRF_COOKIE_SECURE=False \
   hasanaboulhasan/pyrunner:latest
 ```
+
+The three `False` overrides are for plain-HTTP access (like `http://localhost:8000`).
+Without them, `DEBUG=False` redirects every request to HTTPS and marks cookies
+`Secure`, so a plain-HTTP deployment is unreachable. If you serve PyRunner behind
+an HTTPS reverse proxy, remove them to keep the secure defaults.
 
 ## Configuration
 
