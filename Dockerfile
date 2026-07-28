@@ -46,10 +46,15 @@ COPY . .
 # Create data directories
 RUN mkdir -p /app/data/environments /app/data/workdir
 
-# Collect static files (build-time only keys, not used at runtime)
-ENV SECRET_KEY="build-only-key-not-for-runtime"
-ENV ENCRYPTION_KEY="QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE="
-RUN python manage.py collectstatic --noinput
+# Collect static files. The keys are set inline (NOT via ENV) so they exist
+# only for this one RUN step and never persist into the final image — baked-in
+# ENV keys would make the entrypoint's "keys are required" check dead code and
+# ship a publicly-known SECRET_KEY/ENCRYPTION_KEY to every deployment that
+# forgets to set its own. entrypoint.sh rejects these two literals for the
+# same reason, as a backstop for images built before this fix.
+RUN SECRET_KEY="build-only-key-not-for-runtime" \
+    ENCRYPTION_KEY="QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=" \
+    python manage.py collectstatic --noinput
 
 # Copy and set up entrypoint (convert Windows CRLF to Unix LF)
 COPY entrypoint.sh /entrypoint.sh

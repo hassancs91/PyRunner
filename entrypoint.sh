@@ -1,12 +1,22 @@
 #!/bin/bash
 set -e
 
+# If a command was passed (e.g. `docker run ... python -c "..."`, as the docs'
+# key-generation one-liners do), run it instead of booting the app. Placed
+# before the key checks on purpose: generating a key must not require one.
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
 echo "=========================================="
 echo "  PyRunner - Starting up..."
 echo "=========================================="
 
-# Validate required environment variables
-if [ -z "$SECRET_KEY" ]; then
+# Validate required environment variables. Also reject the two literal values
+# once baked into published images (≤1.15.0) via Dockerfile ENV: on those
+# images the variables are never unset, so an empty-check alone can't catch a
+# deployment running on the publicly-known keys.
+if [ -z "$SECRET_KEY" ] || [ "$SECRET_KEY" = "build-only-key-not-for-runtime" ]; then
     echo ""
     echo "ERROR: SECRET_KEY is required but not set."
     echo ""
@@ -16,7 +26,7 @@ if [ -z "$SECRET_KEY" ]; then
     exit 1
 fi
 
-if [ -z "$ENCRYPTION_KEY" ]; then
+if [ -z "$ENCRYPTION_KEY" ] || [ "$ENCRYPTION_KEY" = "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=" ]; then
     echo ""
     echo "ERROR: ENCRYPTION_KEY is required but not set."
     echo ""
