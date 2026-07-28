@@ -8,6 +8,46 @@ When you cut a release, bump ``pyrunner/version.py`` and add an entry here.
 
 CHANGELOG = [
     {
+        "version": "1.15.1",
+        "date": "July 28, 2026",
+        "headline": (
+            "Security patch: Docker images no longer contain built-in fallback "
+            "keys — every deployment now runs on keys only you know. If you "
+            "never set your own keys, this release makes that visible and "
+            "walks you through fixing it."
+        ),
+        "changes": [
+            {
+                "tag": "Security",
+                "title": "Baked-in image keys removed — check your deployment",
+                "body": (
+                    "Docker images up to 1.15.0 shipped with build-time "
+                    "SECRET_KEY and ENCRYPTION_KEY values left inside the "
+                    "image. A deployment that didn't set its own keys would "
+                    "boot normally but run on those publicly-known values — "
+                    "meaning sessions could be forged and secrets stored in "
+                    "PyRunner could be decrypted by anyone with the public "
+                    "image. The keys are now stripped from the image, and "
+                    "PyRunner refuses to start on the old known values, with "
+                    "clear instructions for generating real ones. If your "
+                    "deployment never set its own keys: upgrade, generate "
+                    "fresh keys, and rotate the secrets you had stored."
+                ),
+            },
+            {
+                "tag": "Fixed",
+                "title": "Key-generation one-liners no longer hang",
+                "body": (
+                    "Running a one-off command in the container (docker run "
+                    "... python -c \"...\") used to ignore the command and "
+                    "boot the whole server, hanging your terminal — which "
+                    "broke the documented way to generate keys. The container "
+                    "now runs the command you give it and exits."
+                ),
+            },
+        ],
+    },
+    {
         "version": "1.15.0",
         "date": "July 15, 2026",
         "headline": (

@@ -95,6 +95,33 @@ begins tracking at the current release; earlier history is in the git log.
   browser calls impossible. Preflights now succeed tokenless and every
   response, including errors, carries CORS headers.
 
+## [1.15.1] — July 28, 2026
+
+### Security
+- **Docker images no longer ship baked-in keys** — the Dockerfile set
+  `SECRET_KEY` and `ENCRYPTION_KEY` as `ENV` for the build-time `collectstatic`
+  step, and Docker `ENV` persists into the published image. Every image up to
+  and including 1.15.0 therefore contained a publicly-known Django `SECRET_KEY`
+  (session/cookie forgery) and a publicly-known constant Fernet
+  `ENCRYPTION_KEY` (all "encrypted" secrets decryptable by anyone with the
+  image) — and because the variables were never empty, the entrypoint's
+  "required keys" check could never fire, so a deployment that set neither key
+  booted and ran silently on the known values. The keys are now scoped to the
+  single `RUN collectstatic` build step and never persist, the entrypoint
+  rejects the two known build-time literal values in addition to empty (so a
+  deployment still running on the leaked keys fails fast with instructions
+  instead of starting), and the README quickstart now generates and passes both
+  required keys. **If you deployed from the Docker Hub image without setting
+  your own `SECRET_KEY`/`ENCRYPTION_KEY`, upgrade, generate fresh keys, and
+  rotate any secrets stored in PyRunner.**
+
+### Fixed
+- **`docker run ... <command>` now runs the command** — the entrypoint ignored
+  its arguments and always booted the full app, so the documented key-generation
+  one-liners (`docker run --rm ... python -c "..."`) hung the terminal on a full
+  server boot instead of printing a key. The entrypoint now `exec`s any passed
+  command (before the key checks, so generating a key doesn't require one).
+
 ## [1.15.0] — July 15, 2026
 
 ### Added
