@@ -19,7 +19,7 @@
                     <span class="text-muted">Create</span>
                 </nav>
                 <h1 class="text-[22px] font-semibold tracking-tight">Create API token</h1>
-                <p class="text-sm text-muted mt-1">Generate a new token for API access to datastores</p>
+                <p class="text-sm text-muted mt-1">Generate a new token for API access to datastores or plugin APIs</p>
             </div>
 
             <form method="post" autocomplete="off" class="rounded-2xl border border-line bg-panel p-6 space-y-5">
@@ -33,11 +33,39 @@
                 </div>
 
                 <div>
+                    <label for="id_scope" class="block text-[13px] font-medium text-text mb-1.5">{{ form.scope.label }}</label>
+                    {{ form.scope }}
+                    {% if form.scope.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.scope.help_text }}</p>{% endif %}
+                    {% if form.scope.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.scope.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div id="datastore-field">
                     <label for="id_datastore" class="block text-[13px] font-medium text-text mb-1.5">{{ form.datastore.label }}</label>
                     {{ form.datastore }}
                     {% if form.datastore.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.datastore.help_text }}</p>{% endif %}
                     {% if form.datastore.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.datastore.errors.0 }}</p>{% endif %}
                 </div>
+
+                <div id="plugin-field">
+                    <label for="id_plugin_slug" class="block text-[13px] font-medium text-text mb-1.5">{{ form.plugin_slug.label }}</label>
+                    {{ form.plugin_slug }}
+                    {% if form.plugin_slug.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.plugin_slug.help_text }}</p>{% endif %}
+                    {% if form.plugin_slug.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.plugin_slug.errors.0 }}</p>{% endif %}
+                </div>
+
+                <script>
+                    (function () {
+                        var scope = document.getElementById("id_scope");
+                        var dsField = document.getElementById("datastore-field");
+                        var plField = document.getElementById("plugin-field");
+                        function sync() {
+                            dsField.style.display = scope.value === "datastore" ? "" : "none";
+                            plField.style.display = scope.value === "plugin" ? "" : "none";
+                        }
+                        scope.addEventListener("change", sync);
+                        sync();
+                    })();
+                </script>
 
                 <div>
                     <label for="id_expires_at" class="block text-[13px] font-medium text-text mb-1.5">{{ form.expires_at.label }}</label>
@@ -53,7 +81,7 @@
                         <ul class="mt-2 space-y-1 list-disc list-inside text-xs">
                             <li>The token will only be shown once after creation</li>
                             <li>Store it securely — you won't be able to see it again</li>
-                            <li>Tokens provide read-only access to datastore data</li>
+                            <li>Tokens provide read-only access to datastore or plugin API data</li>
                         </ul>
                     </div>
                 </div>

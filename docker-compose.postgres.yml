@@ -29,6 +29,12 @@ services:
     volumes:
       - pyrunner_pgdata:/var/lib/postgresql/data
       - ./docker/init-data-db.sh:/docker-entrypoint-initdb.d/10-init-data-db.sh:ro
+    ports:
+      # Host-local only (127.0.0.1): lets host tools reach the server — psql,
+      # and a plugin-dev-mode instance using this same Postgres as its data
+      # server (PYRUNNER_DATA_DB_URL=...@127.0.0.1:15433/pyrunner_data).
+      # Not reachable from other machines; remove if you don't want it.
+      - "127.0.0.1:${DATA_DB_HOST_PORT:-15433}:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pyrunner} -d ${POSTGRES_DB:-pyrunner}"]

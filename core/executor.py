@@ -8,6 +8,7 @@ It is designed to be called from django-q2 async tasks.
 import json
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
 import traceback
@@ -26,6 +27,10 @@ from core.executor_backends import RunSpec, get_run_backend
 from core.executor_backends.local import kill_process_tree as _kill_process_tree
 from core.models import GlobalSettings, Run, Secret, Workspace
 from core.services import ClaudeService, EncryptionService
+from core.services.library_service import (
+    LibraryMaterializationError,
+    materialize_libraries,
+)
 from core.services.secret_backends import SecretResolutionError
 
 logger = logging.getLogger(__name__)
@@ -126,6 +131,7 @@ def _build_script_environment(
     webhook_data: dict | None = None,
     run: "Run | None" = None,
     secrets: "dict | None" = None,
+    library_root: str | None = None,
 ) -> dict:
     """
     Build the environment dict for script execution.
@@ -141,6 +147,11 @@ def _build_script_environment(
             When omitted they are resolved here; ``execute_run`` passes the SAME dict
             it uses for output masking so injection and masking can't drift — and the
             values are decrypted once, not twice.
+        library_root: Optional staging dir holding this run's materialized Script
+            Libraries. Added to PYTHONPATH *after* the script helpers so a library
+            can never shadow ``pyrunner_db``/``pyrunner_ai`` (the reserved-key ban
+            on library keys is the second fence). None => no libraries, and
+            PYTHONPATH is byte-for-byte what it was before this feature.
 
     Returns:
         Environment dict to pass to subprocess
@@ -234,13 +245,17 @@ def _build_script_environment(
         if run.script_id and getattr(run.script, "owner_plugin", None):
             env["PYRUNNER_OWNER_PLUGIN"] = run.script.owner_plugin
 
-    # Add script_helpers to PYTHONPATH so scripts can import pyrunner_datastore
+    # Add script_helpers to PYTHONPATH so scripts can import pyrunner_datastore,
+    # then this run's materialized libraries. Order is the fence: helpers resolve
+    # first, so an attached library always loses a name clash with them.
     helpers_path = str(Path(settings.BASE_DIR) / "core" / "script_helpers")
+    path_entries = [helpers_path]
+    if library_root:
+        path_entries.append(str(library_root))
     existing_pythonpath = env.get("PYTHONPATH", "")
     if existing_pythonpath:
-        env["PYTHONPATH"] = f"{helpers_path}{os.pathsep}{existing_pythonpath}"
-    else:
-        env["PYTHONPATH"] = helpers_path
+        path_entries.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(path_entries)
 
     return env
 
@@ -497,6 +512,28 @@ def _select_backend_for_run(run, gs):
     return get_run_backend(), IsolationDecision(False, False, decision.reason)
 
 
+def _kill_abandoned_process(backend, handle, run_id) -> None:
+    """Best-effort kill of a spawned process tree on an abnormal executor exit.
+
+    The backend launches scripts in their own session, so a worker-level
+    exception that interrupts ``wait()`` leaves the subprocess alive and
+    detached — still writing to databases and holding resources — for a run
+    PyRunner is about to report dead. Never raises: every caller is already on
+    an error path.
+    """
+    if backend is None or handle is None:
+        return
+    try:
+        backend.kill(handle)
+        logger.warning(
+            "Run %s: killed abandoned script process tree (pid %s)",
+            run_id,
+            handle.pid,
+        )
+    except Exception:
+        logger.exception("Run %s: failed to kill abandoned process tree", run_id)
+
+
 def execute_run(run: Run, webhook_data: dict | None = None) -> None:
     """
     Execute a script run and update the Run record with results.
@@ -514,25 +551,43 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
         webhook_data: Optional webhook data to inject as environment variables
 
     Note:
-        This function always saves the Run state, even on errors.
-        The Run status will be updated to one of:
-        SUCCESS, FAILED, TIMEOUT, or remain FAILED on errors.
+        Execution starts by atomically claiming the PENDING run; a duplicate
+        task delivery (django-q2 re-delivers past the broker `retry` window)
+        finds it already claimed and returns without touching the row. Once
+        claimed, the run's state is always persisted — SUCCESS, FAILED,
+        TIMEOUT, or CANCELLED (set externally by force-stop, never clobbered).
     """
+    # Phase 1: Claim the run — BEFORE the try/finally below. django-q2's broker
+    # re-delivers any task not acknowledged within the cluster-wide `retry`
+    # window (the ORM broker's lock is Conf.RETRY; a per-task timeout does NOT
+    # extend it), so a run that legitimately outlives that window WILL be handed
+    # to a second worker while the first is still executing. That duplicate must
+    # be a TRUE no-op — entering the try/finally would stamp ended_at, clear the
+    # pid and overwrite stdout/stderr on the LIVE run row, leaving it stuck at
+    # 'running' with its output lost (the exact orphan entrypoint.sh's crash-
+    # safety story assumes cannot happen). The claim is one conditional UPDATE
+    # so two workers racing on the same PENDING run cannot both win it.
+    claimed = Run.objects.filter(pk=run.pk, status=Run.Status.PENDING).update(
+        status=Run.Status.RUNNING, started_at=timezone.now()
+    )
+    if not claimed:
+        current = (
+            Run.objects.filter(pk=run.pk).values_list("status", flat=True).first()
+        )
+        logger.warning(
+            f"Run {run.id} is not in PENDING status (current: {current}). "
+            "Skipping duplicate delivery."
+        )
+        return
+    run.refresh_from_db(fields=["status", "started_at"])
+
     script_file_path = None
+    library_root = None
+    backend = None
+    handle = None
+    wait_completed = False
 
     try:
-        # Phase 1: Pre-execution validation
-        if run.status != Run.Status.PENDING:
-            logger.warning(
-                f"Run {run.id} is not in PENDING status (current: {run.status}). "
-                "Skipping execution."
-            )
-            return
-
-        # Update to RUNNING status
-        run.status = Run.Status.RUNNING
-        run.started_at = timezone.now()
-        run.save(update_fields=["status", "started_at"])
 
         # Validate environment
         try:
@@ -570,6 +625,30 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
             script_file.write(code)
             script_file_path = script_file.name
 
+        # Phase 2b: Materialize the libraries pinned on this run at queue time.
+        # The staging dir lives UNDER the workdir, which the sandbox backend
+        # already binds writable and whose PYTHONPATH entries it binds into the
+        # jail — so isolated runs import libraries with no extra sandbox wiring.
+        if run.library_versions:
+            try:
+                library_root = tempfile.mkdtemp(prefix="libs-", dir=str(workdir))
+                materialize_libraries(run, library_root)
+            except LibraryMaterializationError as e:
+                # Fail-closed: a pinned revision that no longer exists fails the
+                # run with a named cause BEFORE spawn, never a silent ImportError
+                # surfacing from inside the user's script.
+                run.status = Run.Status.FAILED
+                run.exit_code = -1
+                run.stderr = str(e)
+                logger.error("Run %s failed to materialize libraries: %s", run.id, e)
+                return  # the finally block persists this FAILED state
+            except OSError as e:
+                run.status = Run.Status.FAILED
+                run.exit_code = -1
+                run.stderr = f"Failed to stage script libraries: {e}"
+                logger.error("Run %s could not stage libraries: %s", run.id, e)
+                return  # the finally block persists this FAILED state
+
         # Phase 3: Execute script
         try:
             # Build subprocess arguments
@@ -591,7 +670,9 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
                 return  # the finally block persists this FAILED state
 
             # Build environment with secrets and webhook data injected
-            script_env = _build_script_environment(webhook_data, run=run, secrets=secrets)
+            script_env = _build_script_environment(
+                webhook_data, run=run, secrets=secrets, library_root=library_root
+            )
 
             # Also mask the injected AI credential in output, if any. Covers
             # every credential-bearing var ClaudeService._build_env can inject
@@ -652,6 +733,7 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
             run.save(update_fields=["pid"])
 
             result = backend.wait(handle, spec.timeout)
+            wait_completed = True
 
             if result.timed_out:
                 run.status = Run.Status.TIMEOUT
@@ -687,8 +769,33 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
             run.exit_code = -1
             logger.error(f"Run {run.id} subprocess error: {e}")
 
+    except SystemExit:
+        # django-q2's per-task TimeoutException subclasses SystemExit — NOT
+        # Exception — so it can tear the worker down. Left unhandled it would
+        # bypass the catch-all below, abandon the script subprocess (which
+        # survives detached in its own session, still writing), and let the
+        # finally persist a half-stamped row. Kill the tree, stamp a terminal
+        # state, and re-raise so django-q's own task accounting still records
+        # the timeout.
+        if not wait_completed:
+            _kill_abandoned_process(backend, handle, run.id)
+        run.status = Run.Status.TIMEOUT
+        run.exit_code = -1
+        run.stderr = (
+            "[TIMEOUT: the worker's task deadline fired before the script "
+            f"finished (script timeout: {run.script.timeout_seconds}s). The "
+            "process tree was killed.]"
+        )
+        logger.error(f"Run {run.id} hit the worker task deadline; process killed")
+        raise
+
     except Exception as e:
-        # Catch-all for unexpected errors
+        # Catch-all for unexpected errors. If the failure interrupted wait(),
+        # the subprocess is still alive and would survive detached — kill it so
+        # a run PyRunner reports failed cannot keep executing (and writing) in
+        # the background.
+        if not wait_completed:
+            _kill_abandoned_process(backend, handle, run.id)
         run.status = Run.Status.FAILED
         run.stderr = f"Unexpected executor error: {str(e)}\n\n{traceback.format_exc()}"
         run.exit_code = -1
@@ -730,6 +837,16 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
                 os.unlink(script_file_path)
             except OSError as e:
                 logger.warning(f"Failed to delete temp script file: {e}")
+
+        # Cleanup the materialized library staging dir (same lifetime as the temp
+        # script file). ignore_errors so a Windows lock on a just-imported .pyc
+        # leaves a stale dir behind rather than masking the run's real outcome.
+        if library_root is not None:
+            shutil.rmtree(library_root, ignore_errors=True)
+            if os.path.exists(library_root):
+                logger.warning(
+                    "Failed to delete library staging dir: %s", library_root
+                )
 
         logger.info(
             f"Run {run.id} completed with status {run.status} "

@@ -1252,8 +1252,11 @@ class BackupDatabasesTests(TestCase):
     def test_create_backup_carries_databases_and_version(self):
         with mock.patch.object(DatabaseService, "dump_schema", return_value="-- sql"):
             data = self.backup.create_backup(include_runs=False)
-        # Current format is 1.6.0 (External Secret Providers); databases joined at 1.5.0.
-        self.assertEqual(data["backup_metadata"]["version"], "1.6.0")
+        # Databases joined the format at 1.5.0, so that is the FLOOR — this test's
+        # subject is the databases payload, and pinning the exact current version
+        # here would fail on every later additive bump for no reason.
+        version = tuple(int(p) for p in data["backup_metadata"]["version"].split("."))
+        self.assertGreaterEqual(version, (1, 5, 0))
         self.assertEqual(len(data["databases"]), 1)
 
     def _restore(self, databases_data, script_map=None):

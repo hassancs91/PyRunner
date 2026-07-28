@@ -39,9 +39,10 @@ _ICON_CONTENT_TYPES = {
 def plugin_list_view(request: HttpRequest) -> HttpResponse:
     """List installed plugins with status, errors, and a restart banner."""
     plugins = list(Plugin.objects.all())
-    # Attach owned-resource counts for the delete-confirm preview (Plugin Platform v2).
+    # Attach the delete-confirm preview string (Plugin Platform v2): what a
+    # delete with "also delete data" would really drop.
     for p in plugins:
-        p.owned_counts = PluginService.owned_resource_counts(p.slug)
+        p.owned_summary = PluginService.owned_resource_summary(p.slug)
     context = {
         "plugins": plugins,
         "pending_restart": PluginService.pending_restart(),
@@ -62,7 +63,7 @@ def plugin_detail_view(request: HttpRequest, slug: str) -> HttpResponse:
     the manifest accessors, so it works for INSTALLED-but-not-active plugins too.
     """
     plugin = get_object_or_404(Plugin, slug=slug)
-    plugin.owned_counts = PluginService.owned_resource_counts(plugin.slug)
+    plugin.owned_summary = PluginService.owned_resource_summary(plugin.slug)
     context = {
         "plugin": plugin,
         "pending_restart": PluginService.pending_restart(),

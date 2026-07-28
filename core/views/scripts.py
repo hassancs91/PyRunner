@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_POST
 from django.http import HttpRequest, HttpResponse, JsonResponse
 
-from core.models import Script, Run, ScriptSchedule, ScheduleHistory, Secret, SecretGrant, Tag
+from core.models import Script, Run, ScriptSchedule, ScheduleHistory, Library, ScriptLibrary, Secret, SecretGrant, Tag
 from core.forms import ScriptForm, ScheduleForm
 from core.tasks import queue_script_run
 from core.services.schedule_service import ScheduleService
@@ -40,6 +40,28 @@ def _reconcile_grants(script, secret_ids, workspace) -> None:
         SecretGrant.objects.create(script=script, secret_id=sid, active=True)
     for sid in existing.keys() - valid:
         existing[sid].delete()
+
+
+def _reconcile_libraries(script, library_ids, workspace) -> None:
+    """Make the script's attached-library set exactly match ``library_ids``.
+
+    Mirrors ``_reconcile_grants``: only libraries in the active workspace are
+    attachable (the workspace filter IS the tenancy guard here — a posted id from
+    another workspace is simply not in ``valid``, so it is ignored rather than
+    trusted), and detach is a row delete. Unlike secrets there is no
+    injection-mode gate: libraries are explicit-only, always.
+    """
+    valid = {
+        str(pk)
+        for pk in Library.objects.for_workspace(workspace)
+        .filter(pk__in=[lid for lid in library_ids if lid])
+        .values_list("pk", flat=True)
+    }
+    existing = {str(a.library_id): a for a in ScriptLibrary.objects.filter(script=script)}
+    for lid in valid - existing.keys():
+        ScriptLibrary.objects.create(script=script, library_id=lid)
+    for lid in existing.keys() - valid:
+        existing[lid].delete()
 
 
 @login_required
@@ -149,6 +171,39 @@ def script_list_view(request: HttpRequest) -> HttpResponse:
     })
 
 
+def _warn_if_timeout_outruns_workers(request, script) -> None:
+    """Non-blocking heads-up when a saved timeout exceeds the worker window.
+
+    The cluster floors its broker re-delivery window (`retry`) to the fleet's
+    largest script timeout at start (pyrunner_qcluster), so a timeout raised
+    PAST what the running cluster booted with is not covered until the next
+    worker restart. The running cluster's window is read from the cache stamp
+    the worker heartbeat leaves (this web process's settings.Q_CLUSTER only
+    holds env defaults). Advisory only: duplicate deliveries are no-ops
+    (execute_run's claim), so the exposure is noise, not data loss.
+    """
+    from django.conf import settings as django_settings
+    from django.core.cache import cache
+
+    from core.services.worker_config import EFFECTIVE_RETRY_CACHE_KEY
+
+    window = (
+        cache.get(EFFECTIVE_RETRY_CACHE_KEY)
+        or django_settings.Q_CLUSTER.get("retry")
+        or 0
+    )
+    # +60 = the per-task cushion queue_script_run adds; the task is always
+    # acknowledged within timeout_seconds + 60, so only a timeout beyond
+    # window - 60 can still be in flight when re-delivery fires.
+    if script.timeout_seconds + 60 > window:
+        messages.warning(
+            request,
+            f'"{script.name}" allows {script.timeout_seconds}s but the running '
+            f"workers' task-recovery window is {window}s. Restart workers "
+            "(Settings → Workers) so long runs are fully covered.",
+        )
+
+
 @login_required
 def script_create_view(request: HttpRequest) -> HttpResponse:
     """Create a new script."""
@@ -165,7 +220,9 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
             # Reconcile per-script secret grants when in Selected injection mode.
             if script.injection_mode == Script.InjectionMode.SELECTED:
                 _reconcile_grants(script, request.POST.getlist("granted_secret_ids"), request.workspace)
+            _reconcile_libraries(script, request.POST.getlist("library_ids"), request.workspace)
             messages.success(request, f'Script "{script.name}" created successfully.')
+            _warn_if_timeout_outruns_workers(request, script)
             return redirect("cpanel:script_detail", pk=script.pk)
     else:
         # Optionally pre-fill from a starter template (e.g. ?template=ai).
@@ -182,6 +239,8 @@ def script_create_view(request: HttpRequest) -> HttpResponse:
         "available_tags": available_tags,
         "selected_tag_ids": [],
         "granted_secrets": [],
+        "available_libraries": Library.objects.for_workspace(request.workspace).order_by("key"),
+        "attached_library_ids": [],
     })
 
 
@@ -232,6 +291,7 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
             form.save_m2m()
             if script.injection_mode == Script.InjectionMode.SELECTED:
                 _reconcile_grants(script, request.POST.getlist("granted_secret_ids"), request.workspace)
+            _reconcile_libraries(script, request.POST.getlist("library_ids"), request.workspace)
             schedule = schedule_form.save()
 
             # Capture new config
@@ -256,6 +316,7 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
             ScheduleService.sync_schedule(schedule)
 
             messages.success(request, f'Script "{script.name}" updated successfully.')
+            _warn_if_timeout_outruns_workers(request, script)
             return redirect("cpanel:script_detail", pk=script.pk)
     else:
         form = ScriptForm(instance=script, workspace=request.workspace)
@@ -274,6 +335,8 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
         "available_tags": available_tags,
         "selected_tag_ids": selected_tag_ids,
         "granted_secrets": granted_secrets,
+        "available_libraries": Library.objects.for_workspace(request.workspace).order_by("key"),
+        "attached_library_ids": [str(pk) for pk in script.libraries.values_list("pk", flat=True)],
     })
 
 

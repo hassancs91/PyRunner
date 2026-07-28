@@ -14,9 +14,17 @@ RUNS_PER_PAGE = 25
 @login_required
 def run_list_view(request: HttpRequest) -> HttpResponse:
     """List all runs with optional filtering."""
+    # Same pattern as the packages page: viewing the list reconciles runs whose
+    # worker died without finalizing them, so a stuck 'running' row heals on
+    # sight even when the cluster (and its every-minute heartbeat) is down.
+    Run.reconcile_stale()
+
     runs = (
         Run.objects.for_workspace(request.workspace)
         .select_related("script", "triggered_by")
+        # The list renders stderr (the inline error expander) but never stdout,
+        # which is the far larger column. Deferring it keeps a page of runs small.
+        .defer("stdout")
         .order_by("-created_at")
     )
 

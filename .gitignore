@@ -40,17 +40,22 @@ nul
 docs/*
 !docs/plugins.md
 
-# Plugins are installed at runtime onto the data volume — keep the package
-# marker + readme in the repo, ignore everything actually uploaded.
+# plugins/ = runtime install target AND the local workspace for private
+# plugins under development (they import natively as plugins.<slug>). Keep the
+# package marker + readme in the repo, ignore everything else.
 plugins/*
 !plugins/__init__.py
 !plugins/README.md
 
+# Built plugin zips (one place for all of them) — reproducible from the
+# source dirs under plugins/ and examples/.
+dist/
+
 # Local-only UI design mockups (scratch exploration, not shipped)
 design-preview/
 
-# Built plugin packages — reproducible from the source dirs under examples/
-examples/*.zip
-
 # Separate landing site project (has its own repo)
 landing/
+
+# Google OAuth client (local dev credential — never commit)
+client_secret.json

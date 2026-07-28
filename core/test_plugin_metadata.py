@@ -168,6 +168,15 @@ class PluginAccessorTests(SimpleTestCase):
         p = self._p({"provisions": {"databases": 2, "scripts": 1}})
         self.assertEqual(p.provisions_summary, "1 script, 2 databases")
 
+    def test_provisions_summary_includes_libraries(self):
+        p = self._p({"provisions": {"libraries": 1, "scripts": 3}})
+        self.assertEqual(p.provisions_summary, "3 scripts, 1 library")
+
+    def test_provisions_summary_pluralizes_libraries_irregularly(self):
+        # Not "2 librarys": the plural is spelled out, not built by appending "s".
+        p = self._p({"provisions": {"libraries": 2}})
+        self.assertEqual(p.provisions_summary, "2 libraries")
+
     def test_provisions_summary_skips_zero_missing_and_bool(self):
         p = self._p({"provisions": {"scripts": 0, "secrets": True, "datastores": 2}})
         self.assertEqual(p.provisions_summary, "2 data stores")

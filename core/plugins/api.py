@@ -41,7 +41,17 @@ from typing import Optional
 # cancel_latest_run + the RunView read-model).
 # 2.2 (additive): DatabaseAPI — owner-scoped managed Postgres databases
 # (provision/get/list/grant/dsn) on the attached data server.
-API_VERSION = "2.2"
+# 2.3 (additive): external-API surface — @resource handler marker, APIRequest,
+# APIError (docs/PLAN_plugin_api.md) — plus read-only workspace-scoped
+# ChannelAPI.list(), and public pages (@page, PageRequest, PublicPageAPI).
+# 2.4 (additive): LibraryAPI — shared multi-module code attached to scripts and
+# materialized onto a run's PYTHONPATH, pinned to the revision stamped at queue
+# time (docs/PLAN_script_libraries.md).
+# 2.5 (additive): StorageAPI — owner-scoped object storage on the instance's
+# assets StorageConnection, every key forced under apps/<owner>/; worker scripts
+# reach the same prefix through the pyrunner_storage helper
+# (docs/PLAN_storage_seam.md).
+API_VERSION = "2.5"
 
 
 # --------------------------------------------------------------------------- #
@@ -143,6 +153,170 @@ class SecretAPI:
             grant.active = active
             grant.save(update_fields=["active"])
         return grant
+
+
+# --------------------------------------------------------------------------- #
+# Libraries — shared multi-module code, attached to scripts
+# --------------------------------------------------------------------------- #
+
+class LibraryAPI:
+    """Owner-scoped shared Python code that scripts attach and import.
+
+    The seam for any plugin bigger than one file: bundle the pipeline once as a
+    Library and ``attach()`` it to each worker script, instead of duplicating it
+    into every script's code. The canonical provisioning shape is
+
+        libs = LibraryAPI(OWNER)
+        lib = libs.upsert("myplugin_lib", modules=read_lib_folder())
+        for script in workers:
+            libs.attach(script, lib)
+
+    ``upsert`` is idempotent BY CONTENT: re-provisioning on every settings save
+    writes a new revision only when the code actually changed, so history stays
+    signal rather than one entry per save.
+
+    Note ``key`` is a Python import name (``from myplugin_lib.pipeline import
+    run``), so unlike DataStoreAPI it is NOT auto-prefixed with the owner slug —
+    ``"myplugin:lib"`` is not importable. Keys are unique per workspace; prefix
+    yours with the plugin slug to stay collision-free.
+    """
+
+    def __init__(self, owner=None, workspace=None):
+        self.owner = owner
+        self._workspace = workspace
+
+    def _ws(self):
+        return _resolve_workspace(self._workspace)
+
+    def _qs(self):
+        from core.models import Library
+
+        qs = Library.objects.filter(workspace=self._ws())
+        if self.owner:
+            return qs.filter(owner_plugin=self.owner)
+        return qs.filter(owner_plugin__isnull=True)
+
+    def upsert(self, key, *, modules, name=None, description=None, owner_key=None,
+               created_by=None):
+        """Create or update an owned library and save ``modules`` as a revision.
+
+        Idempotent on ``(owner_plugin, owner_key)`` — ``owner_key`` defaults to
+        ``key``, so a plugin may rename the import key without orphaning the row.
+        A new revision is written ONLY if the module content changed.
+
+        Raises ``ValueError`` if the key is not a legal import name, is reserved,
+        or is already taken in this workspace by a different owner — never
+        silently hijacks another owner's library.
+        """
+        from django.core.exceptions import ValidationError
+
+        from core.models import Library
+        from core.models.library import validate_library_key, validate_modules
+
+        try:
+            validate_library_key(key)
+            validate_modules(modules)
+        except ValidationError as e:
+            raise ValueError("; ".join(e.messages)) from e
+
+        handle = owner_key if owner_key is not None else key
+        library = self._qs().filter(owner_key=handle).first() if self.owner else None
+        if library is None:
+            library = self._qs().filter(key=key).first()
+
+        # The key is unique per workspace across ALL owners, so a row here that
+        # isn't the one we're upserting belongs to someone else. Checked for both
+        # create AND rename (a plugin changing its import key), so provisioning
+        # gets a named error instead of an IntegrityError from deep in save().
+        clash = Library.objects.filter(workspace=self._ws(), key=key)
+        if library is not None:
+            clash = clash.exclude(pk=library.pk)
+        clash = clash.first()
+        if clash is not None:
+            owner_desc = (
+                f"plugin '{clash.owner_plugin}'" if clash.owner_plugin else "a user"
+            )
+            raise ValueError(
+                f"Library key '{key}' is already used in this workspace by {owner_desc}."
+            )
+
+        if library is None:
+            library = Library(
+                key=key,
+                workspace=self._ws(),
+                owner_plugin=self.owner,
+                created_by=created_by,
+            )
+
+        library.key = key
+        library.owner_key = handle if self.owner else None
+        if name is not None:
+            library.name = name
+        elif not library.name:
+            library.name = key
+        if description is not None:
+            library.description = description
+        library.save()
+
+        library.save_revision(modules, created_by=created_by)
+        return library
+
+    def upsert_from_folder(self, key, folder, **kwargs):
+        """``upsert`` with ``modules`` read from ``folder``'s top-level ``*.py`` files.
+
+        The canonical provisioning call: point it at the plugin's bundled ``lib/``
+        folder and the folder becomes the library. Uses the same reader the dev-mode
+        auto-resync uses, so what you get on activation and what you get from a
+        dev-mode edit can never diverge.
+
+        Raises ``ValueError`` if the folder has no modules — a silent no-op here
+        would leave the plugin's scripts importing nothing.
+        """
+        from core.services.library_service import read_library_folder
+
+        modules = read_library_folder(folder)
+        if not modules:
+            raise ValueError(
+                f"upsert_from_folder: no .py modules found in {folder!r}"
+            )
+        return self.upsert(key, modules=modules, **kwargs)
+
+    def get(self, key):
+        return self._qs().filter(key=key).first()
+
+    def list(self):
+        return list(self._qs().order_by("key"))
+
+    def attach(self, script, library):
+        """Attach ``library`` to ``script`` so its runs can import it (idempotent).
+
+        Raises ``ValueError`` on a cross-workspace attach — a script must never
+        import code its workspace cannot see.
+        """
+        from django.core.exceptions import ValidationError
+
+        from core.models import ScriptLibrary
+
+        existing = ScriptLibrary.objects.filter(script=script, library=library).first()
+        if existing is not None:
+            return existing
+
+        attachment = ScriptLibrary(script=script, library=library)
+        try:
+            attachment.full_clean()
+        except ValidationError as e:
+            raise ValueError("; ".join(e.messages)) from e
+        attachment.save()
+        return attachment
+
+    def detach(self, script, library):
+        """Detach ``library`` from ``script``. Returns True if an attachment went away."""
+        from core.models import ScriptLibrary
+
+        deleted, _ = ScriptLibrary.objects.filter(
+            script=script, library=library
+        ).delete()
+        return bool(deleted)
 
 
 # --------------------------------------------------------------------------- #
@@ -615,6 +789,262 @@ class DatabaseAPI:
 
 
 # --------------------------------------------------------------------------- #
+# Object storage
+# --------------------------------------------------------------------------- #
+
+class StorageKeyError(ValueError):
+    """Raised when a storage key would escape the owner's prefix, or when the
+    owner is missing. Loud on purpose: silently sanitizing a traversal attempt
+    turns it into a write to the WRONG key, which is worse than a refusal."""
+
+
+class StorageError(Exception):
+    """Raised when a storage operation fails or the seam is unavailable."""
+
+
+class StorageAPI:
+    """Owner- and workspace-scoped object storage on the assets connection.
+
+    Every key is forced under ``apps/<owner>/<workspace-id>/``, and callers only
+    ever see keys RELATIVE to that prefix — a plugin cannot name, read, or delete
+    another plugin's object, nor another workspace's, because it has no way to
+    express one.
+
+    Both scoping axes match the rest of the SDK: ``owner`` stamps the resource
+    like every other facade, and ``workspace`` scopes it like Secrets/DataStores/
+    Databases (``workspace=None`` ⇒ the default workspace, the same rule the
+    scheduler uses). The plugin slug comes FIRST in the key so uninstall is one
+    prefix delete across every workspace — see ``delete_all``.
+
+    The connection itself is instance-global (Services → Object Storage), like
+    the active AI provider: buckets and credentials are operator infrastructure,
+    not tenant data. Without one the seam is unavailable and every operation
+    raises ``StorageError``; call ``is_available()`` first for a graceful degrade
+    path, exactly like ``DatabaseAPI``.
+
+        storage = StorageAPI(OWNER)
+        if storage.is_available():
+            storage.put("avatars/abc.jpg", data, content_type="image/jpeg")
+            url = storage.url("avatars/abc.jpg")
+
+    ``url()`` returns a permanent public URL when the connection has a
+    ``public_base_url``, else a presigned URL that EXPIRES (default 1 hour, 7-day
+    ceiling). Bake presigned URLs into a long-lived page or an email and they will
+    rot; that is what the public base URL is for.
+    """
+
+    PREFIX_ROOT = "apps"
+
+    def __init__(self, owner=None, workspace=None):
+        # Unlike Secrets/DataStores there is NO unowned lane: a key with no owner
+        # prefix is exactly the escape this class exists to prevent.
+        if not owner:
+            raise StorageKeyError("StorageAPI requires an owner (plugin slug)")
+        self.owner = owner
+        # Resolved lazily (see _ws_id): uninstall builds a StorageAPI purely to
+        # call delete_all(), which is workspace-independent and must not require a
+        # default workspace to exist.
+        self._workspace = workspace
+
+    # ------------------------------------------------------------------ #
+    # Prefix enforcement
+    # ------------------------------------------------------------------ #
+
+    def _ws_id(self):
+        """The id of the workspace this instance addresses.
+
+        Accepts a Workspace instance OR a bare id, because the loopback endpoint
+        derives only an id from the run's signed token. Raises rather than
+        building an ``apps/<owner>/None/`` prefix — a key that silently pools
+        every workspace's objects is the leak this scoping prevents.
+        """
+        from core.models import Workspace
+
+        workspace = self._workspace
+        if workspace is None:
+            workspace = Workspace.get_default()
+        if workspace is None:
+            raise StorageError("No workspace is available to scope storage to.")
+        return getattr(workspace, "pk", workspace)
+
+    @property
+    def owner_root(self):
+        """Every workspace's space for this owner, e.g. ``apps/yt_comments/``.
+
+        Only uninstall addresses this level; ordinary calls go through ``prefix``.
+        """
+        return f"{self.PREFIX_ROOT}/{self.owner}/"
+
+    @property
+    def prefix(self):
+        """This owner's key prefix in THIS workspace,
+        e.g. ``apps/yt_comments/3f2b…/``."""
+        return f"{self.owner_root}{self._ws_id()}/"
+
+    def _full_key(self, key):
+        """Validate a caller key and return the absolute bucket key.
+
+        Rejects (never rewrites): empty keys, absolute keys, backslashes, NUL, and
+        any ``..`` segment. Backslashes are rejected rather than normalized
+        because S3 treats ``\\`` as an ordinary character while a Windows-minded
+        caller means a separator — the two readings disagree, so refuse.
+        """
+        if not isinstance(key, str) or not key.strip():
+            raise StorageKeyError("Storage key must be a non-empty string")
+
+        key = key.strip()
+
+        if key.startswith("/"):
+            raise StorageKeyError(f"Storage key must be relative, got: {key!r}")
+        if "\\" in key:
+            raise StorageKeyError(f"Storage key must not contain backslashes: {key!r}")
+        if "\x00" in key:
+            raise StorageKeyError("Storage key must not contain NUL")
+        if any(segment == ".." for segment in key.split("/")):
+            raise StorageKeyError(f"Storage key must not traverse upward: {key!r}")
+
+        return f"{self.prefix}{key}"
+
+    def _relative_key(self, full_key):
+        """Strip the owner prefix off a bucket key for return to the caller."""
+        if full_key.startswith(self.prefix):
+            return full_key[len(self.prefix):]
+        return full_key
+
+    # ------------------------------------------------------------------ #
+    # Connection
+    # ------------------------------------------------------------------ #
+
+    def _connection(self):
+        from core.services.s3_service import S3Service
+
+        connection = S3Service.for_assets()
+        if connection is None or not connection.enabled or not connection.is_configured:
+            return None
+        return connection
+
+    def is_available(self):
+        """Whether storage can actually be used here.
+
+        Both axes have to resolve: a usable assets connection AND a workspace to
+        scope keys under. Never raises — the whole point is a cheap degrade check
+        a plugin can branch on.
+        """
+        if self._connection() is None:
+            return False
+        try:
+            self._ws_id()
+        except StorageError:
+            return False
+        return True
+
+    def _require_connection(self):
+        connection = self._connection()
+        if connection is None:
+            raise StorageError(
+                "No assets storage connection is configured. Set one in "
+                "Services → Object Storage."
+            )
+        return connection
+
+    # ------------------------------------------------------------------ #
+    # Objects
+    # ------------------------------------------------------------------ #
+
+    def put(self, key, data, content_type="application/octet-stream"):
+        """Write ``data`` (bytes or str) at ``key``, relative to the owner prefix.
+
+        Returns the relative key on success; raises ``StorageError`` on failure —
+        a silent False would let a plugin believe it archived something it didn't.
+        """
+        from core.services.s3_service import S3Service
+
+        connection = self._require_connection()
+        full_key = self._full_key(key)
+
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        if not isinstance(data, (bytes, bytearray)):
+            raise StorageError(f"Storage data must be bytes or str, got {type(data).__name__}")
+
+        result = S3Service.upload_file(
+            connection, bytes(data), full_key, content_type=content_type
+        )
+        if not result.get("success"):
+            raise StorageError(f"Storage put failed for {key!r}: {result.get('error')}")
+        return key
+
+    def get(self, key):
+        """Read the object's bytes, or None when it doesn't exist."""
+        from core.services.s3_service import S3Service
+
+        connection = self._require_connection()
+        return S3Service.get_file(connection, self._full_key(key))
+
+    def delete(self, key):
+        """Delete one object. True when the delete was issued cleanly."""
+        from core.services.s3_service import S3Service
+
+        connection = self._require_connection()
+        return S3Service.delete_file(connection, self._full_key(key))
+
+    def list(self, prefix=""):
+        """List this owner's objects as dicts of ``key`` (RELATIVE to the owner
+        prefix), ``size``, ``last_modified``, ``etag``.
+
+        ``prefix`` filters within the owner's own space and is validated like any
+        other key, so ``list("../")`` cannot enumerate the bucket.
+        """
+        from core.services.s3_service import S3Service
+
+        connection = self._require_connection()
+        # An empty prefix means "everything of mine", not "everything".
+        full_prefix = self._full_key(prefix) if prefix else self.prefix
+
+        return [
+            {**f, "key": self._relative_key(f["key"])}
+            for f in S3Service.list_files(connection, full_prefix)
+        ]
+
+    def url(self, key, expires_in=3600):
+        """A URL for the object.
+
+        Public connection (``public_base_url`` set) → a permanent, hot-linkable
+        URL, and ``expires_in`` is irrelevant. Otherwise → a presigned URL that
+        expires after ``expires_in`` seconds (7-day ceiling). Returns None when a
+        presigned URL could not be signed.
+        """
+        from core.services.s3_service import S3Service
+
+        connection = self._require_connection()
+        full_key = self._full_key(key)
+
+        if connection.is_public:
+            return f"{connection.public_base_url.rstrip('/')}/{full_key}"
+
+        return S3Service.presigned_url(connection, full_key, expires_in=expires_in)
+
+    def delete_all(self):
+        """Delete this owner's objects in EVERY workspace. Returns the count.
+
+        Deliberately owner-wide rather than workspace-scoped: its caller is plugin
+        uninstall (`remove_data`), and a plugin is installed — and removed —
+        instance-wide, exactly like the owned-row cleanup beside it, which also
+        filters on ``owner_plugin`` with no workspace clause. Leaving one
+        workspace's files behind after an uninstall would strand them with no UI
+        that can ever reach them again.
+
+        Uses ``owner_root``, so it needs no default workspace to exist.
+        """
+        from core.services.s3_service import S3Service
+
+        connection = self._connection()
+        if connection is None:
+            return 0
+        return S3Service.delete_prefix(connection, self.owner_root)
+
+
+# --------------------------------------------------------------------------- #
 # Schedules
 # --------------------------------------------------------------------------- #
 
@@ -684,3 +1114,235 @@ class ScheduleAPI:
         if self.owner:
             qs = qs.filter(script__owner_plugin=self.owner)
         return list(qs)
+
+
+# --------------------------------------------------------------------------- #
+# External HTTP API (API 2.3) — handlers for /api/v1/plugins/<slug>/…
+#
+# A plugin declares resources in plugin.json ("provides.api_resources") and
+# marks handlers in its <plugin>/api.py with @resource. Core's dispatcher
+# (core.views.api.plugins) owns 100% of auth, rate limiting, and workspace
+# scoping — a handler never sees an HttpRequest, a token, or a tenancy
+# decision. A plugin's api.py imports ONLY this module (import-light lane).
+# --------------------------------------------------------------------------- #
+
+# Attribute the @resource marker sets; the dispatcher scans for it. An
+# attribute (not a global registry) keeps re-imports idempotent and makes slug
+# inference a non-problem.
+API_RESOURCE_ATTR = "_pyrunner_api_resource"
+
+
+def resource(name):
+    """Mark a function in a plugin's ``api.py`` as the handler for ``name``.
+
+    The handler receives an :class:`APIRequest` and returns a JSON-serializable
+    dict that IS the response body (core adds no envelope). Raise
+    :class:`APIError` for a clean 4xx; any other exception becomes a generic
+    500 with the traceback logged server-side.
+
+    The resource must ALSO be declared in plugin.json under
+    ``provides.api_resources`` — an undeclared handler is never served.
+    """
+    if not isinstance(name, str) or not name:
+        raise ValueError("@resource requires a non-empty name string")
+
+    def marker(func):
+        setattr(func, API_RESOURCE_ATTR, name)
+        return func
+
+    return marker
+
+
+@dataclass(frozen=True)
+class APIRequest:
+    """Frozen request context handed to a @resource handler.
+
+    ``workspace`` is derived server-side from the API token — treat it as an
+    opaque handle to pass into SDK constructors; the handler cannot widen it.
+    ``params`` holds the first value per query key; ``params_list`` holds every
+    value (``?tag=a&tag=b`` → ``{"tag": ["a", "b"]}``).
+    """
+
+    workspace: object
+    resource: str
+    item_id: Optional[str]
+    method: str
+    params: dict
+    params_list: dict
+
+
+class APIError(Exception):
+    """The one sanctioned way for a handler to return an error response.
+
+    ``status`` must be 400–499 (the dispatcher rejects anything else as a
+    plugin bug — a plugin must not fabricate redirects or fake 5xx).
+    """
+
+    def __init__(self, message, *, code="BAD_REQUEST", status=400):
+        super().__init__(message)
+        self.message = str(message)
+        self.code = code
+        self.status = status
+
+
+class ChannelAPI:
+    """Read-only, workspace-scoped view of the notification Channels.
+
+    The channel-picker seam (e.g. an alert form listing where a plugin may
+    send via ``pyrunner_notify``). List-only by design: channels are
+    user-configured infrastructure a plugin selects, never creates — and the
+    listing is scoped to the workspace so channel names can't leak across
+    tenants through a plugin page.
+    """
+
+    def __init__(self, owner=None, workspace=None):
+        self.owner = owner
+        self._workspace = workspace
+
+    def list(self):
+        from core.models import Channel
+
+        ws = _resolve_workspace(self._workspace)
+        return [
+            {"name": c.name, "channel_type": c.provider, "is_enabled": c.enabled}
+            for c in Channel.objects.for_workspace(ws).order_by("name")
+        ]
+
+
+# --------------------------------------------------------------------------- #
+# Public pages (API 2.3, Stage 5) — shareable HTML at /p/<token>/
+#
+# Same registration surface as API resources: declare in plugin.json
+# ("provides.public_pages"), mark the handler in <plugin>/api.py with @page.
+# The handler returns an HTML STRING rendered via Django templates
+# (auto-escape — never string-concatenated HTML: public pages render scraped
+# content, and a poisoned title must never become stored XSS). Core serves it
+# script-free (strict CSP) with noindex/no-store/no-referrer headers.
+# --------------------------------------------------------------------------- #
+
+API_PAGE_ATTR = "_pyrunner_public_page"
+
+
+def page(name):
+    """Mark a function in a plugin's ``api.py`` as the renderer for public
+    page ``name`` (declared in plugin.json under ``provides.public_pages``).
+
+    The handler receives a :class:`PageRequest` and returns an HTML string.
+    Render through Django templates only — auto-escaping is the XSS defense
+    the strict CSP backs up, not replaces.
+    """
+    if not isinstance(name, str) or not name:
+        raise ValueError("@page requires a non-empty name string")
+
+    def marker(func):
+        setattr(func, API_PAGE_ATTR, name)
+        return func
+
+    return marker
+
+
+@dataclass(frozen=True)
+class PageRequest:
+    """Frozen context handed to a @page handler.
+
+    ``workspace`` comes from the share row (set when the page was shared),
+    never from the anonymous caller. ``params`` is the query string, first
+    value per key — use it for display toggles only, never authorization.
+    """
+
+    workspace: object
+    page: str
+    params: dict
+
+
+class PublicPageAPI:
+    """Share/revoke a plugin's public pages (owner-stamped, workspace-scoped).
+
+    ``share()`` is an idempotent upsert per (plugin, page, workspace) — but a
+    revoked or expired row is reactivated with a FRESHLY ROTATED token: the
+    old URL stays dead permanently (a dead capability URL never resurrects).
+    Plain re-share of a live page returns the existing URL unchanged.
+    """
+
+    def __init__(self, owner=None, workspace=None):
+        if not owner:
+            raise ValueError("PublicPageAPI requires the plugin slug as owner")
+        self.owner = owner
+        self._workspace = workspace
+
+    def _ws(self):
+        return _resolve_workspace(self._workspace)
+
+    def _qs(self):
+        from core.models import PluginPublicPage
+
+        return PluginPublicPage.objects.filter(
+            plugin_slug=self.owner, workspace=self._ws()
+        )
+
+    # Sentinel: distinguishes "share() called without expires_at" (keep the
+    # row's current expiry) from an explicit expires_at=None (clear it).
+    _KEEP = object()
+
+    def share(self, page_name, *, expires_at=_KEEP, created_by=None):
+        """Ensure ``page_name`` is shared; return its public URL path.
+
+        ``expires_at`` is only written when explicitly passed — a plain
+        re-share never silently clears (or changes) an existing expiry. Pass
+        ``expires_at=None`` to explicitly remove one. A revoked/expired row is
+        always reactivated with a fresh expiry state and a ROTATED token.
+        """
+        from django.utils import timezone as _tz
+
+        from core.models import PluginPublicPage
+
+        explicit_expiry = expires_at is not self._KEEP
+        row = self._qs().filter(page=page_name).first()
+        if row is None:
+            row = PluginPublicPage.objects.create(
+                plugin_slug=self.owner,
+                page=page_name,
+                workspace=self._ws(),
+                token=PluginPublicPage.generate_token(),
+                expires_at=expires_at if explicit_expiry else None,
+                created_by=created_by,
+            )
+            return row.url_path
+
+        was_dead = (not row.is_active) or (
+            row.expires_at and row.expires_at < _tz.now()
+        )
+        if was_dead:
+            # Reactivate with a rotated token — the old URL is dead forever.
+            # The stale expiry never carries over (it would dead-end the new
+            # link immediately unless the caller re-specifies one).
+            row.token = PluginPublicPage.generate_token()
+            row.is_active = True
+            row.expires_at = expires_at if explicit_expiry else None
+        elif explicit_expiry:
+            row.expires_at = expires_at
+        row.save(update_fields=["token", "is_active", "expires_at"])
+        return row.url_path
+
+    def get(self, page_name):
+        """The live share row for ``page_name`` (dict), or None."""
+        row = self._qs().filter(page=page_name).first()
+        if row is None:
+            return None
+        return {
+            "page": row.page,
+            "url_path": row.url_path,
+            "is_active": row.is_active,
+            "is_expired": row.is_expired,
+            "expires_at": row.expires_at,
+            "created_at": row.created_at,
+            "last_accessed_at": row.last_accessed_at,
+        }
+
+    def list(self):
+        return [self.get(row.page) for row in self._qs().order_by("page")]
+
+    def revoke(self, page_name):
+        """Deactivate the share (the URL 404s permanently). True if it existed."""
+        updated = self._qs().filter(page=page_name).update(is_active=False)
+        return bool(updated)

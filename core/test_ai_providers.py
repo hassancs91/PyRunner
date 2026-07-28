@@ -499,10 +499,27 @@ class ProviderCrudViewTests(TestCase):
 class DataMigrationTests(TransactionTestCase):
     """Roll back to 0042, seed old-style claude_* fields, migrate forward."""
 
+    def setUp(self):
+        # Whatever happens (including a failed assertion mid-test), put the schema
+        # back at head: this is a TransactionTestCase, so a DB left on an old
+        # migration state would leak into every test that follows.
+        self.addCleanup(self._migrate_to_head)
+
     def _executor(self):
         executor = MigrationExecutor(connection)
         executor.loader.build_graph()
         return executor
+
+    def _migrate_to_head(self):
+        """Migrate core fully forward.
+
+        Derived from the graph rather than hardcoded, so adding a migration never
+        silently strands this test on an old schema.
+        """
+        executor = self._executor()
+        executor.migrate(
+            [node for node in executor.loader.graph.leaf_nodes() if node[0] == "core"]
+        )
 
     def test_forward_seeds_providers_and_active(self):
         executor = self._executor()
@@ -522,6 +539,10 @@ class DataMigrationTests(TransactionTestCase):
 
         executor = self._executor()
         executor.migrate([("core", "0043_ai_providers")])
+        # The assertions below use the CURRENT models, so the schema has to be
+        # current too — 0043's data migration has already run by this point, and
+        # everything after it is additive.
+        self._migrate_to_head()
 
         providers = {p.auth_method: p for p in AIProvider.objects.all()}
         self.assertEqual(len(providers), 2)
@@ -543,6 +564,7 @@ class DataMigrationTests(TransactionTestCase):
 
         executor = self._executor()
         executor.migrate([("core", "0043_ai_providers")])
+        self._migrate_to_head()
 
         self.assertEqual(AIProvider.objects.count(), 0)
         self.assertIsNone(GlobalSettings.get_settings().active_ai_provider_id)

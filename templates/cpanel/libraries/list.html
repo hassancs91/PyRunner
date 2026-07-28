@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Libraries - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
+
+            <!-- Header -->
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h1 class="text-[22px] font-semibold tracking-tight">Libraries</h1>
+                    <p class="text-sm text-muted mt-1">Shared Python modules your scripts attach and import</p>
+                </div>
+                <a href="{% url 'cpanel:library_create' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    New library
+                </a>
+            </div>
+
+            {% if owners %}
+            <div class="flex justify-end">
+                {% include "cpanel/_owner_filter.html" with owners=owners selected_owner=selected_owner %}
+            </div>
+            {% endif %}
+
+            {% if libraries %}
+            <!-- Libraries table -->
+            <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[700px]">
+                    <thead>
+                        <tr class="border-b border-line-soft text-left">
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Import name</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Name</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Modules</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Version</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Scripts</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Updated</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-line-soft">
+                        {% for lib in libraries %}
+                        <tr class="group hover:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5">
+                                <a href="{% url 'cpanel:library_detail' pk=lib.pk %}" class="font-mono text-sm text-info hover:underline">{{ lib.key }}</a>
+                                {% include "cpanel/_owner_pill.html" with obj=lib %}
+                            </td>
+                            <td class="px-6 py-3.5 text-sm text-muted max-w-xs truncate">{{ lib.name|default:"—" }}</td>
+                            <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ lib.module_count }}</td>
+                            <td class="px-6 py-3.5 text-right">
+                                {% if lib.current_version %}
+                                <span class="font-mono tnum text-xs px-2 py-0.5 rounded-full bg-info/10 text-info border border-info/20">v{{ lib.current_version }}</span>
+                                {% else %}
+                                <span class="font-mono text-xs px-2 py-0.5 rounded-full bg-warn/10 text-warn border border-warn/20">empty</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ lib.attached_count }}</td>
+                            <td class="px-6 py-3.5 text-right text-xs text-faint whitespace-nowrap">{{ lib.updated_at|timesince }} ago</td>
+                            <td class="px-6 py-3.5">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{% url 'cpanel:library_edit' pk=lib.pk %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Edit</a>
+                                    <a href="{% url 'cpanel:library_detail' pk=lib.pk %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">View</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </section>
+
+            <!-- Usage info -->
+            <div class="rounded-2xl border border-line bg-panel p-5">
+                <h3 class="text-sm font-medium text-text mb-2">Using a library in a script</h3>
+                <p class="text-sm text-muted mb-3">Attach the library on the script's form, then import it by its import name. Each run uses the exact library version that was current when the run was queued.</p>
+                <code class="block px-3 py-3 bg-ink border border-line-soft rounded-lg text-sm font-mono text-text whitespace-pre overflow-x-auto">from {{ libraries.0.key|default:'my_helpers' }}.helpers import greet
+
+print(greet("world"))</code>
+            </div>
+            {% else %}
+            <section class="rounded-2xl border border-line bg-panel px-6 py-16 text-center">
+                <div class="w-14 h-14 rounded-full bg-info/10 grid place-items-center mx-auto mb-4">
+                    <svg class="w-7 h-7 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                </div>
+                <h3 class="text-base font-semibold mb-1">No libraries yet</h3>
+                <p class="text-sm text-muted mb-6">Create a library to share Python modules across several scripts instead of copy-pasting them.</p>
+                <a href="{% url 'cpanel:library_create' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    Create library
+                </a>
+            </section>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}

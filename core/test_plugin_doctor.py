@@ -150,3 +150,159 @@ class DoctorTests(SimpleTestCase):
         report = run_doctor(self.b.make(apps=bad))
         self.assertFalse(report.ok)
         self.assertIn("apps", _rules(report, "fail"))
+
+
+API_MANIFEST = """{
+  "slug": "%(slug)s", "name": "X", "version": "1.0.0", "api": "%(api)s",
+  "provides": {"api_resources": %(resources)s}
+}"""
+
+VALID_API_PY = '''\
+from core.plugins.api import resource
+
+
+@resource("items")
+def items(req):
+    return {}
+'''
+
+
+class ApiResourcesDoctorTests(SimpleTestCase):
+    """Plugin API Stage 3 — manifest <-> api.py drift checks."""
+
+    def setUp(self):
+        self.b = _Builder()
+        self.addCleanup(self.b.cleanup)
+
+    def _make(self, *, api="2.3", resources='[{"name": "items", "methods": ["GET"]}]',
+              api_py=VALID_API_PY, slug="goodplug"):
+        extra = {"plugin.json": API_MANIFEST % {"slug": slug, "api": api, "resources": resources}}
+        if api_py is not None:
+            extra["api.py"] = api_py
+        return self.b.make(slug, extra=extra)
+
+    def test_declared_with_handler_passes(self):
+        report = run_doctor(self._make())
+        self.assertTrue(report.ok, report.format())
+        self.assertIn("api-resources", _rules(report, "pass"))
+
+    def test_no_api_surface_passes(self):
+        report = run_doctor(self.b.make())
+        self.assertTrue(report.ok, report.format())
+        self.assertIn("api-resources", _rules(report, "pass"))
+
+    def test_declared_without_api_py_fails(self):
+        report = run_doctor(self._make(api_py=None))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+    def test_declared_resource_without_handler_fails(self):
+        report = run_doctor(self._make(
+            resources='[{"name": "items"}, {"name": "stats"}]'
+        ))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+    def test_marked_but_undeclared_handler_warns(self):
+        extra_handler = VALID_API_PY + (
+            '\n@resource("hidden")\ndef hidden(req):\n    return {}\n'
+        )
+        report = run_doctor(self._make(api_py=extra_handler))
+        self.assertTrue(report.ok, report.format())  # advisory only
+        self.assertIn("api-resources", _rules(report, "warn"))
+
+    def test_non_get_method_fails(self):
+        report = run_doctor(self._make(
+            resources='[{"name": "items", "methods": ["GET", "POST"]}]'
+        ))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+    def test_old_sdk_version_fails(self):
+        report = run_doctor(self._make(api="2.1"))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+    def test_duplicate_resource_name_fails(self):
+        report = run_doctor(self._make(
+            resources='[{"name": "items"}, {"name": "items"}]'
+        ))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+    def test_malformed_provides_fails(self):
+        report = run_doctor(self._make(resources='"not-a-list"'))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+    def test_network_import_in_api_py_warns(self):
+        report = run_doctor(self._make(api_py="import requests\n" + VALID_API_PY))
+        self.assertTrue(report.ok, report.format())  # advisory only
+        self.assertIn("api-imports", _rules(report, "warn"))
+
+    def test_broken_api_py_fails(self):
+        report = run_doctor(self._make(api_py="def broken(:\n"))
+        self.assertFalse(report.ok)
+        self.assertIn("api-resources", _rules(report, "fail"))
+
+
+PAGES_MANIFEST = """{
+  "slug": "%(slug)s", "name": "X", "version": "1.0.0", "api": "%(api)s",
+  "provides": {"public_pages": %(pages)s}
+}"""
+
+VALID_PAGE_PY = '''\
+from core.plugins.api import page
+
+
+@page("report")
+def report(req):
+    return "<html></html>"
+'''
+
+
+class PublicPagesDoctorTests(SimpleTestCase):
+    """Plugin API Stage 5 — manifest <-> @page drift checks."""
+
+    def setUp(self):
+        self.b = _Builder()
+        self.addCleanup(self.b.cleanup)
+
+    def _make(self, *, api="2.3", pages='[{"name": "report"}]',
+              api_py=VALID_PAGE_PY, slug="goodplug"):
+        extra = {"plugin.json": PAGES_MANIFEST % {"slug": slug, "api": api, "pages": pages}}
+        if api_py is not None:
+            extra["api.py"] = api_py
+        return self.b.make(slug, extra=extra)
+
+    def test_declared_with_handler_passes(self):
+        report = run_doctor(self._make())
+        self.assertTrue(report.ok, report.format())
+        self.assertIn("public-pages", _rules(report, "pass"))
+
+    def test_declared_without_handler_fails(self):
+        report = run_doctor(self._make(pages='[{"name": "report"}, {"name": "extra"}]'))
+        self.assertFalse(report.ok)
+        self.assertIn("public-pages", _rules(report, "fail"))
+
+    def test_declared_without_api_py_fails(self):
+        report = run_doctor(self._make(api_py=None))
+        self.assertFalse(report.ok)
+        self.assertIn("public-pages", _rules(report, "fail"))
+
+    def test_marked_but_undeclared_warns(self):
+        report = run_doctor(self._make(
+            api_py=VALID_PAGE_PY + '\n@page("hidden")\ndef hidden(req):\n    return ""\n'
+        ))
+        self.assertTrue(report.ok, report.format())
+        self.assertIn("public-pages", _rules(report, "warn"))
+
+    def test_old_sdk_version_fails(self):
+        report = run_doctor(self._make(api="2.2"))
+        self.assertFalse(report.ok)
+        self.assertIn("public-pages", _rules(report, "fail"))
+
+    def test_duplicate_page_name_fails(self):
+        report = run_doctor(self._make(pages='[{"name": "report"}, {"name": "report"}]'))
+        self.assertFalse(report.ok)
+        self.assertIn("public-pages", _rules(report, "fail"))

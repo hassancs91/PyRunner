@@ -32,4 +32,12 @@ plugins/
   the live site is never affected.
 - **Kill switch.** Boot with `PYRUNNER_DISABLE_PLUGINS=1` to load zero plugins.
 
+## Developing a plugin here
+
+Because `plugins/` is a real package, a plugin folder dropped here imports
+natively as `plugins.<slug>` — so it doubles as a convenient (gitignored)
+workspace for plugins under development: `manage.py test plugins.<slug>` works
+directly, and Dev Mode (`PYRUNNER_PLUGIN_DEV`, see the plugin author guide in
+`docs/plugins.md`) can point at the folder for live-reload iteration.
+
 See `docs/PLAN_plugin_system.md` for the full design.

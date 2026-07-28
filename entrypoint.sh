@@ -74,10 +74,12 @@ echo "[*] Starting services..."
 # worker; the monitor loop below rewrites it when it starts a replacement.
 QCLUSTER_PID_FILE="/tmp/qcluster.pid"
 
-# Function to start qcluster worker
+# Function to start qcluster worker. pyrunner_qcluster (not plain qcluster):
+# it applies the DB-backed Workers settings — unreachable at settings-import
+# time — before the cluster starts, so "restart workers to apply" is real.
 start_qcluster() {
     echo "    - Starting django-q2 worker..."
-    python manage.py qcluster &
+    python manage.py pyrunner_qcluster &
     QCLUSTER_PID=$!
     echo $QCLUSTER_PID > "$QCLUSTER_PID_FILE"
     echo "    - Worker started with PID $QCLUSTER_PID"
@@ -140,9 +142,11 @@ echo ""
 # exec makes gunicorn PID 1: `docker stop` delivers SIGTERM straight to it for
 # a clean web shutdown. The monitor + qcluster children get no TERM and are
 # SIGKILLed at Docker's grace deadline — safe by design: django-q2 re-delivers
-# interrupted tasks, and execute_run's PENDING-status guard makes duplicate
-# deliveries no-ops. (A shell trap can't forward TERM here — no trap survives
-# exec — and keeping gunicorn as PID 1 is the more robust default.)
+# interrupted PENDING tasks, execute_run's atomic claim makes duplicate
+# deliveries no-ops, and a run whose worker died mid-execution is reconciled
+# to failed by Run.reconcile_stale (worker heartbeat / runs page). (A shell
+# trap can't forward TERM here — no trap survives exec — and keeping gunicorn
+# as PID 1 is the more robust default.)
 exec gunicorn pyrunner.wsgi:application \
     --bind 0.0.0.0:${PORT:-8000} \
     --workers ${GUNICORN_WORKERS:-2} \

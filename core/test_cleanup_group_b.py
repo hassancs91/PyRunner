@@ -149,6 +149,9 @@ class S3HelperTests(TestCase):
         self.assertIn("Connection failed", S3Service._map_boto3_error("something odd", "b"))
 
     def test_list_files_collects_all_pages(self):
+        from core.models import StorageConnection
+
+        connection = StorageConnection(name="t", bucket="b")
         client = mock.Mock()
         paginator = mock.Mock()
         paginator.paginate.return_value = [
@@ -157,7 +160,7 @@ class S3HelperTests(TestCase):
         ]
         client.get_paginator.return_value = paginator
         with mock.patch.object(S3Service, "get_client", return_value=client):
-            files = S3Service.list_files()
+            files = S3Service.list_files(connection)
         client.get_paginator.assert_called_once_with("list_objects_v2")
         self.assertEqual([f["key"] for f in files], ["a", "b"])
 

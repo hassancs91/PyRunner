@@ -347,23 +347,31 @@ if DEBUG and _dev_plugin_path and os.environ.get("RUN_MAIN"):
         if not (_dev_dir / "apps.py").exists():
             raise FileNotFoundError(f"dev plugin {_dev_dir} is missing apps.py")
 
-        # Splice the dev folder's parent into the plugins package search path so
-        # `import plugins.<slug>` resolves to it. Importing the (trivial) plugins
-        # package is safe — it is not a core import.
-        import plugins as _plugins_pkg
-
-        _dev_parent = str(_dev_dir.parent)
-        if _dev_parent not in _plugins_pkg.__path__:
-            _plugins_pkg.__path__.append(_dev_parent)
-
         _dev_app = f"plugins.{_dev_slug}"
         if _dev_app in INSTALLED_PLUGINS:
             # An installed+active plugin of the same slug is already loaded from
-            # PLUGINS_DIR (which is searched first); don't shadow it.
+            # PLUGINS_DIR; don't shadow it — the guard runs BEFORE the path
+            # splice below so the active plugin's imports stay untouched.
             PLUGIN_LOAD_ERRORS[_dev_slug] = (
                 "dev plugin not loaded: a plugin with this slug is already active"
             )
         else:
+            # Splice the dev folder's parent into the plugins package search
+            # path so `import plugins.<slug>` resolves to it. Importing the
+            # (trivial) plugins package is safe — it is not a core import.
+            #
+            # Insert at the FRONT: an installed-but-DEACTIVATED copy of the same
+            # slug leaves its files in PLUGINS_DIR, and with an append they
+            # would silently shadow the dev folder — dev mode would report
+            # success while serving the stale installed files and ignoring every
+            # edit. Front-insertion is safe for other slugs: they don't exist
+            # under the dev parent, so their imports fall through to PLUGINS_DIR.
+            import plugins as _plugins_pkg
+
+            _dev_parent = str(_dev_dir.parent)
+            if _dev_parent not in _plugins_pkg.__path__:
+                _plugins_pkg.__path__.insert(0, _dev_parent)
+
             _ok, _err = _light_import_ok(_dev_slug)
             if _ok:
                 INSTALLED_APPS.append(_dev_app)
@@ -468,13 +476,20 @@ USE_RESEND = os.environ.get("USE_RESEND", "False").lower() == "true"
 # django-q2 Configuration
 def _get_q_cluster_config():
     """
-    Get Q_CLUSTER configuration from database with environment fallbacks.
+    Build the env-default Q_CLUSTER configuration.
 
-    This is called at module load time. Database values take precedence
-    over environment variables when available.
+    The DB-backed Workers settings (Settings → Workers) are deliberately NOT
+    read here: this runs at settings-module import, inside ``django.setup()``,
+    before the app registry (and therefore the ORM/DB) exists — in every
+    process, always. They are applied at cluster start by core's
+    ``pyrunner_qcluster`` command, which patches ``django_q.conf.Conf`` once
+    apps are ready; "restart workers to apply" is that command re-reading the
+    DB. The shared invariants (retry > timeout, the per-script-timeout retry
+    floor) live in ``pyrunner.qconfig`` so the two passes cannot drift.
     """
-    # Default values (from env vars or hardcoded defaults)
-    config = {
+    from pyrunner.qconfig import compute_effective_q_config
+
+    base = {
         "name": "PyRunner",
         "workers": int(os.environ.get("Q_WORKERS", 2)),
         "timeout": 600 if os.name != "nt" else 0,
@@ -484,57 +499,7 @@ def _get_q_cluster_config():
         "orm": "default",
         "catch_up": False,
     }
-
-    # Try to load from database (only if apps are ready to avoid initialization
-    # warnings). When apps aren't ready yet we keep the defaults above and still
-    # fall through to the retry invariant below — an early return here would skip
-    # it and leave a dangerous retry/timeout combination in place.
-    try:
-        from django.apps import apps
-        from django.db import connection
-
-        if apps.ready:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT q_workers, q_timeout, q_retry, q_queue_limit "
-                    "FROM global_settings WHERE id = 1"
-                )
-                row = cursor.fetchone()
-                if row:
-                    config["workers"] = row[0] or config["workers"]
-                    # On Windows, force timeout to 0 regardless of DB value
-                    if os.name == "nt":
-                        config["timeout"] = 0
-                    else:
-                        config["timeout"] = (
-                            row[1] if row[1] is not None else config["timeout"]
-                        )
-                    config["retry"] = row[2] or config["retry"]
-                    config["queue_limit"] = row[3] or config["queue_limit"]
-    except Exception:
-        # Database not ready yet (migrations not run), use defaults
-        pass
-
-    # Defensive backstop: django-q2 re-queues a task that hasn't finished within
-    # `retry` seconds, running it AGAIN on another worker. If retry is smaller
-    # than a task's real duration the task is restarted forever (each restart
-    # never finishes in time either) — a death spiral that, for package installs,
-    # also resets the operation to "running" repeatedly and makes the packages
-    # page poll endlessly.
-    #
-    # When timeout is enforced, keep retry above it so a task is killed before it
-    # can be re-queued. When timeout == 0 (no timeout — e.g. Windows, where
-    # django-q2 can't enforce one) there is no upper bound on task duration, so a
-    # finite retry WILL eventually re-queue long-running tasks. Push retry far out
-    # so legitimately slow tasks (big pip installs, long scripts) complete first;
-    # genuinely dead tasks are surfaced via reconciliation/manual retry instead.
-    if config["timeout"]:
-        if config["retry"] <= config["timeout"]:
-            config["retry"] = config["timeout"] + 60
-    else:
-        config["retry"] = 86400  # 24h — effectively "don't auto re-queue"
-
-    return config
+    return compute_effective_q_config(base)
 
 
 Q_CLUSTER = _get_q_cluster_config()
@@ -709,6 +674,20 @@ API_RATE_LIMIT = int(os.environ.get("API_RATE_LIMIT", "60"))
 # CORS settings for API endpoints
 # Set to "*" to allow all origins (suitable for self-hosted), or comma-separated origins
 API_CORS_ORIGINS = os.environ.get("API_CORS_ORIGINS", "*")
+
+# Plugin API (/api/v1/plugins/…) — docs/PLAN_plugin_api.md. Per-token requests
+# reuse API_RATE_LIMIT above; these add the per-plugin ceiling (slowness is
+# per-plugin), the pre-auth per-IP auth-failure throttle (anti token-scanning),
+# and the response size backstop (handlers must paginate at the query level).
+PLUGIN_API_PLUGIN_RATE_LIMIT = int(os.environ.get("PLUGIN_API_PLUGIN_RATE_LIMIT", "300"))
+PLUGIN_API_AUTHFAIL_RATE_LIMIT = int(os.environ.get("PLUGIN_API_AUTHFAIL_RATE_LIMIT", "20"))
+PLUGIN_API_MAX_RESPONSE_BYTES = int(
+    os.environ.get("PLUGIN_API_MAX_RESPONSE_BYTES", str(1024 * 1024))
+)
+
+# Plugin public pages (/p/<token>/) — unauthenticated capability URLs, so every
+# request counts against a per-IP budget BEFORE the DB token lookup.
+PUBLIC_PAGE_IP_RATE_LIMIT = int(os.environ.get("PUBLIC_PAGE_IP_RATE_LIMIT", "60"))
 
 # Base URL the worker uses to reach the internal loopback API (Seam 1 datastore
 # endpoint + Claude-usage recorder) when there is no local DB file (Postgres).

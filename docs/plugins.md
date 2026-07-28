@@ -30,6 +30,7 @@ the live process.
   views.py
   provisioning.py            # optional; your SDK calls (create owned scripts/secrets/…)
   worker_body.py             # optional; the body of a managed Script you provision
+  lib/                       # optional; *.py shared by your worker scripts (see Libraries)
   assets/icon.svg            # optional; the manifest "icon" path (any path under <slug>/)
   templates/<slug>/...       # extend "base.html" so pages match the console
   static/<slug>/...          # optional
@@ -109,6 +110,7 @@ reference:
 | `api` | The `core.plugins.api` version you target (see `API_VERSION`). |
 | `min_pyrunner`, `max_pyrunner` | Compatibility bounds. |
 | `provisions` | **Declares what the plugin creates** (resource counts + the secret keys it needs). Rendered before install/activation as a trust surface ("creates 1 script, 3 secrets, 1 schedule"). Counts are non-negative integers; `secret_keys` is a list of strings. |
+| `provides` | **Declares what the plugin serves** — `api_resources` and `public_pages` (see [External API](#external-api--apiv1pluginsslug)). Undeclared handlers are never served: the manifest is the truth, same discipline as `provisions`. |
 
 The doctor `warn`s (advisory, never blocks) when the marketplace-recommended
 fields — `author`, `license`, `summary`, `icon` — are missing, and `fail`s on
@@ -249,6 +251,14 @@ ScriptAPI(OWNER).queue_run("backup")
 view = ScriptAPI(OWNER).latest_run("backup")     # most recent run, or None
 history = ScriptAPI(OWNER).runs("backup", limit=10)  # newest-first RunViews
 ScriptAPI(OWNER).cancel_latest_run("backup")     # Stop button → True if cancelled
+
+# Channels — read-only, workspace-scoped picker data (API 2.3):
+from core.plugins.api import ChannelAPI, PublicPageAPI
+channels = ChannelAPI(OWNER).list()   # [{name, channel_type, is_enabled}]
+
+# Public pages — share/revoke a declared page (API 2.3; see "External API"):
+url_path = PublicPageAPI(OWNER).share("report")   # → "/p/<token>/"
+PublicPageAPI(OWNER).revoke("report")             # URL 404s permanently
 ```
 
 Key behaviors:
@@ -350,6 +360,123 @@ if dbs.is_available():                       # data server attached?
   like a password; the role can't leave your schema either way.
 - **Declare it** in `plugin.json`: `"provisions": {"databases": 1, ...}`.
 
+### Libraries — multi-module plugins (API 2.4)
+
+A `Script` is one file. The moment your plugin is bigger than that — a pipeline
+shared by several per-account worker scripts — put the shared code in a
+**Library**: a named set of Python modules that scripts *attach* and import at
+run time. Same grammar as secrets (create → attach → injected at run), so you
+provision it once and attach it to every worker instead of duplicating the code
+into each script's body.
+
+Put the modules in a `lib/` folder in your plugin and sync it on provision:
+
+```python
+import os
+from core.plugins.api import LibraryAPI, ScriptAPI
+
+OWNER = "my_flows"
+LIB_DIR = os.path.join(os.path.dirname(__file__), "lib")
+
+libs = LibraryAPI(OWNER)
+lib = libs.upsert_from_folder("my_flows_lib", LIB_DIR)   # idempotent; new version only on change
+
+for account in accounts:                                  # one worker per account…
+    script = ScriptAPI(OWNER).upsert(key=f"worker_{account}", code=WORKER_BODY)
+    libs.attach(script, lib)                              # …all sharing ONE library
+```
+
+The worker script then imports it like any package:
+
+```python
+from my_flows_lib.pipeline import run_for_account   # modules inside use `from .helpers import x`
+```
+
+- **Versions are pinned per run.** Every content-changing save creates a new
+  revision, and a run records the version that was current *when it was queued* —
+  so editing a library can never change what an already-queued run executes. If a
+  pinned version is gone at launch the run fails with a named error, never a
+  confusing `ImportError`.
+- **`upsert_from_folder` is idempotent by content.** Provisioning re-runs on every
+  settings-save; identical modules write no revision, so history stays signal.
+- **`lib/` is synced by YOUR provisioning, not by core.** Nothing re-reads the
+  folder on activation by itself — the modules land in the database when your
+  `upsert_from_folder` call runs, which in practice means when an admin saves your
+  plugin's settings form (the same place you provision scripts and secrets). That
+  is what keeps production runs deterministic from the database.
+- **Dev Mode is the exception, and auto-resyncs.** With your plugin loaded via
+  `PYRUNNER_PLUGIN_DEV`, editing a file in `lib/` is picked up by the next run
+  automatically — no re-provision step, no settings-save. (One `lib/` folder maps
+  to one library: if your plugin owns several in a workspace, the auto-resync can't
+  tell which folder is which and skips with a warning — re-provision instead.)
+- **The import name is the key**, so unlike DataStores it is *not* auto-prefixed
+  with your slug (`"my_flows:lib"` isn't importable). Keys are unique per
+  workspace — prefix yours with the plugin slug (`my_flows_lib`) to stay
+  collision-free. Reserved: anything starting `pyrunner`, and every standard
+  library name (`json`, `email`, `types`, …) — those would shadow the real module.
+- **Modules are flat** (`helpers.py`, not `sub/helpers.py`); an `__init__.py` is
+  generated if you don't ship one. Caps: 64 modules / 512 KB per version.
+- **Declare it** in `plugin.json`: `"provisions": {"libraries": 1, ...}`.
+- Users see the library under **Libraries** in the console, badged as managed by
+  your plugin, with its version history and diffs. It is editable there — and your
+  next provision overwrites it, same as an owned script.
+
+### Object storage — files (API 2.5)
+
+DataStores hold keyed JSON and Databases hold rows; neither is the place for a
+**file**. When your plugin needs to keep bytes — an archived avatar, a generated
+PDF, a chart PNG, a scraped image — use `StorageAPI`, which puts them in the
+instance's S3-compatible assets bucket (Cloudflare R2, AWS S3, Backblaze B2,
+DigitalOcean Spaces, MinIO, …).
+
+```python
+from core.plugins.api import StorageAPI
+
+OWNER = "my_flows"
+
+storage = StorageAPI(OWNER)
+if storage.is_available():                       # assets connection configured?
+    storage.put("avatars/abc.jpg", data, content_type="image/jpeg")
+    link = storage.url("avatars/abc.jpg")        # public or presigned
+```
+
+In your **worker script**, the same space is reachable through a helper — no
+credentials, no boto3, nothing to install:
+
+```python
+import pyrunner_storage
+
+pyrunner_storage.put("avatars/abc.jpg", data, content_type="image/jpeg")
+raw = pyrunner_storage.get("avatars/abc.jpg")    # None when missing
+for obj in pyrunner_storage.list("avatars/"):
+    print(obj["key"], obj["size"], obj["last_modified"], obj["etag"])
+```
+
+- **Requires an assets connection.** An admin picks one under **Services → Object
+  Storage**; `is_available()` is `False` until they do and every call raises
+  `StorageError`. Check it and degrade gracefully. It deliberately does *not*
+  fall back to the backup bucket.
+- **You are confined to `apps/<your-slug>/<workspace-id>/`, and you never write
+  that prefix.** Every key you pass is relative to it, and `list()` hands keys
+  back the same way. You cannot name another plugin's object — or another
+  workspace's — so you cannot read or delete one. `StorageAPI(OWNER)` uses the
+  default workspace and `StorageAPI(OWNER, workspace=ws)` scopes to `ws`, exactly
+  like `SecretAPI` and `DatabaseAPI`; in a worker script the workspace comes from
+  the run itself. Traversal (`../`, absolute paths, backslashes) raises
+  `StorageKeyError` rather than being quietly rewritten.
+- **`url()` has two modes, and the difference bites.** If the connection has a
+  *public base URL*, you get a permanent hot-linkable URL. If not, you get a
+  **presigned URL that expires** (`expires_in`, default 1 hour, 7-day ceiling) —
+  fine for a redirect, wrong to bake into a stored page or an email. Ask the
+  admin for a public base URL when you need durable links.
+- **In the worker, objects are capped at 25 MB per call.** The bytes travel over
+  PyRunner's internal loopback API, which is what keeps S3 credentials out of
+  your run. Storage in a worker is available to **plugin-owned scripts only**; a
+  user's own script gets a 403.
+- **Uninstall cleans up.** Deleting your plugin with *remove data* clears
+  `apps/<your-slug>/` — every workspace's files — along with your scripts,
+  secrets, and stores.
+
 ---
 
 ## Ownership & scoped secrets
@@ -396,6 +523,162 @@ The runtime `from pyrunner_datastore import DataStore` API is engine-portable
 
 ---
 
+## External API — `/api/v1/plugins/<slug>/…`
+
+A plugin can expose **read-only HTTP resources** to the outside world (a
+dashboard, a script on another machine, a cron job) without owning a single
+URL: core mounts ONE dispatcher at
+`/api/v1/plugins/<slug>/<resource>/[<item_id>/]` and owns 100% of auth, rate
+limiting, and workspace scoping. Your handler never sees a raw request, a
+token, or a tenancy decision.
+
+Two pieces, and both must exist (**declared ∧ registered = servable**):
+
+**1. Declare the resources in `plugin.json`** under `provides` (requires
+`"api": "2.3"` or newer):
+
+```json
+"api": "2.3",
+"provides": {
+    "api_resources": [
+        {"name": "mentions", "summary": "Deduped mention feed", "methods": ["GET"]},
+        {"name": "stats", "summary": "Run/source counters", "methods": ["GET"]}
+    ]
+}
+```
+
+`methods` must be `["GET"]` — the plugin API is read-only in v1 (the shape is
+POST-ready; writes become an additive manifest value when they're designed).
+
+**2. Register a handler** in a conventional `<plugin>/api.py`, marked with the
+SDK decorator. `api.py` imports **only** `core.plugins.api` (the import-light
+lane, like `views.py`):
+
+```python
+# my_flows/api.py
+from core.plugins.api import APIError, DataStoreAPI, resource
+
+
+@resource("mentions")
+def mentions(req):
+    store = DataStoreAPI(owner="my_flows", workspace=req.workspace).get("state")
+    if store is None:
+        raise APIError("Not configured yet", code="NOT_CONFIGURED", status=409)
+    page = max(1, int(req.params.get("page", 1)))
+    page_size = min(100, max(1, int(req.params.get("page_size", 50))))
+    items = store.get("mentions", [])
+    start = (page - 1) * page_size
+    return {
+        "mentions": items[start:start + page_size],
+        "count": len(items),
+        "page": page,
+        "page_size": page_size,
+    }
+```
+
+The handler contract:
+
+- **In:** a frozen `APIRequest` — `workspace` (opaque; pass it to SDK
+  constructors — it is derived server-side from the token and you cannot widen
+  it), `resource`, `item_id` (`None` for list calls), `method`, `params`
+  (first value per query key) and `params_list` (every value:
+  `?tag=a&tag=b` → `{"tag": ["a", "b"]}`).
+- **Out:** a JSON-serializable **dict** that *is* the response body — core
+  adds no envelope, so your feed shape stays natural.
+- **Errors:** raise `APIError(message, code=..., status=...)` for a clean 4xx
+  (status must be 400–499). Any other exception becomes a generic 500 with
+  the traceback in the server log — internals never leak to the caller.
+- **Pagination convention** (documented, not enforced): accept
+  `page`/`page_size` params and include `count`/`page`/`page_size` in the
+  body, mirroring the datastore API. Paginate **at the query level** — core
+  rejects responses over ~1 MiB (`RESPONSE_TOO_LARGE`) as a backstop.
+- **Stay read-bound.** Handlers run synchronously in the web process: read
+  your DataStore/Database and return. No network calls (the doctor warns on
+  `requests`/`httpx`/`urllib` imports in `api.py`); anything slow belongs in
+  a provisioned Script.
+
+**Calling it.** Consumers create a **plugin-scoped API token** (Settings →
+API Tokens → scope "Plugin API") — one token per plugin, least privilege;
+datastore tokens can't reach plugin APIs and vice versa. Then:
+
+```bash
+# Discovery — what can this token reach? (self-documenting integration)
+curl -H "Authorization: Bearer $TOKEN" https://your-host/api/v1/plugins/
+
+# The plugin's resource list
+curl -H "Authorization: Bearer $TOKEN" https://your-host/api/v1/plugins/my_flows/
+
+# A resource, with filters
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://your-host/api/v1/plugins/my_flows/mentions/?page=1&page_size=20"
+```
+
+Errors use the datastore-API envelope `{"error": {"code", "message"}}`.
+Rate limits: per-token 60/min and per-plugin 300/min (429 with `Retry-After`;
+instance-configurable — see the deployment guide). CORS is enabled
+(`API_CORS_ORIGINS`), preflights included, so browser dashboards work.
+
+### Public pages — `/p/<token>/`
+
+A plugin can also publish a **shareable, read-only HTML page** behind a
+capability URL: anyone with the link reads the page, no login (the
+`/webhook/<token>/` idiom). Declare it next to your API resources and mark a
+handler with `@page`:
+
+```json
+"provides": {
+    "public_pages": [
+        {"name": "report", "summary": "Shareable mentions report"}
+    ]
+}
+```
+
+```python
+# my_flows/api.py
+from core.plugins.api import DataStoreAPI, page
+
+
+@page("report")
+def report(req):
+    from django.template.loader import render_to_string
+
+    store = DataStoreAPI(owner="my_flows", workspace=req.workspace).get("state")
+    return render_to_string("my_flows/public_report.html", {
+        "items": (store.get("items", []) if store else []),
+    })
+```
+
+The handler receives a frozen `PageRequest` (`workspace` from the share row —
+never from the anonymous caller — plus `page` and `params`) and returns an
+**HTML string**.
+
+**Rendering MUST go through Django templates** (auto-escape) — never
+string-concatenated HTML. Public pages typically render scraped or
+user-influenced content on an unauthenticated URL: an unescaped title is
+stored XSS. Core defangs the class by serving every public page
+**script-free** — CSP `default-src 'none'; style-src 'unsafe-inline';
+img-src * data:` — so use inline `<style>` only, no JS, no external assets.
+Pages are also sent `noindex` / `no-store` / `no-referrer` and set no cookies.
+
+Sharing happens from your dashboard through the SDK:
+
+```python
+from core.plugins.api import PublicPageAPI
+
+pages = PublicPageAPI("my_flows")          # workspace=None ⇒ default workspace
+url_path = pages.share("report")           # idempotent → "/p/<token>/"
+pages.get("report")                        # current share state (or None)
+pages.revoke("report")                     # the URL 404s permanently
+```
+
+Revocation and expiry are **permanent for that URL**: re-sharing a revoked or
+expired page reactivates it with a freshly rotated token — a dead link never
+comes back. Users can audit and revoke every share under Settings → API
+Tokens ("Public pages"). Only render data you would show on your own
+dashboard; the per-IP rate limit and size cap are core's, not yours.
+
+---
+
 ## Running real work: `run_in_environment`
 
 Keep the web layer thin. Anything that needs third-party packages must run in a
@@ -434,9 +717,14 @@ and run automatically at activation). Tier-1 is a **static lint** — file check
 | `urls.py` `app_name == slug` | fail |
 | Templates/static namespaced under `<slug>/` (no shadowing) | fail |
 | Manifest metadata is malformed (bad semver, `icon` escapes folder / bad ext, unknown `manifest_version`, wrong `provisions` shape) | fail |
+| `provides.api_resources` drift: declared resource with no `@resource` handler, missing `api.py`, non-GET `methods`, duplicate names, or manifest `api` < `2.3` | fail |
+| `provides.public_pages` drift: declared page with no `@page` handler, missing `api.py`, duplicate names, or manifest `api` < `2.3` | fail |
 | `apps.py` has heavy/third-party top-level imports | warn |
 | Imports core internals directly instead of `core.plugins.api` | warn |
 | Missing recommended marketplace fields (`author` / `license` / `summary` / `icon`) | warn |
+| `@resource` handler not declared in `plugin.json` (the dispatcher will 404 it) | warn |
+| `@page` handler not declared in `plugin.json` (the public view will 404 it) | warn |
+| `api.py` imports `requests` / `httpx` / `urllib` (slow-handler smell) | warn |
 
 The doctor runs **before** the preflight subprocess at activation, so a
 rule-breaker is refused before any plugin code or migration could run. It never

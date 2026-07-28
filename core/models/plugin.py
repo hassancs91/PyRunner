@@ -23,6 +23,38 @@ def validate_plugin_slug(value: str) -> None:
         )
 
 
+# The resources a plugin can declare (plugin.json ``provisions``) or actually own
+# (``PluginService.owned_resource_counts``). ONE table feeding both summaries, so
+# a new resource type can't be added to one and forgotten in the other — which is
+# exactly how the delete-confirm preview came to under-report what it deletes.
+# Both plural forms are spelled out: appending "s" would render "librarys".
+RESOURCE_LABELS = (
+    ("scripts", "script", "scripts"),
+    ("secrets", "secret", "secrets"),
+    ("datastores", "data store", "data stores"),
+    ("databases", "database", "databases"),
+    ("libraries", "library", "libraries"),
+    ("schedules", "schedule", "schedules"),
+)
+
+
+def format_resource_counts(counts) -> str:
+    """Human one-liner from a ``{resource: n}`` dict, e.g. '1 script, 2 libraries'.
+
+    Zero / absent / non-int values are skipped (``provisions`` may carry a
+    ``secret_keys`` list and owned counts carry a ``total``), so the string only
+    ever names what is really there. Returns '' when nothing is.
+    """
+    if not isinstance(counts, dict):
+        return ""
+    parts = []
+    for key, singular, plural in RESOURCE_LABELS:
+        n = counts.get(key)
+        if isinstance(n, int) and not isinstance(n, bool) and n > 0:
+            parts.append(f"{n} {singular if n == 1 else plural}")
+    return ", ".join(parts)
+
+
 class Plugin(models.Model):
     """A plugin known to PyRunner (its files live on the data volume)."""
 
@@ -179,20 +211,8 @@ class Plugin(models.Model):
 
     @property
     def provisions_summary(self) -> str:
-        """Human one-liner, e.g. '1 script, 3 secrets, 1 schedule' (or '')."""
-        p = self.provisions
-        parts = []
-        for key, label in (
-            ("scripts", "script"),
-            ("secrets", "secret"),
-            ("datastores", "data store"),
-            ("databases", "database"),
-            ("schedules", "schedule"),
-        ):
-            n = p.get(key)
-            if isinstance(n, int) and not isinstance(n, bool) and n > 0:
-                parts.append(f"{n} {label}{'' if n == 1 else 's'}")
-        return ", ".join(parts)
+        """Human one-liner of DECLARED resources, e.g. '1 script, 3 secrets'."""
+        return format_resource_counts(self.provisions)
 
     def mark_errored(self, message: str) -> None:
         """Quarantine this plugin so the next boot will not load it."""

@@ -27,6 +27,10 @@ class SetupWizardMiddleware:
         # Seam 1 internal datastore endpoint: loopback-only, token-authed, must
         # never be 302'd to /setup/ during a transient is_setup_needed() window.
         "/internal/",
+        # Plugin public pages: sessionless capability URLs — a 302 to /setup/
+        # would be nonsense for an anonymous reader; the view 404s cleanly on
+        # an instance with no shares.
+        "/p/",
     ]
 
     def __init__(self, get_response):

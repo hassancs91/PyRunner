@@ -79,6 +79,23 @@ def _backend_tool() -> "str | None":
     return None
 
 
+def _is_within(path: str, parent: str) -> bool:
+    """Whether ``path`` is ``parent`` or lives inside it (plain prefix compare).
+
+    POSIX separators, not ``os.sep``: bwrap/nsjail only exist on Linux, so every
+    path reaching this module is a container path — and hardcoding '/' keeps the
+    check honest when the suite runs on a Windows dev host.
+
+    Deliberately textual: these paths come from the spec we just built, not from
+    the filesystem, so this must not depend on the dirs existing yet.
+    """
+    if not parent:
+        return False
+    if path == parent:
+        return True
+    return path.startswith(parent.rstrip("/") + "/")
+
+
 def _ro_bind_dirs(spec: RunSpec) -> list:
     """Read-only directories to expose: system dirs + the venv + PYTHONPATH entries.
 
@@ -100,11 +117,16 @@ def _ro_bind_dirs(spec: RunSpec) -> list:
         dirs.append(venv_dir)
 
     # script_helpers + any other PYTHONPATH trees (so imports resolve), minus the
-    # writable workdir (bound rw separately below).
+    # writable workdir and anything inside it (bound rw separately below).
+    # "Inside it" matters for Script Libraries: a run's materialized libraries are
+    # staged in a per-run dir UNDER the workdir and put on PYTHONPATH, so they
+    # arrive in the jail through the workdir's rw bind. Ro-binding them too would
+    # be a no-op the later rw bind overmounts — correct only by argv order, which
+    # is not a thing to depend on.
     pythonpath = spec.env.get("PYTHONPATH", "") if spec.env else ""
     for entry in pythonpath.split(os.pathsep):
         entry = entry.strip()
-        if entry and entry != spec.cwd and os.path.isdir(entry):
+        if entry and not _is_within(entry, spec.cwd) and os.path.isdir(entry):
             dirs.append(entry)
 
     # De-dup, preserve order, and drop any nested under an already-listed dir

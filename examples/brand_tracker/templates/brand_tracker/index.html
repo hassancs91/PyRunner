@@ -184,6 +184,34 @@
                     </div>
                 </section>
                 {% endif %}
+
+                <!-- Share report (public capability URL) -->
+                <section class="rounded-2xl border border-line bg-panel p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div class="min-w-0">
+                            <h2 class="text-sm font-semibold">Share report</h2>
+                            {% if report_share and report_share.is_active and not report_share.is_expired %}
+                            <p class="text-xs text-muted mt-1">Anyone with this link can view a read-only mentions report — no login.</p>
+                            <a href="{{ report_share.url_path }}" target="_blank" rel="noopener" class="inline-block mt-1.5 font-mono text-xs text-info hover:underline break-all">{{ request.scheme }}://{{ request.get_host }}{{ report_share.url_path }}</a>
+                            {% else %}
+                            <p class="text-xs text-muted mt-1">Publish a read-only mentions report at a private link. Revoking kills the link permanently; sharing again issues a new one.</p>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-2 flex-none">
+                            {% if report_share and report_share.is_active and not report_share.is_expired %}
+                            <form method="post" action="{% url 'brand_tracker:revoke_report' %}" onsubmit="return confirm('Revoke the public report link? The URL becomes permanently dead.');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-[13px] px-3.5 py-2 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Revoke link</button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="{% url 'brand_tracker:share_report' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Share report</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
                 {% endif %}
             </div>
 

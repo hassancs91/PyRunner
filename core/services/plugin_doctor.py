@@ -53,6 +53,15 @@ _RECOMMENDED_FIELDS = ("author", "license", "summary", "icon")
 # before the app registry is ready). core.plugins (incl .api) is import-light.
 _CORE_INTERNAL_PREFIXES = ("core.models", "core.tasks", "core.services", "core.executor")
 
+# Plugin API (docs/PLAN_plugin_api.md): GET-only in v1 — the manifest shape is
+# POST-ready, but the doctor pins declared methods until writes are designed.
+_API_METHODS_ALLOWED = {"GET"}
+# Network clients in an api.py are the slow-handler smell: a sync handler can't
+# be preemptively killed, so API handlers must stay SDK/DB-read-bound.
+_API_NETWORK_IMPORT_ROOTS = {"requests", "httpx", "urllib"}
+# The external-API surface (@resource/APIRequest/APIError) shipped in SDK 2.3.
+_API_RESOURCES_MIN_SDK = (2, 3)
+
 
 @dataclass
 class Finding:
@@ -119,6 +128,8 @@ def run_doctor(path) -> DoctorReport:
     _check_urls(folder, report)
     _check_asset_shadow(folder, report)
     _check_sdk_usage(folder, report)
+    _check_api_resources(folder, report)
+    _check_public_pages(folder, report)
     return report
 
 
@@ -236,7 +247,7 @@ def _check_metadata(folder: Path, report: DoctorReport):
         if not isinstance(provisions, dict):
             failures.append("'provisions' must be an object.")
         else:
-            for count_key in ("scripts", "secrets", "datastores", "databases", "schedules"):
+            for count_key in ("scripts", "secrets", "datastores", "databases", "libraries", "schedules"):
                 if count_key in provisions:
                     n = provisions[count_key]
                     if not isinstance(n, int) or isinstance(n, bool) or n < 0:
@@ -399,6 +410,188 @@ def _check_sdk_usage(folder: Path, report: DoctorReport):
         report.add("sdk-usage", PASS, "no direct core-internal imports outside apps.py.")
 
 
+def _check_api_resources(folder: Path, report: DoctorReport):
+    """Plugin API — manifest ⇄ api.py drift (docs/PLAN_plugin_api.md, Stage 3).
+
+    Declared ∧ registered = servable, so drift is the failure mode: a declared
+    resource with no ``@resource`` handler can never serve (FAIL pre-ship); a
+    marked handler that isn't declared is dead code the dispatcher will 404
+    (WARN — the manifest stays truthful, same discipline as ``provisions``).
+    Static AST only, like every Tier-1 check — api.py is never imported.
+    """
+    manifest = _manifest_dict(folder)
+    failures = []
+
+    declared_entries = []
+    provides = (manifest or {}).get("provides")
+    if provides is not None and not isinstance(provides, dict):
+        failures.append("'provides' must be an object.")
+        provides = None
+    if isinstance(provides, dict) and provides.get("api_resources") is not None:
+        raw = provides["api_resources"]
+        if not isinstance(raw, list) or not all(isinstance(r, dict) for r in raw):
+            failures.append("provides.api_resources must be a list of objects.")
+        else:
+            declared_entries = raw
+
+    api_path = folder / "api.py"
+    api_tree = None
+    marked = set()
+    if api_path.exists():
+        try:
+            api_tree = ast.parse(api_path.read_text(encoding="utf-8"), filename=str(api_path))
+        except (SyntaxError, OSError) as exc:
+            report.add("api-resources", FAIL, f"api.py cannot be parsed: {exc}")
+            return
+        marked = _marked_api_resources(api_tree)
+
+    if not declared_entries and not marked and not failures:
+        report.add("api-resources", PASS, "no external API resources declared.")
+        return
+
+    declared_names = set()
+    for entry in declared_entries:
+        name = entry.get("name")
+        if not isinstance(name, str) or not name:
+            failures.append("every api_resources entry needs a non-empty string 'name'.")
+            continue
+        if name in declared_names:
+            failures.append(f"resource {name!r} is declared more than once.")
+        declared_names.add(name)
+        methods = entry.get("methods", ["GET"])
+        if (
+            not isinstance(methods, list)
+            or not methods
+            or not set(methods) <= _API_METHODS_ALLOWED
+        ):
+            failures.append(
+                f"resource {name!r}: methods must be [\"GET\"] "
+                "(the plugin API is read-only in v1)."
+            )
+
+    if declared_names and not api_path.exists():
+        failures.append("provides.api_resources is declared but api.py is missing.")
+
+    unregistered = declared_names - marked
+    if unregistered and api_path.exists():
+        failures.append(
+            "declared resource(s) with no @resource handler in api.py: "
+            + ", ".join(sorted(unregistered))
+            + "."
+        )
+
+    if declared_names:
+        api_version = (manifest or {}).get("api")
+        if not _version_at_least(api_version, _API_RESOURCES_MIN_SDK):
+            failures.append(
+                f'manifest "api" must be >= "2.3" to declare api_resources '
+                f"(found {api_version!r})."
+            )
+
+    if failures:
+        report.add("api-resources", FAIL, " ".join(failures))
+    else:
+        report.add(
+            "api-resources", PASS,
+            f"{len(declared_names)} declared API resource(s), each with a handler.",
+        )
+
+    undeclared = marked - declared_names
+    if undeclared:
+        report.add(
+            "api-resources", WARN,
+            "@resource handler(s) not declared in plugin.json "
+            "(the dispatcher will 404 them): " + ", ".join(sorted(undeclared)) + ".",
+        )
+
+    if api_tree is not None:
+        network = _import_roots(api_tree) & _API_NETWORK_IMPORT_ROOTS
+        if network:
+            report.add(
+                "api-imports", WARN,
+                "api.py imports " + ", ".join(sorted(network))
+                + " — network calls in an API handler are the slow-handler smell; "
+                "handlers should be SDK/DB-read-bound.",
+            )
+
+
+def _check_public_pages(folder: Path, report: DoctorReport):
+    """Public pages — manifest ⇄ api.py drift, same discipline as api_resources.
+
+    A declared page with no ``@page`` handler can never render (FAIL); a marked
+    handler that isn't declared is dead code the public view will 404 (WARN).
+    """
+    manifest = _manifest_dict(folder)
+    failures = []
+
+    declared_entries = []
+    provides = (manifest or {}).get("provides")
+    if isinstance(provides, dict) and provides.get("public_pages") is not None:
+        raw = provides["public_pages"]
+        if not isinstance(raw, list) or not all(isinstance(r, dict) for r in raw):
+            failures.append("provides.public_pages must be a list of objects.")
+        else:
+            declared_entries = raw
+
+    api_path = folder / "api.py"
+    marked = set()
+    if api_path.exists():
+        try:
+            tree = ast.parse(api_path.read_text(encoding="utf-8"), filename=str(api_path))
+        except (SyntaxError, OSError):
+            return  # already FAILed in _check_api_resources
+        marked = _marked_decorator_names(tree, "page")
+
+    if not declared_entries and not marked and not failures:
+        report.add("public-pages", PASS, "no public pages declared.")
+        return
+
+    declared_names = set()
+    for entry in declared_entries:
+        name = entry.get("name")
+        if not isinstance(name, str) or not name:
+            failures.append("every public_pages entry needs a non-empty string 'name'.")
+            continue
+        if name in declared_names:
+            failures.append(f"page {name!r} is declared more than once.")
+        declared_names.add(name)
+
+    if declared_names and not api_path.exists():
+        failures.append("provides.public_pages is declared but api.py is missing.")
+
+    unregistered = declared_names - marked
+    if unregistered and api_path.exists():
+        failures.append(
+            "declared page(s) with no @page handler in api.py: "
+            + ", ".join(sorted(unregistered))
+            + "."
+        )
+
+    if declared_names:
+        api_version = (manifest or {}).get("api")
+        if not _version_at_least(api_version, _API_RESOURCES_MIN_SDK):
+            failures.append(
+                f'manifest "api" must be >= "2.3" to declare public_pages '
+                f"(found {api_version!r})."
+            )
+
+    if failures:
+        report.add("public-pages", FAIL, " ".join(failures))
+    else:
+        report.add(
+            "public-pages", PASS,
+            f"{len(declared_names)} declared public page(s), each with a handler.",
+        )
+
+    undeclared = marked - declared_names
+    if undeclared:
+        report.add(
+            "public-pages", WARN,
+            "@page handler(s) not declared in plugin.json "
+            "(the public view will 404 them): " + ", ".join(sorted(undeclared)) + ".",
+        )
+
+
 # --------------------------------------------------------------------------- #
 # AST helpers
 # --------------------------------------------------------------------------- #
@@ -409,6 +602,64 @@ def _base_name(node):
     if isinstance(node, ast.Attribute):
         return node.attr
     return None
+
+
+def _manifest_dict(folder: Path):
+    """plugin.json as a dict, or None (missing/invalid is FAILed elsewhere)."""
+    path = folder / "plugin.json"
+    if not path.exists():
+        return None
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+    return manifest if isinstance(manifest, dict) else None
+
+
+def _version_at_least(value, minimum: tuple) -> bool:
+    """True when a manifest version string like "2.3" is >= ``minimum``."""
+    if not isinstance(value, str):
+        return False
+    try:
+        parts = tuple(int(p) for p in value.split("."))
+    except ValueError:
+        return False
+    return parts >= minimum
+
+
+def _marked_decorator_names(tree, decorator: str) -> set:
+    """Names bound with @<decorator>("name") on functions in a module AST."""
+    names = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for dec in node.decorator_list:
+            if (
+                isinstance(dec, ast.Call)
+                and _base_name(dec.func) == decorator
+                and dec.args
+                and isinstance(dec.args[0], ast.Constant)
+                and isinstance(dec.args[0].value, str)
+            ):
+                names.add(dec.args[0].value)
+    return names
+
+
+def _marked_api_resources(tree) -> set:
+    """Resource names bound with @resource("name") in an api.py AST."""
+    return _marked_decorator_names(tree, "resource")
+
+
+def _import_roots(tree) -> set:
+    """Top-level root packages imported anywhere in a module's AST."""
+    roots = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                roots.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            roots.add(node.module.split(".")[0])
+    return roots
 
 
 def _class_str_attrs(classdef) -> dict:

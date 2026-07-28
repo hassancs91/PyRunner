@@ -2,6 +2,7 @@
 Run model for tracking script execution history.
 """
 
+import datetime
 import uuid
 
 from django.conf import settings
@@ -92,6 +93,19 @@ class Run(models.Model):
         help_text="Copy of script code at time of execution",
     )
 
+    # Which Library revision each attached library was pinned to, stamped at
+    # QUEUE time: {library_key: version}. code_snapshot's counterpart for shared
+    # code — the executor materializes these exact revisions, so editing a
+    # library after queueing cannot change what an already-queued run imports.
+    # A tiny int map rather than a content copy: storage scales with edits, not
+    # runs. NULL (old runs, scripts with no libraries) => nothing to materialize.
+    library_versions = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Library revisions pinned at queue time: {library_key: version}.",
+    )
+
     # Who triggered the run
     triggered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -140,6 +154,102 @@ class Run(models.Model):
 
     def __str__(self):
         return f"Run {self.id} - {self.script.name} ({self.status})"
+
+    # Grace beyond a run's own timeout before a still-'running' row is declared
+    # dead. A live worker HARD-kills the subprocess at timeout_seconds and
+    # finalizes within seconds (the per-task cushion is +60s), so five minutes
+    # past the deadline nothing legitimate can still be executing.
+    RECONCILE_GRACE_SECONDS = 300
+    # How old a PENDING run must be before it counts as lost — but only while
+    # workers are demonstrably alive: a live cluster re-delivers unacknowledged
+    # tasks within its `retry` window, so a day without pickup means the queued
+    # task no longer exists (e.g. a worker was killed between queue and ack).
+    RECONCILE_PENDING_AFTER = datetime.timedelta(hours=24)
+
+    @classmethod
+    def reconcile_stale(cls) -> int:
+        """Fail runs whose worker died without finalizing them.
+
+        A worker killed while busy (container stop SIGKILLs workers by design —
+        see entrypoint.sh — plus OOM kills and crashes) leaves its Run at
+        'running' forever: stdout is never captured, force-stop has no live pid,
+        and anything gating on "a run is in flight" (plugin concurrency guards,
+        queue checks) stays blocked. Nothing in-process can catch that, so this
+        reconciler runs out-of-band: every minute on the worker heartbeat and on
+        the runs list page. It is the Run counterpart of
+        ``PackageOperation.reconcile_stale``.
+
+        Status-only by design: it never kills OS processes. A detached script
+        may genuinely still be running, but its recorded pid may also have been
+        recycled to an innocent process — reporting honestly beats killing
+        blind.
+
+        Returns the number of runs reconciled.
+        """
+        from django.utils import timezone
+
+        from core.models.settings import GlobalSettings
+
+        now = timezone.now()
+        reconciled = 0
+
+        # RUNNING: dead once well past started_at + the script's own timeout +
+        # grace. The deadline is per-run, and the candidate set is tiny by
+        # construction, so iterate instead of fighting cross-database duration
+        # arithmetic. The conditional UPDATE re-checks status so a worker
+        # finalizing concurrently (or an external cancel) always wins.
+        grace = datetime.timedelta(seconds=cls.RECONCILE_GRACE_SECONDS)
+        candidates = cls.objects.filter(
+            status=cls.Status.RUNNING,
+            started_at__isnull=False,
+            started_at__lt=now - grace,
+        ).select_related("script")
+        for run in candidates:
+            deadline = (
+                run.started_at
+                + datetime.timedelta(seconds=run.script.timeout_seconds)
+                + grace
+            )
+            if now < deadline:
+                continue
+            marker = (
+                "\n[RECONCILED: the worker executing this run stopped before "
+                "finalizing it (e.g. a worker restart or kill mid-run), so its "
+                "output was never captured. Marked failed "
+                f"{cls.RECONCILE_GRACE_SECONDS}s past the script's "
+                f"{run.script.timeout_seconds}s timeout. A detached script "
+                "process may have kept running after the worker died.]"
+            )
+            reconciled += cls.objects.filter(
+                pk=run.pk, status=cls.Status.RUNNING
+            ).update(
+                status=cls.Status.FAILED,
+                exit_code=-1,
+                stderr=(run.stderr or "") + marker,
+                ended_at=now,
+                pid=None,
+            )
+
+        # PENDING: only reconciled while workers are alive — with the cluster
+        # down, "queued" is still the truth and these runs will execute when it
+        # returns.
+        if GlobalSettings.get_settings().worker_is_alive():
+            reconciled += cls.objects.filter(
+                status=cls.Status.PENDING,
+                created_at__lt=now - cls.RECONCILE_PENDING_AFTER,
+            ).update(
+                status=cls.Status.FAILED,
+                exit_code=-1,
+                stderr=(
+                    "[RECONCILED: queued for over 24 hours while workers were "
+                    "alive — the queued task was lost before pickup (e.g. a "
+                    "worker restart between queue and execution). Re-run the "
+                    "script.]"
+                ),
+                ended_at=now,
+            )
+
+        return reconciled
 
     @property
     def duration(self) -> float | None:

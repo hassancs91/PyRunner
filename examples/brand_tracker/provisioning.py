@@ -21,6 +21,7 @@ from pathlib import Path
 from core.plugins.api import (
     DataStoreAPI,
     EnvironmentAPI,
+    PublicPageAPI,
     ScheduleAPI,
     ScriptAPI,
     SecretAPI,
@@ -32,6 +33,7 @@ OWNER = "brand_tracker"
 SCRIPT_KEY = "track"
 SCRIPT_NAME = "Brand Tracker"
 STORE_KEY = "state"
+REPORT_PAGE = "report"  # declared in plugin.json "provides.public_pages"
 DEFAULT_TIMEOUT = 1800  # a weekly multi-keyword, multi-source run
 
 # Keys of the non-secret config persisted to the DataStore (also prefill the form
@@ -143,6 +145,25 @@ def get_progress():
 
 def list_environments():
     return EnvironmentAPI().list()
+
+
+# --------------------------------------------------------------------------- #
+# Public report share (capability URL at /p/<token>/)
+# --------------------------------------------------------------------------- #
+
+def share_report(created_by=None):
+    """Share (or return the existing) public report link; returns the URL path."""
+    return PublicPageAPI(OWNER).share(REPORT_PAGE, created_by=created_by)
+
+
+def revoke_report():
+    """Kill the public report link permanently. True if one existed."""
+    return PublicPageAPI(OWNER).revoke(REPORT_PAGE)
+
+
+def report_share():
+    """Current share state dict (or None if the report was never shared)."""
+    return PublicPageAPI(OWNER).get(REPORT_PAGE)
 
 
 def initial_from_config():

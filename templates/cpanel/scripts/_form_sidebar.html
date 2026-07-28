@@ -58,6 +58,34 @@
         </div>
     </section>
 
+    <!-- Libraries (shared code attached to this script) -->
+    <section class="rounded-2xl border border-line bg-panel">
+        <div class="flex items-center gap-2 px-5 py-4 border-b border-line-soft">
+            <svg class="w-4 h-4 text-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            <h3 class="text-sm font-semibold">Libraries</h3>
+        </div>
+        <div class="p-5 space-y-3">
+            {% if available_libraries %}
+            <p class="text-xs text-faint">Attach shared modules this script can import. Each run is pinned to the version current when it was queued.</p>
+            <div class="flex flex-wrap gap-2">
+                {% for lib in available_libraries %}
+                <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-line cursor-pointer transition-colors hover:border-faint has-[:checked]:border-ok has-[:checked]:bg-ok/15">
+                    <input type="checkbox" name="library_ids" value="{{ lib.pk }}" {% if lib.pk|stringformat:"s" in attached_library_ids %}checked{% endif %} class="sr-only">
+                    <span class="text-sm font-mono text-text">{{ lib.key }}</span>
+                    {% if lib.current_version %}
+                    <span class="text-[10px] font-mono tnum text-faint">v{{ lib.current_version }}</span>
+                    {% else %}
+                    <span class="text-[10px] text-warn">empty</span>
+                    {% endif %}
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-muted">No libraries yet. <a href="{% url 'cpanel:library_create' %}" class="text-info hover:underline">Create one</a> to share code across scripts.</p>
+            {% endif %}
+        </div>
+    </section>
+
     <!-- Secrets (injection scope + per-script attach) -->
     <section class="rounded-2xl border border-line bg-panel"
              data-picker-url="{% url 'cpanel:secret_picker' %}"

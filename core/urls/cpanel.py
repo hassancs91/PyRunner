@@ -80,6 +80,15 @@ from core.views.databases import (
     database_table_view,
     database_table_csv_view,
 )
+from core.views.libraries import (
+    library_list_view,
+    library_create_view,
+    library_detail_view,
+    library_edit_view,
+    library_delete_view,
+    library_revision_view,
+    library_revision_restore_view,
+)
 from core.views.datastores import (
     datastore_list_view,
     datastore_create_view,
@@ -117,6 +126,7 @@ from core.views.api_tokens import (
     api_token_created_view,
     api_token_revoke_view,
     api_token_toggle_view,
+    public_page_revoke_view,
 )
 from core.views.tasks import (
     tasks_view,
@@ -143,7 +153,10 @@ from core.views.channels import (
 )
 from core.views.services import (
     services_view,
-    s3_settings_view,
+    assets_storage_view,
+    storage_connection_save_view,
+    storage_connection_delete_view,
+    storage_connection_default_view,
     s3_test_connection_view,
     claude_settings_view,
     claude_test_connection_view,
@@ -279,6 +292,15 @@ urlpatterns = [
     path("databases/<uuid:pk>/reveal/", database_reveal_view, name="database_reveal"),
     path("databases/<uuid:pk>/delete/", database_delete_view, name="database_delete"),
 
+    # Libraries (shared multi-module code attached to scripts)
+    path("libraries/", library_list_view, name="library_list"),
+    path("libraries/create/", library_create_view, name="library_create"),
+    path("libraries/<uuid:pk>/", library_detail_view, name="library_detail"),
+    path("libraries/<uuid:pk>/edit/", library_edit_view, name="library_edit"),
+    path("libraries/<uuid:pk>/delete/", library_delete_view, name="library_delete"),
+    path("libraries/<uuid:pk>/v<int:version>/", library_revision_view, name="library_revision"),
+    path("libraries/<uuid:pk>/v<int:version>/restore/", library_revision_restore_view, name="library_revision_restore"),
+
     # Data Stores
     path("datastores/", datastore_list_view, name="datastore_list"),
     path("datastores/create/", datastore_create_view, name="datastore_create"),
@@ -343,11 +365,15 @@ urlpatterns = [
     path("settings/api-tokens/<uuid:pk>/created/", api_token_created_view, name="api_token_created"),
     path("settings/api-tokens/<uuid:pk>/revoke/", api_token_revoke_view, name="api_token_revoke"),
     path("settings/api-tokens/<uuid:pk>/toggle/", api_token_toggle_view, name="api_token_toggle"),
+    path("settings/api-tokens/public-pages/<uuid:pk>/revoke/", public_page_revoke_view, name="public_page_revoke"),
 
     # Services
     path("services/", services_view, name="services"),
-    path("services/s3/", s3_settings_view, name="s3_settings"),
     path("services/s3/test/", s3_test_connection_view, name="s3_test_connection"),
+    path("services/storage/save/", storage_connection_save_view, name="storage_connection_save"),
+    path("services/storage/<uuid:connection_id>/delete/", storage_connection_delete_view, name="storage_connection_delete"),
+    path("services/storage/<uuid:connection_id>/default/", storage_connection_default_view, name="storage_connection_default"),
+    path("services/storage/assets/", assets_storage_view, name="assets_storage"),
     path("services/claude/", claude_settings_view, name="claude_settings"),
     path("services/claude/test/", claude_test_connection_view, name="claude_test_connection"),
     path("services/claude/usage/", claude_usage_view, name="claude_usage"),

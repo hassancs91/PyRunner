@@ -19,6 +19,13 @@ from core.views.api.datastore_internal import (
     record_claude_usage,
     resolve_store,
 )
+from core.views.api.storage_internal import (
+    delete as storage_delete,
+    get as storage_get,
+    list_objects as storage_list,
+    put as storage_put,
+    url as storage_url,
+)
 
 app_name = "internal"
 
@@ -30,4 +37,9 @@ urlpatterns = [
     path("channels/send", channels_send, name="channels_send"),
     path("databases", list_databases, name="databases_list"),
     path("databases/<str:name>/dsn", resolve_dsn, name="databases_dsn"),
+    path("storage/put", storage_put, name="storage_put"),
+    path("storage/get", storage_get, name="storage_get"),
+    path("storage/delete", storage_delete, name="storage_delete"),
+    path("storage/list", storage_list, name="storage_list"),
+    path("storage/url", storage_url, name="storage_url"),
 ]

@@ -143,6 +143,22 @@
                         </dl>
                     </section>
 
+                    <!-- Libraries pinned at queue time (absent for runs with none) -->
+                    {% if run.library_versions %}
+                    <section class="rounded-2xl border border-line bg-panel p-5">
+                        <h3 class="eyebrow text-faint mb-4">Libraries</h3>
+                        <dl class="space-y-3.5 text-sm">
+                            {% for key, version in run.library_versions.items %}
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="font-mono text-muted truncate">{{ key }}</dt>
+                                <dd class="font-mono tnum text-text flex-shrink-0">v{{ version }}</dd>
+                            </div>
+                            {% endfor %}
+                        </dl>
+                        <p class="mt-4 text-xs text-faint">Versions pinned when this run was queued — later edits to these libraries did not affect it.</p>
+                    </section>
+                    {% endif %}
+
                     <!-- Timing -->
                     <section class="rounded-2xl border border-line bg-panel p-5">
                         <h3 class="eyebrow text-faint mb-4">Timing</h3>

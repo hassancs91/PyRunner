@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit {{ library.key }} - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <form method="post">
+            {% csrf_token %}
+
+            <!-- Sticky action header -->
+            <div class="sticky top-16 z-20 bg-ink/85 backdrop-blur border-b border-line">
+                <div class="px-5 lg:px-8 py-3.5 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
+                    <div class="min-w-0">
+                        <nav class="flex items-center gap-1.5 eyebrow text-faint mb-1">
+                            <a href="{% url 'cpanel:library_list' %}" class="hover:text-text transition-colors">Libraries</a>
+                            <span>/</span>
+                            <a href="{% url 'cpanel:library_detail' pk=library.pk %}" class="hover:text-text transition-colors truncate max-w-[12rem]">{{ library.key }}</a>
+                            <span>/</span>
+                            <span class="text-muted">Edit</span>
+                        </nav>
+                        <h1 class="text-lg font-semibold tracking-tight truncate">Edit library</h1>
+                    </div>
+                    <div class="flex items-center gap-2.5 flex-shrink-0">
+                        {% if library.current_version %}
+                        <span class="hidden sm:inline text-xs text-faint">Saving creates v{{ library.current_version|add:1 }}</span>
+                        {% endif %}
+                        <a href="{% url 'cpanel:library_detail' pk=library.pk %}" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</a>
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="px-5 lg:px-8 py-6 max-w-[1440px] mx-auto">
+                {% if library.owner_plugin %}
+                <div class="mb-5 rounded-xl border border-warn/30 bg-warn/10 p-4 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-warn flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.96l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z"/></svg>
+                    <p class="text-sm text-text">Managed by the “{{ library.owner_plugin }}” plugin — your edits may be overwritten when the plugin is saved or reactivated.</p>
+                </div>
+                {% endif %}
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <!-- Modules editor -->
+                    <div class="lg:col-span-2">
+                        <div id="module-editor" class="rounded-2xl border border-line bg-panel p-6 space-y-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <label class="block text-[13px] font-medium text-text">Modules</label>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" id="module-rename" class="text-xs px-2.5 py-1 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Rename</button>
+                                    <button type="button" id="module-add" class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                        Add module
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- The hidden field the form actually posts -->
+                            <input type="hidden" name="modules_json" id="modules_json" value="{{ modules_json }}">
+
+                            <div class="rounded-lg border border-line overflow-hidden bg-ink">
+                                <div id="module-tabs" class="flex items-end gap-1 px-2 pt-2 border-b border-line-soft bg-panel-hi/50 overflow-x-auto scrollbar-thin"></div>
+                                <p id="module-empty-note" class="hidden px-4 py-6 text-sm text-muted">No modules yet — use <span class="text-text">Add module</span> to create one.</p>
+                                <div id="module-editor-container" class="h-[55vh] min-h-[320px] lg:h-[calc(100vh-30rem)] lg:max-h-[640px]"></div>
+                            </div>
+                            <p class="text-xs text-faint">Modules in the same library import each other with a relative import: <code class="font-mono text-info">from .helpers import greet</code>. An <code class="font-mono text-info">__init__.py</code> is added automatically if you don't provide one.</p>
+                        </div>
+                    </div>
+
+                    <!-- Metadata -->
+                    <div class="lg:col-span-1 space-y-5">
+                        <section class="rounded-2xl border border-line bg-panel">
+                            <div class="flex items-center gap-2 px-5 py-4 border-b border-line-soft">
+                                <svg class="w-4 h-4 text-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <h3 class="text-sm font-semibold">Details</h3>
+                            </div>
+                            <div class="p-5 space-y-4">
+                                <div>
+                                    <label for="id_key" class="block text-[13px] font-medium text-text mb-1.5">{{ form.key.label }}</label>
+                                    {{ form.key }}
+                                    {% if form.key.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.key.help_text }}</p>{% endif %}
+                                    {% if form.key.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.key.errors.0 }}</p>{% endif %}
+                                </div>
+                                <div>
+                                    <label for="id_name" class="block text-[13px] font-medium text-text mb-1.5">{{ form.name.label }}</label>
+                                    {{ form.name }}
+                                    {% if form.name.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.name.errors.0 }}</p>{% endif %}
+                                </div>
+                                <div>
+                                    <label for="id_description" class="block text-[13px] font-medium text-text mb-1.5">{{ form.description.label }}</label>
+                                    {{ form.description }}
+                                    {% if form.description.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.description.errors.0 }}</p>{% endif %}
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="rounded-xl border border-line-soft bg-panel-hi/40 p-4 text-xs text-muted">
+                            <p class="font-medium text-text mb-1.5">Versions</p>
+                            <p>Each save that changes the code creates a new version. Saving with no changes creates nothing. Runs already queued keep the version they were pinned to.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script src="{% static 'js/library_form.js' %}"></script>
+{% endblock %}

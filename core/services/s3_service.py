@@ -1,19 +1,33 @@
 """
-S3 storage service for backup operations.
+S3-compatible object storage service.
 
-Supports any S3-compatible provider: AWS, MinIO, DigitalOcean Spaces, Backblaze B2, etc.
+Every operation takes a ``StorageConnection`` (see ``core.models.storage_connection``),
+so one instance can talk to several buckets: backups to a private one, plugin assets
+to another. Resolve a connection with ``S3Service.for_backup()`` (the ``is_default``
+row) or ``S3Service.for_assets()`` (``GlobalSettings.assets_storage``).
+
+Supports any S3-compatible provider: Cloudflare R2, AWS, MinIO, DigitalOcean Spaces,
+Backblaze B2, etc.
 """
 
 import ipaddress
 import logging
 import socket
-from typing import Tuple
+from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from core.models import GlobalSettings
 from core.services.encryption_service import EncryptionService, EncryptionError
 
 logger = logging.getLogger(__name__)
+
+# Longest life AWS SigV4 will sign for. Presigned URLs are the only way to serve
+# from a private bucket, but they DO expire — a URL baked into a rendered page or
+# an email 403s once it lapses. Connections with a `public_base_url` sidestep this.
+MAX_PRESIGN_SECONDS = 7 * 24 * 3600
+DEFAULT_PRESIGN_SECONDS = 3600
+
+# `delete_objects` accepts at most 1000 keys per call.
+_DELETE_CHUNK = 1000
 
 
 def is_safe_endpoint_url(url: str) -> tuple[bool, str]:
@@ -25,6 +39,10 @@ def is_safe_endpoint_url(url: str) -> tuple[bool, str]:
     - Loopback addresses (127.x, localhost)
     - Link-local addresses (169.254.x - AWS metadata endpoint)
     - Internal hostnames
+
+    Note this means a MinIO on localhost is NOT a usable target — the endpoint is
+    user-editable, so it is an SSRF vector and the guard is correct. Local
+    development against a real bucket needs a real (public) endpoint.
 
     Args:
         url: The endpoint URL to validate
@@ -83,21 +101,43 @@ class S3ServiceError(Exception):
 
 class S3Service:
     """
-    Provides S3 storage operations for backup functionality.
+    S3 operations against a given ``StorageConnection``.
 
-    Supports any S3-compatible provider: AWS, MinIO, DigitalOcean Spaces, etc.
+    Backups resolve ``for_backup()``; the plugin storage seam resolves
+    ``for_assets()``. Passing the connection explicitly (rather than each method
+    re-reading GlobalSettings, as this service used to) is what lets the two
+    coexist without one silently writing into the other's bucket.
     """
 
-    @classmethod
-    def get_client(cls):
-        """
-        Create and return a configured boto3 S3 client.
+    # ----------------------------------------------------------------- #
+    # Connection resolution
+    # ----------------------------------------------------------------- #
 
-        Returns:
-            boto3 S3 client configured with current settings
+    @staticmethod
+    def for_backup():
+        """The connection backups use, or None when none is configured."""
+        from core.models import StorageConnection
+
+        return StorageConnection.get_default()
+
+    @staticmethod
+    def for_assets():
+        """The connection the plugin storage seam uses, or None when unset.
+
+        Deliberately does NOT fall back to the backup default — see
+        ``GlobalSettings.assets_storage``.
+        """
+        from core.models import GlobalSettings
+
+        return GlobalSettings.get_settings().assets_storage
+
+    @classmethod
+    def get_client(cls, connection):
+        """
+        Create and return a configured boto3 S3 client for ``connection``.
 
         Raises:
-            S3ServiceError: If S3 is not configured or credentials invalid
+            S3ServiceError: If the connection is unusable or credentials invalid
         """
         try:
             import boto3
@@ -107,25 +147,26 @@ class S3Service:
                 "boto3 is not installed. Install it with: pip install boto3"
             )
 
-        settings = GlobalSettings.get_settings()
+        if connection is None:
+            raise S3ServiceError("No storage connection configured")
 
-        if not settings.s3_bucket_name:
+        if not connection.bucket:
             raise S3ServiceError("S3 bucket name is not configured")
 
-        if not settings.s3_access_key_encrypted or not settings.s3_secret_key_encrypted:
+        if not connection.access_key_encrypted or not connection.secret_key_encrypted:
             raise S3ServiceError("S3 credentials are not configured")
 
         # Decrypt credentials
         try:
-            access_key = EncryptionService.decrypt(settings.s3_access_key_encrypted)
-            secret_key = EncryptionService.decrypt(settings.s3_secret_key_encrypted)
+            access_key = EncryptionService.decrypt(connection.access_key_encrypted)
+            secret_key = EncryptionService.decrypt(connection.secret_key_encrypted)
         except EncryptionError as e:
             raise S3ServiceError(f"Failed to decrypt S3 credentials: {e}")
 
         # Build client config
         config = Config(
             signature_version="s3v4",
-            s3={"addressing_style": "path" if settings.s3_path_style else "auto"},
+            s3={"addressing_style": "path" if connection.path_style else "auto"},
         )
 
         client_kwargs = {
@@ -133,18 +174,18 @@ class S3Service:
             "aws_access_key_id": access_key,
             "aws_secret_access_key": secret_key,
             "config": config,
-            "use_ssl": settings.s3_use_ssl,
+            "use_ssl": connection.use_ssl,
         }
 
-        if settings.s3_endpoint_url:
+        if connection.endpoint_url:
             # Validate endpoint URL to prevent SSRF attacks
-            is_safe, error_msg = is_safe_endpoint_url(settings.s3_endpoint_url)
+            is_safe, error_msg = is_safe_endpoint_url(connection.endpoint_url)
             if not is_safe:
                 raise S3ServiceError(f"Invalid S3 endpoint: {error_msg}")
-            client_kwargs["endpoint_url"] = settings.s3_endpoint_url
+            client_kwargs["endpoint_url"] = connection.endpoint_url
 
-        if settings.s3_region:
-            client_kwargs["region_name"] = settings.s3_region
+        if connection.region:
+            client_kwargs["region_name"] = connection.region
 
         return boto3.client(**client_kwargs)
 
@@ -170,33 +211,34 @@ class S3Service:
         return f"Connection failed: {error_msg}"
 
     @classmethod
-    def test_connection(cls) -> Tuple[bool, str]:
+    def test_connection(cls, connection) -> Tuple[bool, str]:
         """
-        Test the S3 connection by attempting to access the bucket.
+        Test a saved connection by attempting to access its bucket.
 
         Returns:
             Tuple of (success: bool, message: str)
         """
         from django.utils import timezone
 
-        settings = GlobalSettings.get_settings()
+        if connection is None:
+            return False, "No storage connection configured"
 
         try:
-            client = cls.get_client()
+            client = cls.get_client(connection)
 
             # Try to head the bucket (checks existence and permissions)
-            client.head_bucket(Bucket=settings.s3_bucket_name)
+            client.head_bucket(Bucket=connection.bucket)
 
             # Update last tested timestamp
-            settings.s3_last_tested_at = timezone.now()
-            settings.save(update_fields=["s3_last_tested_at"])
+            connection.last_tested_at = timezone.now()
+            connection.save(update_fields=["last_tested_at"])
 
-            return True, f"Successfully connected to bucket '{settings.s3_bucket_name}'"
+            return True, f"Successfully connected to bucket '{connection.bucket}'"
 
         except S3ServiceError as e:
             return False, str(e)
         except Exception as e:
-            return False, cls._map_boto3_error(str(e), settings.s3_bucket_name)
+            return False, cls._map_boto3_error(str(e), connection.bucket)
 
     @classmethod
     def test_connection_with_credentials(
@@ -212,7 +254,7 @@ class S3Service:
         """
         Test S3 connection with provided credentials (without saving).
 
-        This is used to validate credentials before saving settings.
+        This is used to validate credentials before saving a connection.
 
         Args:
             bucket_name: S3 bucket name
@@ -276,57 +318,80 @@ class S3Service:
             return False, cls._map_boto3_error(str(e), bucket_name)
 
     @classmethod
-    def is_configured(cls) -> bool:
-        """Check if S3 is properly configured (has required fields)."""
-        settings = GlobalSettings.get_settings()
-        return bool(
-            settings.s3_bucket_name
-            and settings.s3_access_key_encrypted
-            and settings.s3_secret_key_encrypted
-        )
+    def is_configured(cls, connection=None) -> bool:
+        """Whether ``connection`` (default: the backup connection) is usable."""
+        if connection is None:
+            connection = cls.for_backup()
+        if connection is None:
+            return False
+        return connection.is_configured
 
     @classmethod
-    def get_status(cls) -> dict:
+    def get_status(cls, connection=None) -> dict:
         """
-        Get S3 configuration status for UI display.
+        Get storage configuration status for UI display.
 
         Returns:
             Dict with status information
         """
-        settings = GlobalSettings.get_settings()
+        if connection is None:
+            connection = cls.for_backup()
+
+        if connection is None:
+            return {
+                "enabled": False,
+                "configured": False,
+                "bucket": None,
+                "endpoint": "Not configured",
+                "region": "",
+                "use_ssl": True,
+                "path_style": False,
+                "last_tested": None,
+            }
 
         return {
-            "enabled": settings.s3_enabled,
-            "configured": cls.is_configured(),
-            "bucket": settings.s3_bucket_name or None,
-            "endpoint": settings.s3_endpoint_url or "AWS S3 (default)",
-            "region": settings.s3_region or "us-east-1",
-            "use_ssl": settings.s3_use_ssl,
-            "path_style": settings.s3_path_style,
-            "last_tested": settings.s3_last_tested_at,
+            "enabled": connection.enabled,
+            "configured": connection.is_configured,
+            "bucket": connection.bucket or None,
+            "endpoint": connection.endpoint_url or "AWS S3 (default)",
+            "region": connection.region or "us-east-1",
+            "use_ssl": connection.use_ssl,
+            "path_style": connection.path_style,
+            "last_tested": connection.last_tested_at,
         }
 
+    # ----------------------------------------------------------------- #
+    # Object operations
+    # ----------------------------------------------------------------- #
+
     @classmethod
-    def upload_file(cls, file_bytes: bytes, key: str) -> dict:
+    def upload_file(
+        cls,
+        connection,
+        file_bytes: bytes,
+        key: str,
+        content_type: str = "application/gzip",
+    ) -> dict:
         """
-        Upload a file to S3.
+        Upload a file.
 
         Args:
+            connection: StorageConnection to upload through
             file_bytes: File content as bytes
             key: S3 object key (path)
+            content_type: MIME type. Defaults to gzip, which is what the backup
+                flow (this method's original and only caller) always sends.
 
         Returns:
             dict: Upload result with 'success', 'key', 'size', optional 'error'
         """
-        settings = GlobalSettings.get_settings()
-
         try:
-            client = cls.get_client()
+            client = cls.get_client(connection)
             client.put_object(
-                Bucket=settings.s3_bucket_name,
+                Bucket=connection.bucket,
                 Key=key,
                 Body=file_bytes,
-                ContentType="application/gzip",
+                ContentType=content_type,
             )
 
             return {
@@ -350,33 +415,49 @@ class S3Service:
             }
 
     @classmethod
-    def list_files(cls, prefix: str = "") -> list[dict]:
+    def get_file(cls, connection, key: str) -> Optional[bytes]:
         """
-        List files in S3 bucket with optional prefix.
-
-        Args:
-            prefix: Key prefix to filter results
+        Fetch an object's bytes.
 
         Returns:
-            list: List of dicts with 'key', 'size', 'last_modified'
+            bytes, or None when the key is missing / unreadable.
         """
-        settings = GlobalSettings.get_settings()
-
         try:
-            client = cls.get_client()
+            client = cls.get_client(connection)
+            response = client.get_object(Bucket=connection.bucket, Key=key)
+            return response["Body"].read()
+        except S3ServiceError as e:
+            logger.error(f"S3 get failed for key {key}: {e}")
+            return None
+        except Exception:
+            # A miss is ordinary control flow for callers (exists-check, cache
+            # lookup), so this stays quiet at info level rather than exception.
+            logger.info("S3 get failed for key %s", key)
+            return None
+
+    @classmethod
+    def list_files(cls, connection, prefix: str = "") -> list[dict]:
+        """
+        List objects under ``prefix``.
+
+        Returns:
+            list: List of dicts with 'key', 'size', 'last_modified', 'etag'
+        """
+        try:
+            client = cls.get_client(connection)
             # Paginate so a bucket with >1000 objects (retention=0 + years of
             # backups) isn't silently truncated at the list_objects_v2 cap.
             paginator = client.get_paginator("list_objects_v2")
 
             files = []
-            for page in paginator.paginate(
-                Bucket=settings.s3_bucket_name, Prefix=prefix
-            ):
+            for page in paginator.paginate(Bucket=connection.bucket, Prefix=prefix):
                 for obj in page.get("Contents", []):
                     files.append({
                         "key": obj["Key"],
                         "size": obj["Size"],
                         "last_modified": obj["LastModified"],
+                        # Quoted by S3; strip so callers can compare it to an md5.
+                        "etag": (obj.get("ETag") or "").strip('"'),
                     })
 
             return files
@@ -388,22 +469,17 @@ class S3Service:
             return []
 
     @classmethod
-    def delete_file(cls, key: str) -> bool:
+    def delete_file(cls, connection, key: str) -> bool:
         """
-        Delete a file from S3.
-
-        Args:
-            key: S3 object key to delete
+        Delete an object.
 
         Returns:
             bool: True if deleted successfully
         """
-        settings = GlobalSettings.get_settings()
-
         try:
-            client = cls.get_client()
+            client = cls.get_client(connection)
             client.delete_object(
-                Bucket=settings.s3_bucket_name,
+                Bucket=connection.bucket,
                 Key=key,
             )
             return True
@@ -412,33 +488,85 @@ class S3Service:
             return False
 
     @classmethod
-    def delete_files(cls, keys: list[str]) -> int:
+    def delete_files(cls, connection, keys: list[str]) -> int:
         """
-        Delete multiple files from S3.
-
-        Args:
-            keys: List of S3 object keys to delete
+        Delete multiple objects.
 
         Returns:
-            int: Number of files deleted
+            int: Number of objects deleted
         """
-        settings = GlobalSettings.get_settings()
-
         if not keys:
             return 0
 
         try:
-            client = cls.get_client()
-            response = client.delete_objects(
-                Bucket=settings.s3_bucket_name,
-                Delete={
-                    "Objects": [{"Key": key} for key in keys],
-                },
-            )
-            return len(response.get("Deleted", []))
+            client = cls.get_client(connection)
+            deleted = 0
+            # delete_objects caps at 1000 keys per call — chunk so a big prefix
+            # doesn't fail (or worse, silently delete only the first 1000).
+            for i in range(0, len(keys), _DELETE_CHUNK):
+                chunk = keys[i:i + _DELETE_CHUNK]
+                response = client.delete_objects(
+                    Bucket=connection.bucket,
+                    Delete={
+                        "Objects": [{"Key": key} for key in chunk],
+                    },
+                )
+                deleted += len(response.get("Deleted", []))
+            return deleted
         except Exception as e:
             logger.exception("S3 bulk delete failed")
             return 0
+
+    @classmethod
+    def delete_prefix(cls, connection, prefix: str) -> int:
+        """
+        Delete every object under ``prefix``.
+
+        Guards against an empty prefix: that would mean "delete the whole bucket",
+        which no caller ever legitimately wants here.
+
+        Returns:
+            int: Number of objects deleted
+        """
+        if not prefix:
+            logger.warning("delete_prefix called with an empty prefix — refusing")
+            return 0
+
+        files = cls.list_files(connection, prefix)
+        if not files:
+            return 0
+
+        return cls.delete_files(connection, [f["key"] for f in files])
+
+    @classmethod
+    def presigned_url(
+        cls, connection, key: str, expires_in: int = DEFAULT_PRESIGN_SECONDS
+    ) -> Optional[str]:
+        """
+        Build a temporary signed GET URL for a private object.
+
+        ``expires_in`` is clamped to [1, MAX_PRESIGN_SECONDS]; SigV4 will not sign
+        for longer than 7 days, and a silently-too-long request would just produce
+        a URL that never works.
+
+        Returns:
+            str, or None when the URL could not be signed.
+        """
+        expires_in = max(1, min(int(expires_in), MAX_PRESIGN_SECONDS))
+
+        try:
+            client = cls.get_client(connection)
+            return client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": connection.bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+        except S3ServiceError as e:
+            logger.error(f"S3 presign failed for key {key}: {e}")
+            return None
+        except Exception:
+            logger.exception(f"S3 presign failed for key {key}")
+            return None
 
     @classmethod
     def generate_backup_key(cls, timestamp=None) -> str:
@@ -452,6 +580,8 @@ class S3Service:
             str: S3 key like "pyrunner-backups/backup_20240315_143022.json.gz"
         """
         from django.utils import timezone
+
+        from core.models import GlobalSettings
 
         settings = GlobalSettings.get_settings()
 

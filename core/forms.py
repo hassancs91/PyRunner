@@ -7,7 +7,7 @@ from zoneinfo import available_timezones
 from django import forms
 from django.utils.text import slugify
 
-from core.models import Script, Environment, ScriptSchedule, Tag, DataStore, DataStoreEntry, DataStoreAPIToken, Database, Secret, SecretProvider
+from core.models import Script, Environment, ScriptSchedule, Tag, DataStore, DataStoreEntry, APIToken, Database, Library, Secret, SecretProvider
 from core.services import EnvironmentService
 
 
@@ -1318,7 +1318,7 @@ class WorkerSettingsForm(forms.Form):
             }
         ),
         label="Retry Delay (seconds)",
-        help_text="Time before retrying a failed/timed-out task. Should be greater than timeout.",
+        help_text="Time before a task is re-delivered to another worker. Should be greater than timeout. At worker start the effective value is automatically raised above the largest script timeout so long runs are never re-delivered mid-run.",
     )
 
     q_queue_limit = forms.IntegerField(
@@ -1797,17 +1797,31 @@ class DataStoreEntryForm(forms.Form):
 # =============================================================================
 
 
-class DataStoreAPITokenForm(forms.ModelForm):
-    """Form for creating API tokens."""
+class APITokenForm(forms.ModelForm):
+    """Form for creating API tokens (datastore, all-datastores, or plugin scope)."""
+
+    # Plugin choices are the plugins loaded RIGHT NOW (validated at creation
+    # time only — plugin_slug is not an FK; see the model).
+    plugin_slug = forms.ChoiceField(
+        required=False,
+        label="Plugin",
+        help_text="The plugin whose API this token can call",
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+    )
 
     class Meta:
-        model = DataStoreAPIToken
-        fields = ["name", "datastore", "expires_at"]
+        model = APIToken
+        fields = ["name", "scope", "datastore", "plugin_slug", "expires_at"]
         widgets = {
             "name": forms.TextInput(
                 attrs={
                     "class": INPUT_CLASS,
                     "placeholder": "My Dashboard Token",
+                }
+            ),
+            "scope": forms.Select(
+                attrs={
+                    "class": INPUT_CLASS,
                 }
             ),
             "datastore": forms.Select(
@@ -1825,12 +1839,14 @@ class DataStoreAPITokenForm(forms.ModelForm):
         }
         labels = {
             "name": "Token Name",
-            "datastore": "Scope",
+            "scope": "Scope",
+            "datastore": "Datastore",
             "expires_at": "Expires At",
         }
         help_texts = {
             "name": "A friendly name to identify this token",
-            "datastore": "Leave empty for access to all datastores, or select a specific datastore",
+            "scope": "What this token grants access to",
+            "datastore": "Required for single-datastore scope",
             "expires_at": "Optional. Leave empty for no expiration.",
         }
 
@@ -1838,7 +1854,7 @@ class DataStoreAPITokenForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Make datastore optional with a clear empty choice
         self.fields["datastore"].required = False
-        self.fields["datastore"].empty_label = "All Datastores (Global Access)"
+        self.fields["datastore"].empty_label = "Select a datastore…"
         self.fields["expires_at"].required = False
         # Scope the datastore choices to the active workspace (tenancy Stage 3),
         # so a token can't be bound to another workspace's datastore.
@@ -1846,6 +1862,32 @@ class DataStoreAPITokenForm(forms.ModelForm):
             self.fields["datastore"].queryset = DataStore.objects.for_workspace(
                 workspace
             )
+        # Offer only currently-loaded plugins for plugin scope. Lazy import:
+        # forms.py must stay importable without the plugin registry populated.
+        from core.plugins import all_plugins
+
+        self.fields["plugin_slug"].choices = [("", "Select a plugin…")] + [
+            (p.slug, f"{p.name} ({p.slug})") for p in sorted(all_plugins(), key=lambda p: p.slug)
+        ]
+
+    def clean(self):
+        cleaned = super().clean()
+        scope = cleaned.get("scope")
+        if scope == APIToken.Scope.DATASTORE and not cleaned.get("datastore"):
+            self.add_error("datastore", "Select the datastore this token is scoped to.")
+        if scope == APIToken.Scope.PLUGIN and not cleaned.get("plugin_slug"):
+            self.add_error("plugin_slug", "Select the plugin this token is scoped to.")
+        # Blank out the fields the chosen scope doesn't use (matches the model's
+        # CheckConstraints — a stray selection must not survive a scope switch).
+        if scope != APIToken.Scope.DATASTORE:
+            cleaned["datastore"] = None
+        if scope != APIToken.Scope.PLUGIN:
+            cleaned["plugin_slug"] = ""
+        return cleaned
+
+
+# Historical name — kept importable alongside the model alias.
+DataStoreAPITokenForm = APITokenForm
 
 
 # =============================================================================
@@ -1997,55 +2039,57 @@ class AdminSetupForm(forms.Form):
 # =============================================================================
 
 
-class S3SettingsForm(forms.Form):
-    """Form for S3 storage configuration."""
+class StorageConnectionForm(forms.Form):
+    """Create/edit one StorageConnection (credentials stored encrypted).
 
-    s3_enabled = forms.BooleanField(
-        required=False,
-        initial=False,
-        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
-        label="Enable S3 Storage",
+    Twin of ``AIProviderForm``: many credentialed rows, one selected per role
+    (``is_default`` for backups, ``GlobalSettings.assets_storage`` for plugins).
+    """
+
+    from core.models import StorageConnection as _SC
+
+    provider_type = forms.ChoiceField(
+        choices=_SC.ProviderType.choices,
+        initial=_SC.ProviderType.R2,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Provider",
     )
 
-    s3_endpoint_url = forms.CharField(
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "e.g. Backups (R2)"}
+        ),
+        label="Name",
+    )
+
+    endpoint_url = forms.CharField(
         required=False,
         max_length=500,
         widget=forms.TextInput(
-            attrs={
-                "class": INPUT_CLASS,
-                "placeholder": "https://s3.amazonaws.com or https://minio.example.com:9000",
-            }
+            attrs={"class": INPUT_CLASS, "placeholder": "https://…"}
         ),
         label="Endpoint URL",
-        help_text="Leave empty for AWS S3. Required for MinIO, DigitalOcean Spaces, etc.",
+        help_text="Leave empty for AWS S3. Required for R2, MinIO, Spaces, B2, etc.",
     )
 
-    s3_region = forms.CharField(
+    region = forms.CharField(
         required=False,
         max_length=50,
         initial="us-east-1",
-        widget=forms.TextInput(
-            attrs={
-                "class": INPUT_CLASS,
-                "placeholder": "us-east-1",
-            }
-        ),
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "us-east-1"}),
         label="Region",
     )
 
-    s3_bucket_name = forms.CharField(
-        required=False,
+    bucket = forms.CharField(
         max_length=255,
         widget=forms.TextInput(
-            attrs={
-                "class": INPUT_CLASS,
-                "placeholder": "my-backup-bucket",
-            }
+            attrs={"class": INPUT_CLASS, "placeholder": "my-bucket"}
         ),
-        label="Bucket Name",
+        label="Bucket",
     )
 
-    s3_access_key = forms.CharField(
+    access_key = forms.CharField(
         required=False,
         widget=forms.PasswordInput(
             attrs={
@@ -2057,7 +2101,7 @@ class S3SettingsForm(forms.Form):
         label="Access Key",
     )
 
-    s3_secret_key = forms.CharField(
+    secret_key = forms.CharField(
         required=False,
         widget=forms.PasswordInput(
             attrs={
@@ -2069,7 +2113,18 @@ class S3SettingsForm(forms.Form):
         label="Secret Key",
     )
 
-    s3_use_ssl = forms.BooleanField(
+    public_base_url = forms.CharField(
+        required=False,
+        max_length=500,
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "https://assets.example.com"}
+        ),
+        label="Public base URL",
+        help_text="Set this to serve objects at permanent, hot-linkable URLs. Blank = "
+        "objects are served via presigned URLs, which EXPIRE (default 1 hour).",
+    )
+
+    use_ssl = forms.BooleanField(
         required=False,
         initial=True,
         widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
@@ -2077,7 +2132,7 @@ class S3SettingsForm(forms.Form):
         help_text="Recommended for security. Disable only for local development.",
     )
 
-    s3_path_style = forms.BooleanField(
+    path_style = forms.BooleanField(
         required=False,
         initial=False,
         widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
@@ -2085,39 +2140,163 @@ class S3SettingsForm(forms.Form):
         help_text="Required for MinIO and some S3-compatible providers.",
     )
 
-    def __init__(self, *args, instance=None, **kwargs):
-        """Initialize form with existing settings."""
-        super().__init__(*args, **kwargs)
-        if instance:
-            self.fields["s3_enabled"].initial = instance.s3_enabled
-            self.fields["s3_endpoint_url"].initial = instance.s3_endpoint_url
-            self.fields["s3_region"].initial = instance.s3_region or "us-east-1"
-            self.fields["s3_bucket_name"].initial = instance.s3_bucket_name
-            self.fields["s3_use_ssl"].initial = instance.s3_use_ssl
-            self.fields["s3_path_style"].initial = instance.s3_path_style
+    is_default = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Use for backups",
+        help_text="Scheduled and manual backups upload through this connection.",
+    )
 
-    def save(self, instance):
-        """Save the S3 settings to the GlobalSettings instance."""
+    enabled = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Enabled",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance = instance
+        if instance:
+            self.fields["provider_type"].initial = instance.provider_type
+            self.fields["name"].initial = instance.name
+            self.fields["endpoint_url"].initial = instance.endpoint_url
+            self.fields["region"].initial = instance.region or "us-east-1"
+            self.fields["bucket"].initial = instance.bucket
+            self.fields["public_base_url"].initial = instance.public_base_url
+            self.fields["use_ssl"].initial = instance.use_ssl
+            self.fields["path_style"].initial = instance.path_style
+            self.fields["is_default"].initial = instance.is_default
+            self.fields["enabled"].initial = instance.enabled
+
+    def clean_name(self):
+        from core.models import StorageConnection
+
+        name = self.cleaned_data["name"].strip()
+        qs = StorageConnection.objects.filter(name__iexact=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A connection with this name already exists.")
+        return name
+
+    def clean_public_base_url(self):
+        url = (self.cleaned_data.get("public_base_url") or "").strip().rstrip("/")
+        if url and not url.startswith(("http://", "https://")):
+            raise forms.ValidationError("Must start with http:// or https://")
+        return url
+
+    def clean(self):
+        from core.models import STORAGE_PRESETS, StorageConnection
+        from core.services.s3_service import is_safe_endpoint_url
+
+        cleaned = super().clean()
+        ptype = cleaned.get("provider_type")
+        if not ptype:
+            return cleaned
+        preset = STORAGE_PRESETS.get(ptype, {})
+
+        # Endpoint: AWS derives its own from the region; everything else needs one.
+        endpoint = (cleaned.get("endpoint_url") or "").strip()
+        if ptype == StorageConnection.ProviderType.S3:
+            endpoint = ""
+        elif not endpoint:
+            self.add_error("endpoint_url", "An endpoint URL is required for this provider.")
+        if endpoint:
+            # Validate here as well as in get_client so a bad endpoint is a form
+            # error at save time, not a mystery failure on the next backup run.
+            is_safe, error_msg = is_safe_endpoint_url(endpoint)
+            if not is_safe:
+                self.add_error("endpoint_url", error_msg)
+        cleaned["endpoint_url"] = endpoint
+
+        if not cleaned.get("region"):
+            cleaned["region"] = preset.get("region_default", "us-east-1")
+
+        # Credentials: required on create; blank on edit keeps the stored ones.
+        has_saved = bool(
+            self.instance
+            and self.instance.access_key_encrypted
+            and self.instance.secret_key_encrypted
+        )
+        if not has_saved:
+            if not cleaned.get("access_key"):
+                self.add_error("access_key", "An access key is required.")
+            if not cleaned.get("secret_key"):
+                self.add_error("secret_key", "A secret key is required.")
+
+        return cleaned
+
+    def save(self):
+        """Create or update the StorageConnection row."""
+        from core.models import StorageConnection
         from core.services.encryption_service import EncryptionService
 
-        instance.s3_enabled = self.cleaned_data.get("s3_enabled", False)
-        instance.s3_endpoint_url = self.cleaned_data.get("s3_endpoint_url") or ""
-        instance.s3_region = self.cleaned_data.get("s3_region") or "us-east-1"
-        instance.s3_bucket_name = self.cleaned_data.get("s3_bucket_name") or ""
-        instance.s3_use_ssl = self.cleaned_data.get("s3_use_ssl", True)
-        instance.s3_path_style = self.cleaned_data.get("s3_path_style", False)
+        connection = self.instance or StorageConnection()
+        connection.provider_type = self.cleaned_data["provider_type"]
+        connection.name = self.cleaned_data["name"]
+        connection.endpoint_url = self.cleaned_data.get("endpoint_url") or ""
+        connection.region = self.cleaned_data.get("region") or "us-east-1"
+        connection.bucket = self.cleaned_data["bucket"]
+        connection.public_base_url = self.cleaned_data.get("public_base_url") or ""
+        connection.use_ssl = self.cleaned_data.get("use_ssl", True)
+        connection.path_style = self.cleaned_data.get("path_style", False)
+        connection.is_default = self.cleaned_data.get("is_default", False)
+        connection.enabled = self.cleaned_data.get("enabled", True)
 
-        # Encrypt and save access key if provided
-        access_key = self.cleaned_data.get("s3_access_key")
+        # Only overwrite credentials when new values are provided.
+        access_key = self.cleaned_data.get("access_key")
         if access_key:
-            instance.s3_access_key_encrypted = EncryptionService.encrypt(access_key)
-
-        # Encrypt and save secret key if provided
-        secret_key = self.cleaned_data.get("s3_secret_key")
+            connection.access_key_encrypted = EncryptionService.encrypt(access_key)
+        secret_key = self.cleaned_data.get("secret_key")
         if secret_key:
-            instance.s3_secret_key_encrypted = EncryptionService.encrypt(secret_key)
+            connection.secret_key_encrypted = EncryptionService.encrypt(secret_key)
 
-        instance.save()
+        # StorageConnection.save() enforces the single-default invariant.
+        connection.save()
+        return connection
+
+
+class AssetsStorageForm(forms.Form):
+    """Pick which connection the plugin storage seam (StorageAPI) uses.
+
+    Separate from the backup default on purpose: blank here means the seam is
+    unavailable, and there is deliberately no fallback to the backup connection.
+    """
+
+    assets_storage = forms.ModelChoiceField(
+        required=False,
+        queryset=None,  # set in __init__ (avoids import-time DB access)
+        empty_label="Not configured — storage seam unavailable",
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Assets connection",
+        help_text="Plugins read and write here through StorageAPI, each confined to "
+        "its own apps/<plugin>/ prefix.",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        from django.db.models import Q
+        from core.models import StorageConnection
+
+        super().__init__(*args, **kwargs)
+
+        # Enabled rows, PLUS whatever is currently selected even if it has since
+        # been disabled. Without the second half, disabling the assets connection
+        # drops it out of the queryset, so the card renders as "not configured"
+        # and the next save of this form silently clears the selection — losing
+        # the choice rather than just its availability (and re-submitting the
+        # disabled id would fail with an opaque "not a valid choice").
+        selected_id = instance.assets_storage_id if instance else None
+        self.fields["assets_storage"].queryset = StorageConnection.objects.filter(
+            Q(enabled=True) | Q(pk=selected_id)
+        ).order_by("name")
+        if instance:
+            self.fields["assets_storage"].initial = selected_id
+
+    def save(self, instance):
+        instance.assets_storage = self.cleaned_data.get("assets_storage")
+        instance.save(update_fields=["assets_storage"])
         return instance
 
 
@@ -2687,7 +2866,7 @@ class S3BackupScheduleForm(forms.Form):
 class ChannelForm(forms.Form):
     """Create / edit a chat Channel (Channels subsystem; Phase 1 = Telegram).
 
-    A plain Form (like S3SettingsForm) because credentials are encrypted +
+    A plain Form (like StorageConnectionForm) because credentials are encrypted +
     fingerprinted on save. Provider choices are limited to *registered* providers,
     so the picker grows automatically as providers are added.
     """
@@ -2934,3 +3113,71 @@ class PyAISettingsForm(forms.Form):
         instance.pyai_system_prompt = self.cleaned_data.get("pyai_system_prompt") or ""
         instance.save(update_fields=["pyai_enabled", "pyai_model", "pyai_system_prompt", "updated_at"])
         return instance
+
+
+class LibraryForm(forms.ModelForm):
+    """Create/edit a Library's metadata (its CODE lives in revisions, not here).
+
+    The ``key`` stays editable after creation, matching DataStore's name: both are
+    identifiers scripts reference. The help text carries the warning, because
+    renaming a key breaks every `from <key> import ...` already written.
+    """
+
+    def __init__(self, *args, workspace=None, **kwargs):
+        # The active workspace scopes the key-uniqueness check (keys are unique
+        # per workspace, not globally).
+        self._workspace = workspace
+        super().__init__(*args, **kwargs)
+
+    class Meta:
+        model = Library
+        fields = ["key", "name", "description"]
+        widgets = {
+            "key": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS + " font-mono",
+                    "placeholder": "my_helpers",
+                }
+            ),
+            "name": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "placeholder": "My shared helpers",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "rows": 2,
+                    "placeholder": "What does this library provide?",
+                }
+            ),
+        }
+        labels = {
+            "key": "Import name",
+            "name": "Display name",
+            "description": "Description",
+        }
+        help_texts = {
+            "key": "Scripts import it as: from <key>.module import thing. "
+            "Changing this breaks imports in scripts already using it.",
+        }
+
+    def clean_key(self):
+        from core.models.library import validate_library_key
+
+        key = self.cleaned_data.get("key", "").strip()
+        # The shared validator the SDK also calls — identifier rules plus the
+        # pyrunner*/stdlib reserved bans, so form and SDK can never disagree.
+        validate_library_key(key)
+
+        qs = Library.objects.filter(key__iexact=key)
+        if self._workspace is not None:
+            qs = qs.filter(workspace=self._workspace)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(
+                "A library with this import name already exists in this workspace."
+            )
+        return key

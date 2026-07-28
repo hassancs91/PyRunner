@@ -179,47 +179,19 @@ class GlobalSettings(models.Model):
         "reasons; not consulted by any live registration path.",
     )
 
-    # S3 Storage Configuration
-    s3_enabled = models.BooleanField(
-        default=False,
-        help_text="Enable S3-compatible storage for backups",
-    )
-    s3_endpoint_url = models.CharField(
-        max_length=500,
-        blank=True,
-        help_text="S3 endpoint URL (leave empty for AWS S3)",
-    )
-    s3_region = models.CharField(
-        max_length=50,
-        blank=True,
-        default="us-east-1",
-        help_text="S3 region",
-    )
-    s3_bucket_name = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text="S3 bucket name",
-    )
-    s3_access_key_encrypted = models.TextField(
-        blank=True,
-        help_text="S3 access key (encrypted)",
-    )
-    s3_secret_key_encrypted = models.TextField(
-        blank=True,
-        help_text="S3 secret key (encrypted)",
-    )
-    s3_use_ssl = models.BooleanField(
-        default=True,
-        help_text="Use SSL/TLS for S3 connections",
-    )
-    s3_path_style = models.BooleanField(
-        default=False,
-        help_text="Use path-style addressing (required for MinIO)",
-    )
-    s3_last_tested_at = models.DateTimeField(
+    # Object storage — endpoint/credential/bucket config lives in StorageConnection
+    # rows (an instance can hold several). Backups use the row flagged `is_default`;
+    # plugin assets use the FK below. The historical single `s3_*` connection block
+    # data-migrated into one default row in 0053_storage_connections.
+    assets_storage = models.ForeignKey(
+        "core.StorageConnection",
         null=True,
         blank=True,
-        help_text="When S3 connection was last successfully tested",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Connection plugins read and write through StorageAPI. Blank = the "
+        "storage seam is unavailable (fails closed). Deliberately does NOT fall back "
+        "to the backup default — that would put plugin objects in the backup bucket.",
     )
 
     # S3 Scheduled Backup Configuration

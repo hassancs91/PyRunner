@@ -1148,7 +1148,11 @@ class BackupRoundTripTests(_Base):
 
     def test_export_carries_providers_and_secret_fields(self):
         data = self.backup.create_backup(include_runs=False)
-        self.assertEqual(data["backup_metadata"]["version"], "1.6.0")
+        # Secret providers joined the format at 1.6.0 — assert that FLOOR, not the
+        # exact current version: this test's subject is the provider payload, and
+        # a later additive bump shouldn't break it.
+        version = tuple(int(p) for p in data["backup_metadata"]["version"].split("."))
+        self.assertGreaterEqual(version, (1, 6, 0))
 
         self.assertEqual(len(data["secret_providers"]), 1)
         prov = data["secret_providers"][0]

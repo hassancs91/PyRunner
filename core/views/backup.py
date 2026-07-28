@@ -287,18 +287,16 @@ def backup_run_now_view(request):
     """
     from django_q.tasks import async_task
     from core.services.s3_service import S3Service
-    from core.models import GlobalSettings
 
-    settings = GlobalSettings.get_settings()
-
-    # Validate S3 is configured
-    if not settings.s3_enabled:
+    # Validate the backup storage connection is configured and switched on.
+    connection = S3Service.for_backup()
+    if connection is None or not connection.enabled:
         return JsonResponse({
             "success": False,
             "error": "S3 storage is not enabled",
         })
 
-    if not S3Service.is_configured():
+    if not S3Service.is_configured(connection):
         return JsonResponse({
             "success": False,
             "error": "S3 is not properly configured",

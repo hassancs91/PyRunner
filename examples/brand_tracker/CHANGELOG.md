@@ -3,6 +3,26 @@
 All notable changes to the Brand Tracker plugin are documented here. This
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-07-15
+
+External read-only API via PyRunner's plugin API seam (SDK 2.3, PyRunner ≥ 1.16).
+
+### Added
+- **External API** at `/api/v1/plugins/brand_tracker/…` (plugin-scoped API
+  token required; create one under Settings → API Tokens):
+  - `mentions/` — the deduped mention feed, filterable by
+    `keyword` / `source` / `sentiment` / `since` and paginated
+    (`page` / `page_size`, max 100).
+  - `stats/` — window/all-time totals, per-keyword and per-source counters,
+    and the recent run history.
+- Manifest now declares the resources under `provides.api_resources`
+  (`api: "2.3"`, `min_pyrunner: "1.16.0"`).
+- **Shareable public report** — a "Share report" button on the dashboard
+  publishes a read-only, script-free mentions report at a private
+  `/p/<token>/` capability URL (no login). Revoking kills the link
+  permanently; re-sharing issues a new URL. Manage links under
+  Settings → API Tokens.
+
 ## [1.0.0] - 2026-06-28
 
 First release — a self-provisioning PyRunner plugin (SDK / `core.plugins.api`).

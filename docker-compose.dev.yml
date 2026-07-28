@@ -1,0 +1,49 @@
+# Plugin-dev override for the Postgres stack. Same services, same volumes, same
+# data — only the app container changes shape: DEBUG on, gunicorn replaced by
+# `manage.py runserver` (whose reloader child sets RUN_MAIN, the third dev-mode
+# guard), and the repo's plugin folder bind-mounted so edits reload live.
+#
+#   docker compose -f docker-compose.postgres.yml -f docker-compose.dev.yml up
+#
+# Back to the normal stack:
+#
+#   docker compose -f docker-compose.postgres.yml up -d
+#
+# Add --build to either command after changing core code — core runs from the
+# image; only the dev plugin folder is live-mounted.
+#
+# The plugin under development is picked by slug: set DEV_PLUGIN in .env (or
+# the shell) to the folder name under ./plugins/ — the folder name IS the slug.
+# For a public example plugin, also set DEV_PLUGIN_DIR=./examples.
+# If the same slug is installed AND ACTIVE on this instance, deactivate it
+# first — dev mode won't shadow an active installed plugin.
+
+services:
+  pyrunner:
+    environment:
+      - DEBUG=True
+      - SESSION_COOKIE_SECURE=False
+      - CSRF_COOKIE_SECURE=False
+      - PYRUNNER_PLUGIN_DEV=/app/plugins_dev/${DEV_PLUGIN:-gmail_agent}
+    volumes:
+      # Merged with the base file's named volumes (data + installed plugins).
+      # Mounted OUTSIDE /app/plugins so it can't collide with the installed-
+      # plugins volume.
+      - ${DEV_PLUGIN_DIR:-./plugins}/${DEV_PLUGIN:-gmail_agent}:/app/plugins_dev/${DEV_PLUGIN:-gmail_agent}
+    # Replaces /entrypoint.sh (which validates keys, preflights plugins, and
+    # execs gunicorn). Keys come from .env; preflight is skipped in dev mode by
+    # the real entrypoint too. The worker loop mirrors entrypoint.sh: pidfile +
+    # respawn, so Settings -> "Restart workers" still works.
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        PYRUNNER_DISABLE_PLUGINS=1 python manage.py setup
+        (while true; do
+           python manage.py pyrunner_qcluster & echo $! > /tmp/qcluster.pid
+           wait $! || true
+           echo "[dev] worker exited, restarting in 2s..."
+           sleep 2
+         done) &
+        exec python manage.py runserver 0.0.0.0:8000

@@ -126,6 +126,7 @@ def _render(request, form):
         "has_environments": bool(prov.list_environments()),
         "schedule": prov.schedule_summary(),
         "is_active": prov.live_status()["active"],
+        "report_share": prov.report_share(),
     }
     ctx.update(_dashboard_context())
     return render(request, "brand_tracker/index.html", ctx)
@@ -188,3 +189,27 @@ def stop(request):
 def test_serper(request):
     """Probe the Serper connection with the submitted (or saved) key."""
     return JsonResponse(prov.test_serper(request.POST))
+
+
+@superuser_required
+@require_POST
+def share_report(request):
+    """Create (or re-surface) the public report link."""
+    url_path = prov.share_report(created_by=request.user)
+    messages.success(
+        request,
+        f"Public report is live at {url_path} — anyone with the link can view it. "
+        "Manage it under Settings → API Tokens.",
+    )
+    return redirect(reverse("brand_tracker:index") + "#mentions")
+
+
+@superuser_required
+@require_POST
+def revoke_report(request):
+    """Kill the public report link (permanent; re-sharing issues a new URL)."""
+    if prov.revoke_report():
+        messages.info(request, "Public report link revoked — that URL is permanently dead.")
+    else:
+        messages.error(request, "There is no public report link to revoke.")
+    return redirect(reverse("brand_tracker:index") + "#mentions")

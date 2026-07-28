@@ -34,6 +34,14 @@
             <span>Scripts</span>
         </a>
 
+        <!-- Libraries (shared code attached to scripts; lives next to Scripts) -->
+        <a href="{% url 'cpanel:library_list' %}"
+           class="relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors {% if 'library' in request.resolver_match.url_name %}font-medium text-ok bg-ok/10{% else %}text-muted hover:text-text hover:bg-panel-hi{% endif %}">
+            {% if 'library' in request.resolver_match.url_name %}<span class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-ok"></span>{% endif %}
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            <span>Libraries</span>
+        </a>
+
         <!-- Runs -->
         <a href="{% url 'cpanel:run_list' %}"
            class="relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors {% if 'run' in request.resolver_match.url_name %}font-medium text-ok bg-ok/10{% else %}text-muted hover:text-text hover:bg-panel-hi{% endif %}">

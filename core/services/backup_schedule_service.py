@@ -58,7 +58,8 @@ class BackupScheduleService:
             logger.info("Scheduled backup set to disabled")
             return False
 
-        if not settings.s3_enabled or not S3Service.is_configured():
+        connection = S3Service.for_backup()
+        if connection is None or not connection.enabled or not S3Service.is_configured(connection):
             logger.warning("S3 backup enabled but S3 not properly configured")
             return False
 
@@ -157,6 +158,7 @@ class BackupScheduleService:
 
         settings = GlobalSettings.get_settings()
         schedule = QSchedule.objects.filter(name=BACKUP_SCHEDULE_NAME).first()
+        connection = S3Service.for_backup()
 
         return {
             "enabled": settings.s3_backup_enabled,
@@ -173,8 +175,9 @@ class BackupScheduleService:
             "retention_count": settings.s3_backup_retention_count,
             "include_runs": settings.s3_backup_include_runs,
             "include_datastores": settings.s3_backup_include_datastores,
-            "s3_configured": S3Service.is_configured(),
-            "s3_enabled": settings.s3_enabled,
+            "s3_configured": S3Service.is_configured(connection),
+            "s3_enabled": bool(connection and connection.enabled),
+            "connection_name": connection.name if connection else None,
         }
 
     @classmethod
@@ -199,9 +202,13 @@ class BackupScheduleService:
         if settings.s3_backup_retention_count == 0:
             return 0  # Keep all
 
+        connection = S3Service.for_backup()
+        if connection is None:
+            return 0
+
         # List existing backups
         prefix = settings.s3_backup_prefix.rstrip("/")
-        files = S3Service.list_files(prefix)
+        files = S3Service.list_files(connection, prefix)
 
         # Filter to only backup files (ending in .json.gz)
         backup_files = [f for f in files if f["key"].endswith(".json.gz")]
@@ -216,7 +223,7 @@ class BackupScheduleService:
             return 0
 
         keys_to_delete = [f["key"] for f in files_to_delete]
-        deleted = S3Service.delete_files(keys_to_delete)
+        deleted = S3Service.delete_files(connection, keys_to_delete)
 
         logger.info(f"Retention cleanup: deleted {deleted} old backups from S3")
         return deleted
@@ -233,11 +240,12 @@ class BackupScheduleService:
 
         settings = GlobalSettings.get_settings()
 
-        if not settings.s3_enabled or not S3Service.is_configured():
+        connection = S3Service.for_backup()
+        if connection is None or not connection.enabled or not S3Service.is_configured(connection):
             return []
 
         prefix = settings.s3_backup_prefix.rstrip("/")
-        files = S3Service.list_files(prefix)
+        files = S3Service.list_files(connection, prefix)
 
         # Filter to only backup files and sort by date
         backup_files = [f for f in files if f["key"].endswith(".json.gz")]

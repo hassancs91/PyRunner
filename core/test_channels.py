@@ -267,6 +267,25 @@ class InternalSendEndpointTests(_EncBase):
         self.assertEqual(resp.status_code, 200)
         m.assert_called_once()
 
+    def test_email_html_passes_through(self):
+        # pyrunner_notify.email(html=...) → an HTML alternative on the core email;
+        # the plain text stays the fallback body.
+        with mock.patch.object(NotificationService, "send_email", return_value=True) as m:
+            resp = self._post(
+                {"target": "email", "text": "plain", "subject": "Hi", "html": "<b>rich</b>"}
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(m.call_args.kwargs.get("html"), "<b>rich</b>")
+
+    def test_email_without_html_passes_none(self):
+        with mock.patch.object(NotificationService, "send_email", return_value=True) as m:
+            self._post({"target": "email", "text": "plain"})
+        self.assertIsNone(m.call_args.kwargs.get("html"))
+
+    def test_email_html_must_be_a_string(self):
+        resp = self._post({"target": "email", "text": "plain", "html": {"not": "str"}})
+        self.assertEqual(resp.status_code, 400)
+
     def test_channel_send_logs_outbound_message(self):
         # Review 4b.1: a script handler's async reply (via this endpoint) must be
         # recorded as an OUT ChannelMessage — otherwise it's absent from history

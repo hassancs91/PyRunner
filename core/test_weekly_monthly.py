@@ -161,11 +161,17 @@ class BackupFidelityTests(TestCase):
         self.assertEqual(restored_tags, {("production", Tag.Color.BLUE)})
 
     def test_backup_version_is_current(self):
-        # 1.6.0 = External Secret Providers joined the format: a
-        # ``secret_providers`` array + source/provider_name/external_ref on
-        # secrets (1.5.0 added the Databases ``databases`` array before it).
+        # 1.7.0 = Script Libraries joined the format: a ``libraries`` array
+        # (head revision inlined), attachment ids on scripts, and
+        # ``library_versions`` on runs (1.6.0 added External Secret Providers,
+        # 1.5.0 the Databases array).
+        #
+        # This literal is the ONE deliberate tripwire for a format change:
+        # changing the backup format is a compatibility event, so it should cost
+        # a conscious edit here. Other suites assert their own feature's floor
+        # instead, so an additive bump doesn't break them too.
         backup = BackupService.create_backup(include_datastores=False)
-        self.assertEqual(backup["backup_metadata"]["version"], "1.6.0")
+        self.assertEqual(backup["backup_metadata"]["version"], "1.7.0")
 
 
 class ScheduleHistorySnapshotTests(TestCase):

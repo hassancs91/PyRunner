@@ -382,3 +382,300 @@ class ProvisionTests(TestCase):
         sched = prov.get_schedule()
         self.assertIsNotNone(sched)
         self.assertEqual(sched.run_mode, "weekly")
+
+
+# --------------------------------------------------------------------------- #
+# External API (SDK 2.3) — the mentions/stats handlers + the real dispatcher
+# route. THE plugin-api acceptance path: no core special-casing anywhere.
+# --------------------------------------------------------------------------- #
+
+_MENTIONS = [
+    {"keyword": "PyRunner", "title": "Old post", "url": "https://a.example/1",
+     "snippet": "s1", "source": "web", "source_type": "blog",
+     "sentiment": "neutral", "found_at": "2026-07-01T08:00:00"},
+    {"keyword": "SimplerLLM", "title": "HN thread", "url": "https://b.example/2",
+     "snippet": "s2", "source": "hackernews", "source_type": "forum",
+     "sentiment": "positive", "found_at": "2026-07-10T08:00:00"},
+    {"keyword": "PyRunner", "title": "Fresh review", "url": "https://c.example/3",
+     "snippet": "s3", "source": "news", "source_type": "news",
+     "sentiment": "positive", "found_at": "2026-07-14T08:00:00"},
+]
+
+_STATS = {
+    "last_run": "2026-07-14T09:00:00",
+    "window_total": 3,
+    "total_all_time": 41,
+    "by_keyword": {"PyRunner": 2, "SimplerLLM": 1},
+    "by_source": {"web": 1, "hackernews": 1, "news": 1},
+}
+
+
+def _seed_state(workspace):
+    from core.plugins.api import DataStoreAPI
+
+    store = DataStoreAPI(owner=prov.OWNER, workspace=workspace).upsert(prov.STORE_KEY)
+    store.set("mentions", _MENTIONS)  # worker order: newest LAST
+    store.set("stats", _STATS)
+    store.set("runs", [{"ts": "2026-07-14 09:00", "new_count": 2, "status": "success"}])
+    return store
+
+
+def _api_request(workspace, resource_name, params=None):
+    from core.plugins.api import APIRequest
+
+    return APIRequest(
+        workspace=workspace, resource=resource_name, item_id=None,
+        method="GET", params=params or {}, params_list={},
+    )
+
+
+class ApiHandlerTests(TestCase):
+    """Unit level — the handlers against a seeded owned store."""
+
+    def setUp(self):
+        from core.models import Workspace
+
+        self.ws = Workspace.get_default()
+        _seed_state(self.ws)
+
+    def test_mentions_newest_first_and_shape(self):
+        from . import api
+
+        body = api.mentions(_api_request(self.ws, "mentions"))
+        self.assertEqual(body["count"], 3)
+        self.assertEqual(body["mentions"][0]["title"], "Fresh review")
+        self.assertEqual(
+            set(body["mentions"][0]),
+            {"keyword", "title", "url", "snippet", "source", "source_type",
+             "sentiment", "found_at"},
+        )
+
+    def test_mentions_filters(self):
+        from . import api
+
+        by_kw = api.mentions(_api_request(self.ws, "mentions", {"keyword": "PyRunner"}))
+        self.assertEqual(by_kw["count"], 2)
+        by_src = api.mentions(_api_request(self.ws, "mentions", {"source": "news"}))
+        self.assertEqual(by_src["count"], 1)
+        by_sent = api.mentions(
+            _api_request(self.ws, "mentions", {"sentiment": "positive"})
+        )
+        self.assertEqual(by_sent["count"], 2)
+        since = api.mentions(_api_request(self.ws, "mentions", {"since": "2026-07-10"}))
+        self.assertEqual(since["count"], 2)
+
+    def test_mentions_pagination(self):
+        from . import api
+
+        body = api.mentions(
+            _api_request(self.ws, "mentions", {"page": "2", "page_size": "1"})
+        )
+        self.assertEqual(body["count"], 3)
+        self.assertEqual(body["total_pages"], 3)
+        self.assertEqual(body["page"], 2)
+        self.assertEqual(body["mentions"][0]["title"], "HN thread")
+
+    def test_mentions_bad_page_param_is_clean_apierror(self):
+        from core.plugins.api import APIError
+
+        from . import api
+
+        with self.assertRaises(APIError) as ctx:
+            api.mentions(_api_request(self.ws, "mentions", {"page": "x"}))
+        self.assertEqual(ctx.exception.status, 400)
+
+    def test_unconfigured_workspace_raises_not_configured(self):
+        from core.models import Workspace
+        from core.plugins.api import APIError
+
+        from . import api
+
+        other = Workspace.objects.create(name="empty")
+        with self.assertRaises(APIError) as ctx:
+            api.mentions(_api_request(other, "mentions"))
+        self.assertEqual(ctx.exception.status, 409)
+        self.assertEqual(ctx.exception.code, "NOT_CONFIGURED")
+
+    def test_stats_counters(self):
+        from . import api
+
+        body = api.stats(_api_request(self.ws, "stats"))
+        self.assertEqual(body["total_all_time"], 41)
+        self.assertEqual(body["by_keyword"], {"PyRunner": 2, "SimplerLLM": 1})
+        self.assertEqual(len(body["runs"]), 1)
+
+
+class ApiDispatchTests(TestCase):
+    """End-to-end — the real /api/v1/plugins/brand_tracker/ route, a real
+    plugin-scoped token, and workspace scoping through the dispatcher."""
+
+    def setUp(self):
+        from django.test import override_settings
+
+        from core.models import APIToken, Workspace
+
+        for target in (
+            "core.services.setup_service.SetupService.is_setup_needed",
+            "core.services.setup_service.SetupService.needs_admin_setup",
+        ):
+            p = mock.patch(target, return_value=False)
+            p.start()
+            self.addCleanup(p.stop)
+
+        override = override_settings(INSTALLED_PLUGINS=["plugins.brand_tracker"])
+        override.enable()
+        self.addCleanup(override.disable)
+        from core.views.api import plugins as plugin_views
+
+        self.addCleanup(plugin_views._manifest_cache.clear)
+        self.addCleanup(plugin_views._handlers_cache.clear)
+
+        self.ws = Workspace.get_default()
+        _seed_state(self.ws)
+        self.token = APIToken.objects.create(
+            name="bt", token=APIToken.generate_token(), scope="plugin",
+            plugin_slug="brand_tracker", workspace=self.ws,
+        )
+
+    def _get(self, url, token=None):
+        return self.client.get(
+            url, HTTP_AUTHORIZATION=f"Bearer {token or self.token.token}"
+        )
+
+    def test_mentions_feed_over_http(self):
+        resp = self._get(
+            "/api/v1/plugins/brand_tracker/mentions/?keyword=PyRunner&page_size=1"
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["count"], 2)
+        self.assertEqual(body["mentions"][0]["title"], "Fresh review")
+
+    def test_stats_over_http(self):
+        resp = self._get("/api/v1/plugins/brand_tracker/stats/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["total_all_time"], 41)
+
+    def test_workspace_isolation_through_token(self):
+        from core.models import APIToken, Workspace
+
+        other_ws = Workspace.objects.create(name="tenant-b")
+        other_token = APIToken.objects.create(
+            name="bt-b", token=APIToken.generate_token(), scope="plugin",
+            plugin_slug="brand_tracker", workspace=other_ws,
+        )
+        resp = self._get(
+            "/api/v1/plugins/brand_tracker/mentions/", token=other_token.token
+        )
+        # tenant-b has no brand_tracker store: 409, never the default
+        # workspace's feed.
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.json()["error"]["code"], "NOT_CONFIGURED")
+
+    def test_wrong_scope_token_rejected(self):
+        from core.models import APIToken
+
+        legacy = APIToken.objects.create(
+            name="legacy", token=APIToken.generate_token(), workspace=self.ws
+        )
+        resp = self._get("/api/v1/plugins/brand_tracker/mentions/", token=legacy.token)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_discovery_shows_brand_tracker(self):
+        resp = self._get("/api/v1/plugins/")
+        self.assertEqual(resp.status_code, 200)
+        plugin = resp.json()["plugins"][0]
+        self.assertEqual(plugin["slug"], "brand_tracker")
+        self.assertEqual(
+            {r["name"] for r in plugin["resources"]}, {"mentions", "stats"}
+        )
+
+
+class DoctorCleanTests(SimpleTestCase):
+    """The shipped folder must stay doctor-0-fail (ship gate in CLAUDE.md)."""
+
+    def test_doctor_zero_fail(self):
+        from pathlib import Path
+
+        from core.services.plugin_doctor import run_doctor
+
+        report = run_doctor(Path(__file__).resolve().parent)
+        self.assertTrue(report.ok, report.format())
+        self.assertEqual(report.fail_count, 0, report.format())
+
+
+# --------------------------------------------------------------------------- #
+# Public report page (Stage 5) — the @page handler + share/revoke flow.
+# --------------------------------------------------------------------------- #
+
+class PublicReportPageTests(TestCase):
+    def setUp(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        from django.test import override_settings
+
+        from core.models import Workspace
+
+        # In production the plugin is an installed app, so the app-directories
+        # template loader finds its templates; the test harness only splices
+        # the import path, so point the filesystem loader at them explicitly.
+        templates = [dict(cfg) for cfg in settings.TEMPLATES]
+        templates[0]["DIRS"] = list(templates[0].get("DIRS", [])) + [
+            Path(__file__).resolve().parent / "templates"
+        ]
+        override = override_settings(TEMPLATES=templates)
+        override.enable()
+        self.addCleanup(override.disable)
+
+        self.ws = Workspace.get_default()
+        _seed_state(self.ws)
+
+    def _page_request(self, workspace=None):
+        from core.plugins.api import PageRequest
+
+        return PageRequest(workspace=workspace or self.ws, page="report", params={})
+
+    def test_report_renders_escaped_feed(self):
+        from . import api
+
+        html = api.report(self._page_request())
+        self.assertIn("Fresh review", html)
+        self.assertIn("Brand mentions report", html)
+        self.assertNotIn("<script", html.lower())
+
+    def test_report_escapes_poisoned_titles(self):
+        # A scraped title is attacker-controlled: it must come out escaped.
+        from core.plugins.api import DataStoreAPI
+
+        from . import api
+
+        store = DataStoreAPI(owner=prov.OWNER, workspace=self.ws).get(prov.STORE_KEY)
+        store.set("mentions", [{
+            "keyword": "PyRunner", "title": '<script>alert(1)</script>',
+            "url": "https://x.example/", "snippet": "", "source": "web",
+            "source_type": "", "sentiment": "", "found_at": "2026-07-14T08:00:00",
+        }])
+        html = api.report(self._page_request())
+        self.assertNotIn("<script>alert(1)</script>", html)
+        self.assertIn("&lt;script&gt;", html)
+
+    def test_report_unconfigured_workspace_renders_empty_state(self):
+        from core.models import Workspace
+
+        from . import api
+
+        other = Workspace.objects.create(name="fresh")
+        html = api.report(self._page_request(workspace=other))
+        self.assertIn("no data yet", html)
+
+    def test_share_and_revoke_round_trip(self):
+        url = prov.share_report()
+        self.assertTrue(url.startswith("/p/"))
+        share = prov.report_share()
+        self.assertTrue(share["is_active"])
+        self.assertTrue(prov.revoke_report())
+        self.assertFalse(prov.report_share()["is_active"])
+        # Re-share rotates: a revoked URL never resurrects.
+        new_url = prov.share_report()
+        self.assertNotEqual(url, new_url)

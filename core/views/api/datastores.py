@@ -41,10 +41,6 @@ def list_datastores(request: HttpRequest) -> JsonResponse:
             "count": 1
         }
     """
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        return add_cors_headers(response)
-
     token = request.api_token
 
     if token.datastore:
@@ -97,10 +93,6 @@ def get_datastore(request: HttpRequest, name: str) -> JsonResponse:
             "updated_at": "2026-02-10T14:22:00Z"
         }
     """
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        return add_cors_headers(response)
-
     datastore = _get_authorized_datastore(request, name)
     if isinstance(datastore, JsonResponse):
         return datastore  # Error response
@@ -145,10 +137,6 @@ def list_entries(request: HttpRequest, name: str) -> JsonResponse:
             "total_pages": 1
         }
     """
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        return add_cors_headers(response)
-
     datastore = _get_authorized_datastore(request, name)
     if isinstance(datastore, JsonResponse):
         return datastore  # Error response
@@ -212,10 +200,6 @@ def get_entry(request: HttpRequest, name: str, key: str) -> JsonResponse:
             "updated_at": "2026-02-01T12:00:00Z"
         }
     """
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        return add_cors_headers(response)
-
     datastore = _get_authorized_datastore(request, name)
     if isinstance(datastore, JsonResponse):
         return datastore  # Error response

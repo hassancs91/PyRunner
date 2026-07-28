@@ -9,8 +9,8 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from core.forms import DataStoreAPITokenForm
-from core.models import DataStore, DataStoreAPIToken
+from core.forms import APITokenForm
+from core.models import DataStore, APIToken, PluginPublicPage
 
 
 def _token_scope(request):
@@ -27,15 +27,27 @@ def _token_scope(request):
 def api_token_list_view(request: HttpRequest) -> HttpResponse:
     """List the active workspace's API tokens."""
     tokens = (
-        DataStoreAPIToken.objects.filter(_token_scope(request))
+        APIToken.objects.filter(_token_scope(request))
         .select_related("datastore", "created_by")
     )
+
+    # Loaded plugin slugs so the list can badge plugin tokens whose plugin has
+    # since been removed (plugin_slug is not an FK — orphans 404 harmlessly).
+    from core.plugins import all_plugins
+
+    # Oversight: every public page shared from this workspace's plugins
+    # (creation happens on plugin dashboards via PublicPageAPI.share()).
+    public_pages = PluginPublicPage.objects.filter(
+        workspace=request.workspace
+    ).select_related("created_by")
 
     return render(
         request,
         "cpanel/api_tokens/list.html",
         {
             "tokens": tokens,
+            "loaded_plugin_slugs": {p.slug for p in all_plugins()},
+            "public_pages": public_pages,
         },
     )
 
@@ -44,11 +56,11 @@ def api_token_list_view(request: HttpRequest) -> HttpResponse:
 def api_token_create_view(request: HttpRequest) -> HttpResponse:
     """Create a new API token."""
     if request.method == "POST":
-        form = DataStoreAPITokenForm(request.POST, workspace=request.workspace)
+        form = APITokenForm(request.POST, workspace=request.workspace)
         if form.is_valid():
             token = form.save(commit=False)
             # Generate the token value
-            token.token = DataStoreAPIToken.generate_token()
+            token.token = APIToken.generate_token()
             token.created_by = request.user
             # Stamp the active workspace (tenancy Stage 3) so the token only
             # resolves this workspace's datastores.
@@ -62,7 +74,7 @@ def api_token_create_view(request: HttpRequest) -> HttpResponse:
             messages.success(request, f'API token "{token.name}" created successfully.')
             return redirect("cpanel:api_token_created", pk=token.pk)
     else:
-        form = DataStoreAPITokenForm(workspace=request.workspace)
+        form = APITokenForm(workspace=request.workspace)
 
     return render(
         request,
@@ -76,7 +88,7 @@ def api_token_create_view(request: HttpRequest) -> HttpResponse:
 @login_required
 def api_token_created_view(request: HttpRequest, pk) -> HttpResponse:
     """Display newly created token (one-time view)."""
-    token_obj = get_object_or_404(DataStoreAPIToken, _token_scope(request), pk=pk)
+    token_obj = get_object_or_404(APIToken, _token_scope(request), pk=pk)
 
     # Get the token value from session (one-time display)
     new_token = request.session.pop("new_api_token", None)
@@ -102,7 +114,7 @@ def api_token_created_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def api_token_revoke_view(request: HttpRequest, pk) -> HttpResponse:
     """Revoke (delete) an API token."""
-    token = get_object_or_404(DataStoreAPIToken, _token_scope(request), pk=pk)
+    token = get_object_or_404(APIToken, _token_scope(request), pk=pk)
     name = token.name
     token.delete()
 
@@ -114,10 +126,26 @@ def api_token_revoke_view(request: HttpRequest, pk) -> HttpResponse:
 @require_POST
 def api_token_toggle_view(request: HttpRequest, pk) -> HttpResponse:
     """Toggle an API token's active status."""
-    token = get_object_or_404(DataStoreAPIToken, _token_scope(request), pk=pk)
+    token = get_object_or_404(APIToken, _token_scope(request), pk=pk)
     token.is_active = not token.is_active
     token.save(update_fields=["is_active"])
 
     status = "activated" if token.is_active else "deactivated"
     messages.success(request, f'API token "{token.name}" has been {status}.')
+    return redirect("cpanel:api_token_list")
+
+
+@login_required
+@require_POST
+def public_page_revoke_view(request: HttpRequest, pk) -> HttpResponse:
+    """Revoke a shared public page (the URL 404s; re-sharing rotates the token)."""
+    page = get_object_or_404(PluginPublicPage, pk=pk, workspace=request.workspace)
+    page.is_active = False
+    page.save(update_fields=["is_active"])
+
+    messages.success(
+        request,
+        f'Public page "{page.plugin_slug}: {page.page}" has been revoked. '
+        "Its URL is permanently dead; re-sharing issues a new one.",
+    )
     return redirect("cpanel:api_token_list")

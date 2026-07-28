@@ -89,7 +89,7 @@
                     <button type="button"
                             data-url="{% url 'cpanel:plugin_delete' pk=plugin.pk %}"
                             data-name="{{ plugin.name }}"
-                            data-owned="{% if plugin.owned_counts.total %}{{ plugin.owned_counts.scripts }} script{{ plugin.owned_counts.scripts|pluralize }}, {{ plugin.owned_counts.secrets }} secret{{ plugin.owned_counts.secrets|pluralize }}, {{ plugin.owned_counts.datastores }} data store{{ plugin.owned_counts.datastores|pluralize }}{% endif %}"
+                            data-owned="{{ plugin.owned_summary }}"
                             onclick="openDeleteModal(this)"
                             class="text-[13px] px-3.5 py-2 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete</button>
                 </div>
@@ -185,7 +185,7 @@
             {% csrf_token %}
             <label class="flex items-start gap-2.5 mb-2 p-3 rounded-lg border border-line-soft bg-panel-hi/40">
                 <input type="checkbox" name="remove_data" class="mt-0.5 w-4 h-4 rounded text-fail bg-ink border-line focus:ring-fail/40 focus:ring-2">
-                <span class="text-sm text-muted">Also delete this plugin's owned scripts, secrets, and data stores. <span class="text-fail">Destroys its stored data.</span></span>
+                <span class="text-sm text-muted">Also delete this plugin's owned scripts, secrets, data stores, and any files it stored in object storage. <span class="text-fail">Destroys its stored data.</span></span>
             </label>
             <p id="delete-owned-preview" class="hidden text-xs text-warn mb-5"></p>
             <div class="flex items-center justify-end gap-2.5">

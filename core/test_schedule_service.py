@@ -328,9 +328,19 @@ class BackupTimezoneTests(TestCase):
     def _configure_backup(self, schedule_mode, tz="Asia/Tokyo"):
         from datetime import time
 
+        from core.models import StorageConnection
+
+        # Backups resolve the `is_default` connection; the old `s3_enabled` flag
+        # now lives on the row as `enabled`.
+        StorageConnection.objects.create(
+            name="Test backups",
+            bucket="test-bucket",
+            is_default=True,
+            enabled=True,
+        )
+
         gs = GlobalSettings.get_settings()
         gs.timezone = tz
-        gs.s3_enabled = True
         gs.s3_backup_enabled = True
         gs.s3_backup_schedule = schedule_mode
         gs.s3_backup_time = time(9, 0)

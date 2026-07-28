@@ -12,6 +12,7 @@ from django.utils import timezone
 from django_q.tasks import async_task
 
 from core.models import Run, Script, ScriptSchedule, GlobalSettings, PackageOperation
+from core.services.library_service import resync_dev_libraries, stamp_library_versions
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,19 @@ def queue_script_run(run: Run, webhook_data: dict | None = None) -> str:
         raise ValueError(
             f"Cannot queue run {run.id}: status is {run.status}, expected PENDING"
         )
+
+    # Dev mode only: re-read the owning plugin's lib/ folder first, so an edit on
+    # disk is picked up by the next run with no manual sync. Inert in production
+    # (settings.DEV_PLUGIN is None there), where libraries stay DB-deterministic.
+    resync_dev_libraries(run.script)
+
+    # Pin each attached Library to its head revision, HERE rather than at each
+    # Run.objects.create site: every trigger (manual, scheduled, webhook, channel,
+    # plugin SDK) funnels through this function, so stamping here is a structural
+    # guarantee that all entry points stamp — not a rule six call sites must
+    # remember. Must happen at queue time, before the worker can pick the run up:
+    # stamping at execute would let an edit in between change what the run imports.
+    stamp_library_versions(run)
 
     task_id = async_task(
         "core.tasks.execute_run_task",
@@ -394,6 +408,35 @@ def worker_heartbeat_task() -> dict:
         settings.worker_heartbeat_at = timezone.now()
         settings.save(update_fields=["worker_heartbeat_at"])
 
+        # Advertise the retry window this cluster actually booted with (the
+        # web process only has env defaults in settings.Q_CLUSTER — the DB
+        # values are applied by pyrunner_qcluster after apps are ready). The
+        # script form reads this to warn when a timeout outruns the RUNNING
+        # workers. Best-effort: the heartbeat must never fail over it.
+        try:
+            from django.core.cache import cache
+            from django_q.conf import Conf
+
+            from core.services.worker_config import EFFECTIVE_RETRY_CACHE_KEY
+
+            cache.set(EFFECTIVE_RETRY_CACHE_KEY, Conf.RETRY, None)
+        except Exception:
+            logger.exception("Failed to advertise effective worker settings")
+
+        # Piggyback stale-run reconciliation on the heartbeat: it already runs
+        # every minute on the cluster, which is the cadence stale detection
+        # needs — plugin guards and API consumers read run status without ever
+        # loading a page that could reconcile. Never fails the heartbeat.
+        try:
+            reconciled = Run.reconcile_stale()
+            if reconciled:
+                logger.warning(
+                    f"Reconciled {reconciled} stale run(s) whose worker died "
+                    "without finalizing them"
+                )
+        except Exception:
+            logger.exception("Stale-run reconciliation failed")
+
         logger.debug("Worker heartbeat updated")
         return {"success": True, "heartbeat_at": str(settings.worker_heartbeat_at)}
     except Exception as e:
@@ -417,12 +460,13 @@ def scheduled_backup_task() -> dict:
 
     settings = GlobalSettings.get_settings()
 
-    # Validate S3 is configured
-    if not settings.s3_enabled:
+    # Validate the backup storage connection is configured and switched on.
+    connection = S3Service.for_backup()
+    if connection is None or not connection.enabled:
         logger.warning("Scheduled backup skipped - S3 not enabled")
         return {"success": False, "error": "S3 not enabled"}
 
-    if not S3Service.is_configured():
+    if not S3Service.is_configured(connection):
         logger.warning("Scheduled backup skipped - S3 not configured")
         return {"success": False, "error": "S3 not configured"}
 
@@ -446,7 +490,7 @@ def scheduled_backup_task() -> dict:
         key = S3Service.generate_backup_key()
 
         # Upload to S3
-        result = S3Service.upload_file(file_bytes, key)
+        result = S3Service.upload_file(connection, file_bytes, key)
 
         if result["success"]:
             # Update tracking

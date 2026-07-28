@@ -8,6 +8,93 @@ begins tracking at the current release; earlier history is in the git log.
 
 ## [Unreleased]
 
+### Added
+- **Object storage** — the S3 settings became a real storage service. You can now
+  save **several connections** (Cloudflare R2, AWS S3, Backblaze B2, DigitalOcean
+  Spaces, MinIO, or any S3-compatible endpoint) instead of exactly one, switch
+  which one backups use with a click, and point plugins at a *different* bucket so
+  your private backup bucket stays private. Your existing S3 configuration is
+  carried over automatically as the default connection — backups keep working with
+  nothing to re-enter. Each connection can carry a public base URL, so stored files
+  get permanent hot-linkable links instead of expiring ones. Plugins can then store
+  files (SDK 2.5: `StorageAPI`) — an archived image, a generated PDF, a chart —
+  each confined to its own `apps/<plugin>/` space, so one plugin can never read or
+  delete another's files. Their scripts get the same thing via
+  `import pyrunner_storage`, with no credentials and nothing to install: the bytes
+  travel over PyRunner's internal loopback API, so S3 keys never enter a script's
+  environment. Deleting a plugin with *remove data* clears its files too.
+- **Libraries** — shared Python modules that scripts import, instead of the same
+  helper copy-pasted into five scripts. Create a library under Libraries, add one
+  or more modules in the tabbed editor, attach it to any script from the script's
+  form, and import it: `from my_helpers.utils import clean`. Every save that
+  changes the code creates a new version, and a run is pinned to the version that
+  was current when it was queued — so editing a library can never change what an
+  already-queued run executes, and a run's detail page shows exactly which
+  versions it used. Full version history per library with a diff against the
+  current code and one-click restore (restoring writes the old code forward as a
+  new version; history is never rewritten). A library can't be deleted while a
+  script still imports it, and if a pinned version is missing at launch the run
+  fails with a clear message instead of a confusing `ImportError`. Plugins get
+  the same thing through the SDK (2.4: `LibraryAPI`), which is what lets a plugin
+  ship one shared pipeline used by many worker scripts.
+- **Plugin API** — any plugin can now declare read-only HTTP resources that core
+  serves at `/api/v1/plugins/<slug>/<resource>/`, with core owning 100% of
+  authentication, rate limiting, and workspace scoping — a plugin never sees a
+  raw request, a token, or a tenancy decision. Resources are declared in
+  `plugin.json` (`provides.api_resources`) and implemented as small handlers in
+  the plugin's `api.py` (SDK 2.3: `@resource`, `APIRequest`, `APIError`); an
+  undeclared handler is never served, and the plugin doctor fails
+  manifest-vs-code drift before shipping. API tokens gained a scope: existing
+  datastore tokens are unchanged (and can never reach plugin APIs), while new
+  plugin-scoped tokens grant exactly one plugin's API, least-privilege.
+  `GET /api/v1/plugins/` is a self-documenting discovery endpoint. Limits:
+  per-token 60/min, per-plugin 300/min (429s carry `Retry-After`), a pre-auth
+  per-IP throttle against token scanning, and a 1 MiB response cap — all
+  instance-configurable via environment variables.
+- **Plugin public pages** — a plugin can publish a shareable, read-only HTML
+  page at an unguessable `/p/<token>/` capability URL (no login), created and
+  revoked from its dashboard via the SDK (`@page`, `PublicPageAPI`). Pages are
+  served script-free under a strict Content-Security-Policy with
+  noindex/no-store/no-referrer headers and per-IP rate limiting; revoking (or
+  expiry) kills a URL permanently — re-sharing issues a fresh one. All shares
+  are listed and revocable under Settings → API Tokens.
+- **Brand Tracker 1.1.0** — exposes its mention feed and stats through the new
+  plugin API (`mentions` + `stats`, filterable and paginated) and adds a
+  "Share report" button that publishes a public, read-only mentions report.
+- SDK 2.3 also adds a read-only, workspace-scoped `ChannelAPI.list()` so plugin
+  forms can offer a notification-channel picker.
+
+### Fixed
+- **Worker settings now actually apply** — the values saved under Settings →
+  Workers (worker count, task timeout, retry delay, queue limit) were never
+  read: they were loaded at settings-module import, which happens before the
+  database is reachable in every Django process, so the cluster always ran on
+  the built-in defaults no matter what the page said. The worker now starts
+  via `manage.py pyrunner_qcluster`, which applies the saved values once the
+  database is available — "restart workers to apply" is finally true.
+- **Long runs no longer orphaned by the worker queue** — a run outliving the
+  worker re-delivery window (`q_retry`, default 660s) had its task handed to a
+  second worker whose early-return path then clobbered the live run row:
+  stuck at "running" forever, output never captured, force-stop broken
+  (`pid` cleared). Duplicate deliveries are now true no-ops (the run is
+  claimed atomically), the re-delivery window automatically floors above the
+  largest script timeout at worker start, and the script form warns when a
+  timeout would outrun the running workers' window. A worker-side task
+  timeout (a `SystemExit`, previously invisible to error handling) now kills
+  the script's process tree and records TIMEOUT instead of leaving the
+  process running detached.
+- **Stale runs self-heal** — a worker killed while busy (container restart,
+  OOM) left its run at "running" forever, blocking anything that gates on
+  "a run is in flight". Runs stuck past their own timeout (+5 min grace) are
+  now reconciled to failed — with an explanatory message — every minute on
+  the worker heartbeat and on the runs page; runs queued for over 24 hours
+  while workers are alive are reconciled the same way.
+- **Datastore API CORS preflight** — browser `OPTIONS` preflights to
+  `/api/v1/datastores/…` were rejected with 401 (auth ran before the preflight
+  branch) and error responses carried no CORS headers, making cross-origin
+  browser calls impossible. Preflights now succeed tokenless and every
+  response, including errors, carries CORS headers.
+
 ## [1.15.0] — July 15, 2026
 
 ### Added

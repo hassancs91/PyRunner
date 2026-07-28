@@ -74,7 +74,7 @@ class Command(BaseCommand):
             f"No new worker appeared within {timeout}s. If PyRunner runs via "
             "entrypoint.sh (Docker), check the container logs; otherwise "
             "nothing auto-restarts the worker — start it manually with "
-            "`manage.py qcluster`."
+            "`manage.py pyrunner_qcluster`."
         )
 
     @staticmethod

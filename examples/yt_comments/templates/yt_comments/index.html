@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+
+{% block title %}YouTube Comments AI - PyRunner{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1100px] mx-auto space-y-5">
+
+            <!-- ================= Header ================= -->
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="min-w-0">
+                    <h1 class="text-[22px] font-semibold tracking-tight">YouTube Comments AI</h1>
+                    {% if is_configured %}
+                    <div class="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-muted mt-1.5">
+                        <span class="inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>{{ channel_title|default:"Active" }}</span>
+                        {% if schedule %}<span class="text-line-soft">·</span><span>{{ schedule.label }}</span>{% endif %}
+                        {% if schedule.next_run %}<span class="text-line-soft">·</span><span>Next {{ schedule.next_run|date:"M j, H:i" }}</span>{% endif %}
+                        {% if last_run %}<span class="text-line-soft">·</span><span>Last run {{ last_run }}</span>{% endif %}
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-muted mt-1">Daily AI analysis of your channel's comments — tags, sentiment, urgent alerts and a testimonial collector.</p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="hdr-running" onclick="showTab('inbox')"
+                            class="{% if not is_active %}hidden {% endif %}inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-warn/10 text-warn border border-warn/30">
+                        <span class="w-2 h-2 rounded-full bg-warn animate-pulse"></span>Analyzing…
+                    </button>
+                    {% if can_run %}
+                    <form id="btn-run-form" method="post" action="{% url 'yt_comments:run' %}" class="{% if is_active %}hidden{% endif %}">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9"/></svg>
+                            Run now
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if not db_available %}
+            <section class="rounded-2xl border border-fail/30 bg-fail/10 p-4 text-sm text-muted">
+                <strong class="text-fail">No data server attached.</strong>
+                This plugin stores comments in a managed Database and needs
+                <span class="font-mono text-text">PYRUNNER_DATA_DB_URL</span> configured — see the Databases documentation.
+            </section>
+            {% endif %}
+
+            <!-- ================= Tabs ================= -->
+            <div class="flex items-center gap-1.5 border-b border-line-soft pb-px overflow-x-auto">
+                <button type="button" onclick="showTab('inbox')" id="tab-inbox" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Inbox</button>
+                <button type="button" onclick="showTab('replies')" id="tab-replies" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Replies{% if queue_total %} <span class="px-2 py-0.5 rounded-md bg-warn/10 text-warn text-[11px] font-semibold align-middle">{{ queue_total }}</span>{% endif %}</button>
+                <button type="button" onclick="showTab('testimonials')" id="tab-testimonials" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Testimonials{% if totals.testimonials %} <span class="text-faint">{{ totals.testimonials }}</span>{% endif %}</button>
+                <button type="button" onclick="showTab('brain')" id="tab-brain" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Brain</button>
+                <button type="button" onclick="showTab('settings')" id="tab-settings" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg text-muted hover:text-text hover:bg-panel-hi/50 transition-colors">Settings</button>
+            </div>
+
+            <!-- ================= Inbox panel ================= -->
+            <div id="panel-inbox" class="tab-panel space-y-5">
+
+                <!-- Live run banner -->
+                <section id="run-banner" class="{% if not is_active %}hidden {% endif %}rounded-2xl border border-warn/30 bg-warn/5 p-5">
+                    <div class="flex items-center justify-between gap-4 flex-wrap">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="flex-none w-2.5 h-2.5 rounded-full bg-warn animate-pulse"></span>
+                            <div class="min-w-0">
+                                <h2 class="text-sm font-semibold text-text">Analysis in progress</h2>
+                                <p id="run-label" class="text-xs text-muted mt-0.5">Starting…</p>
+                            </div>
+                        </div>
+                        <form method="post" action="{% url 'yt_comments:stop' %}">
+                            {% csrf_token %}
+                            <button type="submit" onclick="return confirm('Stop the running analyzer?');" class="text-[13px] font-medium px-3 py-1.5 rounded-lg border border-fail/30 text-fail hover:bg-fail/10 transition">Stop</button>
+                        </form>
+                    </div>
+                    <div class="mt-4 h-1.5 w-full rounded-full bg-panel-hi overflow-hidden">
+                        <div id="run-bar" class="h-full bg-warn rounded-full transition-all duration-500" style="width: 8%"></div>
+                    </div>
+                </section>
+
+                {% if not is_configured %}
+                <section class="rounded-2xl border border-line bg-panel px-6 py-14 text-center">
+                    <h3 class="text-base font-semibold mb-1">Not configured yet</h3>
+                    <p class="text-sm text-muted mb-6">Add your channel and YouTube API key in <button type="button" onclick="showTab('settings')" class="text-ok hover:underline">Settings</button> and save to start analyzing.</p>
+                </section>
+                {% elif db_state == "unprovisioned" or db_state == "empty" or not has_data %}
+                <section class="rounded-2xl border border-line bg-panel px-6 py-14 text-center">
+                    <h3 class="text-base font-semibold mb-1">No comments yet</h3>
+                    <p class="text-sm text-muted mb-6">Use <span class="font-mono text-text">Run now</span> above, or wait for the daily run. The first run backfills from your start date without emailing you.</p>
+                </section>
+                {% elif db_state != "ok" %}
+                <section class="rounded-2xl border border-fail/30 bg-fail/10 p-4 text-sm text-muted">{{ db_state }}</section>
+                {% else %}
+
+                <!-- Stat cards -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="rounded-2xl border border-line bg-panel p-4">
+                        <div class="text-[11px] uppercase tracking-wide text-faint">Comments</div>
+                        <div class="text-2xl font-semibold mt-1">{{ totals.total }}</div>
+                        <div class="text-xs text-faint mt-0.5">in the archive</div>
+                    </div>
+                    <div class="rounded-2xl border border-line bg-panel p-4">
+                        <div class="text-[11px] uppercase tracking-wide text-faint">Urgent (7d)</div>
+                        <div class="text-2xl font-semibold mt-1 {% if totals.urgent_7d %}text-fail{% endif %}">{{ totals.urgent_7d }}</div>
+                        <div class="text-xs text-faint mt-0.5">need attention</div>
+                    </div>
+                    <div class="rounded-2xl border border-line bg-panel p-4">
+                        <div class="text-[11px] uppercase tracking-wide text-faint">Testimonials</div>
+                        <div class="text-2xl font-semibold mt-1 {% if totals.testimonials %}text-ok{% endif %}">{{ totals.testimonials }}</div>
+                        <div class="text-xs text-faint mt-0.5">collected all-time</div>
+                    </div>
+                    <div class="rounded-2xl border border-line bg-panel p-4">
+                        <div class="text-[11px] uppercase tracking-wide text-faint">Pending analysis</div>
+                        <div class="text-2xl font-semibold mt-1">{{ totals.pending }}</div>
+                        <div class="text-xs text-faint mt-0.5">{{ stats.quota_last_run|default:0 }} quota units last run</div>
+                    </div>
+                </div>
+
+                <!-- Tag breakdown (30d) -->
+                {% if tag_counts %}
+                <div class="flex flex-wrap gap-2">
+                    {% for t in tag_counts %}
+                    <a href="?tag={{ t.tag }}#inbox" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-panel-hi text-xs text-muted hover:text-text transition">
+                        {{ t.tag }}<span class="text-faint">{{ t.n }}</span>
+                    </a>
+                    {% endfor %}
+                    {% if filter_tag or filter_video or filter_status %}
+                    <a href="{% url 'yt_comments:index' %}#inbox" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-line text-xs text-muted hover:text-text transition">✕ clear filters</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Filters -->
+                <form method="get" action="{% url 'yt_comments:index' %}#inbox" id="filter-form" class="flex items-center gap-3 flex-wrap">
+                    <input type="text" id="feed-search" placeholder="Filter comments on this page…"
+                           class="flex-1 min-w-[180px] px-3.5 py-2 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60">
+                    <select name="tag" onchange="this.form.submit()" class="px-3 py-2 bg-ink border border-line rounded-lg text-text text-sm">
+                        <option value="">All tags</option>
+                        {% for t in tag_names %}<option value="{{ t }}" {% if filter_tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                    </select>
+                    <select name="video" onchange="this.form.submit()" class="px-3 py-2 bg-ink border border-line rounded-lg text-text text-sm max-w-[260px]">
+                        <option value="">All videos</option>
+                        {% for v in videos %}<option value="{{ v.video_id }}" {% if filter_video == v.video_id %}selected{% endif %}>{{ v.title|truncatechars:45 }} ({{ v.n }})</option>{% endfor %}
+                    </select>
+                    <select name="status" onchange="this.form.submit()" class="px-3 py-2 bg-ink border border-line rounded-lg text-text text-sm">
+                        <option value="">All statuses</option>
+                        <option value="analyzed" {% if filter_status == "analyzed" %}selected{% endif %}>Analyzed</option>
+                        <option value="pending_analysis" {% if filter_status == "pending_analysis" %}selected{% endif %}>Pending</option>
+                        <option value="skipped_owner" {% if filter_status == "skipped_owner" %}selected{% endif %}>My own comments</option>
+                    </select>
+                </form>
+
+                <!-- Feed -->
+                <div id="feed" class="space-y-3">
+                    {% for c in inbox %}
+                    <article class="feed-item rounded-2xl border border-line bg-panel p-4" data-text="{{ c.author|lower }} {{ c.text|lower }}">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <span class="text-[15px] font-semibold text-text leading-snug">{{ c.author }}</span>
+                                {% if c.is_reply %}<span class="ml-1.5 text-[11px] text-faint">↳ reply</span>{% endif %}
+                                {% if c.status == "pending_analysis" %}<span class="ml-1.5 px-2 py-0.5 text-[11px] rounded-md bg-panel-hi text-faint">pending</span>{% endif %}
+                            </div>
+                            <div class="flex items-center gap-1.5 flex-none flex-wrap justify-end">
+                                {% for t in c.tags %}
+                                <span class="px-2 py-0.5 text-[11px] font-medium rounded-md" style="background:{{ t.color }}1a;color:{{ t.color }}">{{ t.name }}</span>
+                                {% endfor %}
+                                {% if c.sentiment %}<span class="px-2 py-0.5 text-[11px] font-medium rounded-md" style="background:{{ c.sentiment.color }}1a;color:{{ c.sentiment.color }}">{{ c.sentiment.label }}</span>{% endif %}
+                            </div>
+                        </div>
+                        <p class="text-sm text-muted mt-1.5 leading-relaxed whitespace-pre-line">{{ c.text }}</p>
+                        <div class="flex items-center gap-x-2.5 gap-y-1 flex-wrap mt-2 text-xs text-faint">
+                            <span>{{ c.video_title|truncatechars:60 }}</span>
+                            <span class="text-line-soft">·</span><span>{{ c.published }}</span>
+                            <span class="text-line-soft">·</span><span>👍 {{ c.like_count }}</span>
+                            <span class="text-line-soft">·</span><a href="{{ c.link }}" target="_blank" rel="noopener" class="hover:text-muted">Open on YouTube ↗</a>
+                        </div>
+                        {% if c.reasoning %}<p class="text-xs text-faint mt-1.5 italic">AI: {{ c.reasoning }}</p>{% endif %}
+                    </article>
+                    {% endfor %}
+                    <p id="feed-empty" class="{% if inbox %}hidden {% endif %}text-sm text-faint text-center py-8">No comments match your filter.</p>
+                </div>
+
+                <!-- Pagination -->
+                {% if page > 0 or has_more %}
+                <div class="flex items-center justify-between text-sm">
+                    {% if page > 0 %}<a class="text-ok hover:underline" href="?tag={{ filter_tag }}&video={{ filter_video }}&status={{ filter_status }}&page={{ page|add:"-1" }}#inbox">← Newer</a>{% else %}<span></span>{% endif %}
+                    <span class="text-faint text-xs">{{ inbox_total }} match(es)</span>
+                    {% if has_more %}<a class="text-ok hover:underline" href="?tag={{ filter_tag }}&video={{ filter_video }}&status={{ filter_status }}&page={{ page|add:"1" }}#inbox">Older →</a>{% else %}<span></span>{% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Run history -->
+                {% if history %}
+                <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                    <div class="px-5 py-4 border-b border-line-soft"><h2 class="text-sm font-semibold">Run history</h2></div>
+                    <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead><tr class="border-b border-line-soft text-left">
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">When</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">Status</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">New</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Analyzed</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Urgent</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Replies</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal text-right">Quota</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-line-soft">
+                            {% for r in history %}
+                            <tr class="hover:bg-panel-hi/50 transition-colors">
+                                <td class="px-5 py-2.5 text-xs font-mono text-faint whitespace-nowrap">{{ r.ts }}</td>
+                                <td class="px-5 py-2.5"><span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md {{ r.badge.cls }}"><span class="w-1.5 h-1.5 rounded-full {{ r.badge.dot }}"></span>{{ r.badge.label }}</span>{% if r.seeded_run %}<span class="ml-1.5 text-[11px] text-faint">seed</span>{% endif %}{% if r.capped %}<span class="ml-1.5 text-[11px] text-warn">capped</span>{% endif %}</td>
+                                <td class="px-5 py-2.5 text-sm text-muted text-right font-mono">{{ r.new_comments }}</td>
+                                <td class="px-5 py-2.5 text-sm text-muted text-right font-mono">{{ r.analyzed }}</td>
+                                <td class="px-5 py-2.5 text-sm {% if r.urgent %}text-fail{% else %}text-muted{% endif %} text-right font-mono">{{ r.urgent }}</td>
+                                <td class="px-5 py-2.5 text-xs text-muted text-right font-mono" title="posted / drafted">{{ r.posted }}/{{ r.drafted }}</td>
+                                <td class="px-5 py-2.5 text-xs text-faint text-right font-mono">{{ r.quota_units }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </section>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- ================= Testimonials panel ================= -->
+            <div id="panel-testimonials" class="tab-panel hidden space-y-5">
+                {% if testimonials or filter_grade %}
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <p class="text-sm text-muted">{{ testimonials|length }} testimonial{{ testimonials|length|pluralize }}{% if filter_grade %} ({{ filter_grade }}){% endif %} — export for your website or socials.</p>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'yt_comments:export_testimonials' 'md' %}?grade={{ filter_grade }}" class="text-[13px] font-medium px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:bg-panel-hi transition">Export Markdown</a>
+                        <a href="{% url 'yt_comments:export_testimonials' 'csv' %}?grade={{ filter_grade }}" class="text-[13px] font-medium px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:bg-panel-hi transition">Export CSV</a>
+                    </div>
+                </div>
+                {% if grade_counts %}
+                <div class="flex flex-wrap gap-2">
+                    <a href="{% url 'yt_comments:index' %}#testimonials" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full {% if not filter_grade %}bg-panel-hi text-text{% else %}bg-panel-hi text-muted hover:text-text{% endif %} text-xs transition">All</a>
+                    <a href="?grade=feature#testimonials" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full {% if filter_grade == 'feature' %}bg-warn/10 text-warn{% else %}bg-panel-hi text-muted hover:text-text{% endif %} text-xs transition">⭐ Feature<span class="text-faint">{{ grade_counts.feature|default:0 }}</span></a>
+                    <a href="?grade=solid#testimonials" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full {% if filter_grade == 'solid' %}bg-ok/10 text-ok{% else %}bg-panel-hi text-muted hover:text-text{% endif %} text-xs transition">Solid<span class="text-faint">{{ grade_counts.solid|default:0 }}</span></a>
+                    <a href="?grade=generic#testimonials" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full {% if filter_grade == 'generic' %}bg-panel-hi text-text{% else %}bg-panel-hi text-muted hover:text-text{% endif %} text-xs transition">Generic<span class="text-faint">{{ grade_counts.generic|default:0 }}</span></a>
+                    {% if grade_counts.ungraded %}<a href="?grade=ungraded#testimonials" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full {% if filter_grade == 'ungraded' %}bg-panel-hi text-text{% else %}bg-panel-hi text-muted hover:text-text{% endif %} text-xs transition">Ungraded<span class="text-faint">{{ grade_counts.ungraded }}</span></a>{% endif %}
+                </div>
+                {% endif %}
+                {% if avatar_links_expire %}
+                <p class="text-xs text-warn">Avatar links here are presigned and <strong>expire</strong> — set a public base URL on the assets connection under <a href="{% url 'cpanel:services' %}" class="text-ok hover:underline">Services → Object Storage</a> to get permanent links you can publish.</p>
+                {% endif %}
+                <div class="space-y-3">
+                    {% for c in testimonials %}
+                    <article class="rounded-2xl border border-ok/20 bg-ok/5 p-4">
+                        <div class="flex items-start gap-3">
+                            {% if c.avatar %}<img src="{{ c.avatar }}" alt="" loading="lazy" class="flex-none" style="width:40px;height:40px;border-radius:9999px;object-fit:cover;">{% endif %}
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-text leading-relaxed italic">“{{ c.text }}”</p>
+                                <div class="flex items-center gap-x-2.5 gap-y-1 flex-wrap mt-2 text-xs text-faint">
+                                    <span class="font-medium text-muted">{{ c.author }}</span>
+                                    {% if c.grade_badge %}<span class="px-2 py-0.5 text-[11px] font-medium rounded-md {{ c.grade_badge.cls }}">{{ c.grade_badge.label }}</span>{% endif %}
+                                    <span class="text-line-soft">·</span><span>{{ c.video_title|truncatechars:50 }}</span>
+                                    <span class="text-line-soft">·</span><span>{{ c.published }}</span>
+                                    <span class="text-line-soft">·</span><span>👍 {{ c.like_count }}</span>
+                                    <span class="text-line-soft">·</span><a href="{{ c.link }}" target="_blank" rel="noopener" class="hover:text-muted">Open ↗</a>
+                                </div>
+                                {% if c.grade_note %}<p class="text-xs text-faint mt-1.5 italic">AI: {{ c.grade_note }}</p>{% endif %}
+                            </div>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <p class="text-sm text-faint text-center py-8">No {{ filter_grade }} testimonials.</p>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <section class="rounded-2xl border border-line bg-panel px-6 py-14 text-center">
+                    <h3 class="text-base font-semibold mb-1">No testimonials yet</h3>
+                    <p class="text-sm text-muted">Comments the AI tags as <span class="font-mono text-text">testimonial</span> are collected here — graded for publish-worthiness, with the author's avatar archived — ready to export.</p>
+                </section>
+                {% endif %}
+            </div>
+
+            <!-- ================= Replies panel ================= -->
+            <div id="panel-replies" class="tab-panel hidden space-y-5">
+                {% if oauth_needs_reconnect %}
+                <section class="rounded-2xl border border-fail/30 bg-fail/10 p-4 text-sm text-muted">
+                    <strong class="text-fail">YouTube revoked the connection (invalid_grant).</strong>
+                    Usually the Google OAuth app is still in <em>Testing</em> (refresh tokens expire after 7 days — publish it to Production) or the Google password changed.
+                    Reconnect under <button type="button" onclick="showTab('settings')" class="text-ok hover:underline">Settings</button>; approved replies wait and post once reconnected.
+                </section>
+                {% elif not oauth_connected and is_configured %}
+                <section class="rounded-2xl border border-warn/30 bg-warn/10 p-4 text-sm text-muted">
+                    <strong class="text-warn">YouTube isn't connected.</strong>
+                    Drafts still queue here, but nothing can be posted until you connect YouTube under
+                    <button type="button" onclick="showTab('settings')" class="text-ok hover:underline">Settings</button>.
+                </section>
+                {% endif %}
+
+                {% if queue %}
+                <p class="text-sm text-muted">{{ queue_total }} draft{{ queue_total|pluralize }} waiting — edit freely, then approve to post as your channel.</p>
+                {% for r in queue %}
+                <article class="rounded-2xl border border-line bg-panel p-4 space-y-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <span class="text-[15px] font-semibold text-text leading-snug">{{ r.comment.author }}</span>
+                            {% if r.comment.is_reply %}<span class="ml-1.5 text-[11px] text-faint">↳ reply</span>{% endif %}
+                            <span class="ml-1.5 px-2 py-0.5 text-[11px] rounded-md {% if r.mode == 'auto' %}bg-warn/10 text-warn{% else %}bg-panel-hi text-faint{% endif %}">{{ r.mode }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-none flex-wrap justify-end">
+                            {% for t in r.comment.tags %}<span class="px-2 py-0.5 text-[11px] font-medium rounded-md" style="background:{{ t.color }}1a;color:{{ t.color }}">{{ t.name }}</span>{% endfor %}
+                        </div>
+                    </div>
+                    <p class="text-sm text-muted leading-relaxed whitespace-pre-line italic">“{{ r.comment.text }}”</p>
+                    <div class="flex items-center gap-x-2.5 gap-y-1 flex-wrap text-xs text-faint">
+                        <span>{{ r.comment.video_title|truncatechars:60 }}</span>
+                        <span class="text-line-soft">·</span><span>{{ r.comment.published }}</span>
+                        <span class="text-line-soft">·</span><a href="{{ r.comment.link }}" target="_blank" rel="noopener" class="hover:text-muted">Open on YouTube ↗</a>
+                    </div>
+                    {% if r.guard_note %}<p class="text-xs text-warn">🛡️ {{ r.guard_note }}</p>{% endif %}
+                    {% if r.error %}<p class="text-xs text-fail">Last attempt: {{ r.error }}</p>{% endif %}
+                    <form method="post" action="{% url 'yt_comments:reply_approve' r.id %}" class="space-y-2.5">
+                        {% csrf_token %}
+                        <textarea name="final_text" rows="3" class="w-full px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60">{{ r.text }}</textarea>
+                        <div class="flex items-center gap-2">
+                            <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Approve &amp; post</button>
+                            <button type="submit" form="reject-{{ r.id }}" class="text-[13px] font-medium px-3 py-2 rounded-lg border border-fail/30 text-fail hover:bg-fail/10 transition">Reject</button>
+                        </div>
+                    </form>
+                    <form id="reject-{{ r.id }}" method="post" action="{% url 'yt_comments:reply_reject' r.id %}" class="hidden">{% csrf_token %}</form>
+                </article>
+                {% endfor %}
+                {% else %}
+                <section class="rounded-2xl border border-line bg-panel px-6 py-14 text-center">
+                    <h3 class="text-base font-semibold mb-1">No drafts waiting</h3>
+                    <p class="text-sm text-muted">
+                        {% if reply_policy_on %}
+                        Comments matching a <span class="font-mono text-text">draft</span>/<span class="font-mono text-text">auto</span> tag policy are drafted here after each run.
+                        {% else %}
+                        Turn on per-tag reply drafting under <button type="button" onclick="showTab('settings')" class="text-ok hover:underline">Settings → Reply automation</button>, and teach the <button type="button" onclick="showTab('brain')" class="text-ok hover:underline">Brain</button> your voice first.
+                        {% endif %}
+                    </p>
+                </section>
+                {% endif %}
+
+                {% if reply_audit %}
+                <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                    <div class="px-5 py-4 border-b border-line-soft"><h2 class="text-sm font-semibold">Reply history</h2>
+                        <p class="text-xs text-faint mt-0.5">Every decision is audited — one reply per comment, ever.</p></div>
+                    <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead><tr class="border-b border-line-soft text-left">
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">When</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">Status</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">By</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">Reply</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal">To</th>
+                            <th class="px-5 py-2.5 eyebrow text-faint font-normal"></th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-line-soft">
+                            {% for r in reply_audit %}
+                            <tr class="hover:bg-panel-hi/50 transition-colors">
+                                <td class="px-5 py-2.5 text-xs font-mono text-faint whitespace-nowrap">{{ r.when|date:"Y-m-d H:i" }}</td>
+                                <td class="px-5 py-2.5"><span class="inline-flex px-2 py-0.5 text-xs rounded-md {{ r.badge.cls }}">{{ r.badge.label }}</span>{% if r.error %}<span class="block text-[11px] text-fail mt-0.5 max-w-xs truncate" title="{{ r.error }}">{{ r.error }}</span>{% endif %}</td>
+                                <td class="px-5 py-2.5 text-xs text-muted">{{ r.decided_by|default:"—" }}</td>
+                                <td class="px-5 py-2.5 text-sm text-muted max-w-sm"><span class="line-clamp-2">{{ r.text }}</span></td>
+                                <td class="px-5 py-2.5 text-xs text-muted whitespace-nowrap">{{ r.comment.author }}</td>
+                                <td class="px-5 py-2.5 text-xs whitespace-nowrap">{% if r.yt_link %}<a href="{{ r.yt_link }}" target="_blank" rel="noopener" class="text-ok hover:underline">View ↗</a>{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+
+            <!-- ================= Brain panel ================= -->
+            <div id="panel-brain" class="tab-panel hidden space-y-5">
+                <section class="rounded-2xl border border-line bg-panel p-4 text-sm text-muted">
+                    The Reply Brain is injected into <em>every</em> drafting prompt. The
+                    <strong class="text-text">Knowledge</strong> links are the only URLs an
+                    auto-published reply may contain — anything else is demoted to the Replies queue for your approval.
+                </section>
+                <form method="post" action="{% url 'yt_comments:brain_save' %}" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                    {% csrf_token %}
+                    <div class="px-5 py-4 border-b border-line-soft">
+                        <h2 class="text-sm font-semibold">Reply Brain</h2>
+                        <p class="text-xs text-faint mt-0.5">How drafts should sound, what they may claim, and what they must never do.</p>
+                    </div>
+                    <div class="p-5 space-y-6">
+                        {% include "yt_comments/_field.html" with field=brain_form.voice %}
+                        {% include "yt_comments/_field.html" with field=brain_form.knowledge %}
+                        {% include "yt_comments/_field.html" with field=brain_form.rules %}
+                        {% include "yt_comments/_field.html" with field=brain_form.tag_guidance %}
+                    </div>
+                    <div class="px-5 py-4 border-t border-line-soft flex justify-end">
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save Brain</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ================= Settings panel ================= -->
+            <div id="panel-settings" class="tab-panel hidden">
+                {% if not has_environments %}
+                <section class="rounded-2xl border border-warn/30 bg-warn/10 p-4 text-sm text-muted mb-5">
+                    No environments yet. Create one with <span class="font-mono text-text">requests</span>, <span class="font-mono text-text">psycopg[binary]</span> and <span class="font-mono text-text">claude-agent-sdk</span> under
+                    <a href="{% url 'cpanel:environment_list' %}" class="text-ok hover:underline">Environments</a>, then come back.
+                </section>
+                {% endif %}
+
+                <!-- YouTube OAuth connection (posting replies & moderation) -->
+                <section class="rounded-2xl border {% if oauth_needs_reconnect %}border-fail/30{% else %}border-line{% endif %} bg-panel p-5 mb-5">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div class="min-w-0">
+                            <h2 class="text-sm font-semibold">YouTube connection <span class="text-faint font-normal">— for posting replies &amp; spam moderation</span></h2>
+                            {% if oauth_needs_reconnect %}
+                            <p class="text-xs text-fail mt-1.5">Connection revoked (<span class="font-mono">invalid_grant</span>): usually the OAuth app is still in <em>Testing</em> — publish it to <strong>Production</strong> — or the Google password changed. Reconnect below.</p>
+                            {% elif oauth_connected %}
+                            <p class="text-xs text-muted mt-1.5 inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Connected as <strong class="text-text">{{ oauth.channel_title|default:oauth.channel_id }}</strong>{% if oauth.connected_at %} · since {{ oauth.connected_at|slice:":10" }}{% endif %}</p>
+                            {% elif oauth_client_configured %}
+                            <p class="text-xs text-muted mt-1.5">Client saved — connect the Google account that owns your channel. Monitoring works without this; posting doesn't.</p>
+                            {% else %}
+                            <p class="text-xs text-muted mt-1.5">Optional. Save a Google OAuth client (fields below) to unlock posting replies and spam moderation.</p>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-2 flex-none">
+                            {% if oauth_client_configured %}
+                            <form method="post" action="{% url 'yt_comments:oauth_start' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg {% if oauth_needs_reconnect %}border border-fail/30 text-fail hover:bg-fail/10{% else %}bg-ok text-ink hover:opacity-90{% endif %} transition">
+                                    {% if oauth_needs_reconnect %}Reconnect{% elif oauth_connected %}Reconnect{% else %}Connect YouTube{% endif %}
+                                </button>
+                            </form>
+                            {% if oauth_connected %}
+                            <form method="post" action="{% url 'yt_comments:oauth_disconnect' %}">
+                                {% csrf_token %}
+                                <button type="submit" onclick="return confirm('Disconnect YouTube? Approved replies will wait until you reconnect.');" class="text-[13px] font-medium px-3 py-2 rounded-lg border border-line text-muted hover:text-text hover:bg-panel-hi transition">Disconnect</button>
+                            </form>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <details class="mt-3 text-xs text-muted">
+                        <summary class="cursor-pointer text-faint hover:text-muted">Google Cloud setup (one-time)</summary>
+                        <ol class="ml-4 mt-2 space-y-1" style="list-style: decimal">
+                            <li>In Google Cloud Console (same project as your API key), enable <em>YouTube Data API v3</em> and create an <strong>OAuth client ID</strong> of type <strong>Web application</strong>.</li>
+                            <li>Add this authorized redirect URI: <code class="font-mono text-text bg-ink px-1.5 py-0.5 rounded select-all">{{ redirect_uri }}</code></li>
+                            <li><strong class="text-warn">Set the OAuth consent screen's publishing status to “In production”.</strong> Apps left in <em>Testing</em> expire refresh tokens after 7 days and the connection dies weekly. The “unverified app” warning during consent is fine for personal use.</li>
+                            <li>Paste the client ID + secret below, <em>Save settings</em>, then Connect with the Google account (or brand account) that owns the channel.</li>
+                        </ol>
+                    </details>
+                </section>
+
+                <form id="settings-form" method="post" action="{% url 'yt_comments:save' %}" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                    {% csrf_token %}
+                    <div class="px-5 py-4 border-b border-line-soft">
+                        <h2 class="text-sm font-semibold">Settings</h2>
+                        <p class="text-xs text-faint mt-0.5">Saving provisions the managed analyzer script, its secret, a managed database and a daily schedule. Re-saving updates them in place.</p>
+                    </div>
+
+                    <div class="p-5 space-y-6">
+                        <!-- Channel -->
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="eyebrow text-faint">Channel &amp; API key</h3>
+                                <button type="button" id="btn-test-youtube" onclick="testYoutube()" class="text-xs font-medium px-2.5 py-1 rounded-md border border-line text-muted hover:text-text hover:bg-panel-hi transition">Test connection</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {% include "yt_comments/_field.html" with field=form.channel %}
+                                {% include "yt_comments/_field.html" with field=form.yt_api_key %}
+                                {% include "yt_comments/_field.html" with field=form.start_date %}
+                            </div>
+                            <div id="test-youtube-result" class="hidden text-xs mt-2"></div>
+                        </div>
+
+                        <!-- Fetching -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Fetching</h3>
+                            <label class="flex items-center gap-2.5 cursor-pointer mb-3">{{ form.include_replies }}<span class="text-sm text-text">{{ form.include_replies.label }}</span></label>
+                            <div class="max-w-xs">{% include "yt_comments/_field.html" with field=form.max_pages_per_run %}</div>
+                        </div>
+
+                        <!-- Tags -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Tag taxonomy</h3>
+                            {% include "yt_comments/_field.html" with field=form.tags %}
+                        </div>
+
+                        <!-- AI -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">AI classification</h3>
+                            <p class="text-xs text-faint mb-3">Uses the instance's active provider under <span class="font-mono text-text">Services → AI Provider</span> — no extra key. Comments stay <em>pending</em> (never mislabeled) if AI is unavailable, and are analyzed on later runs.</p>
+                            <label class="flex items-center gap-2.5 cursor-pointer mb-3">{{ form.ai_enabled }}<span class="text-sm text-text">{{ form.ai_enabled.label }}</span></label>
+                            <div id="ai-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {% include "yt_comments/_field.html" with field=form.ai_model %}
+                                {% include "yt_comments/_field.html" with field=form.max_ai_per_run %}
+                            </div>
+                        </div>
+
+                        <!-- Reply automation -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Reply automation</h3>
+                            <p class="text-xs text-faint mb-3">Per tag: <strong class="text-text">Draft for approval</strong> queues AI replies on the Replies tab; <strong class="text-text">Auto-publish</strong> posts without asking — guarded (no links outside the Brain knowledge, never on comments containing links, length checks, {{ form.auto_post_daily_cap.value|default:10 }}/day cap) and anything suspicious is demoted to the queue. <span class="text-warn">urgent</span> and <span class="text-warn">spam</span> can never auto-publish. Posting needs the YouTube connection above; drafts cost AI credits.</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                {% include "yt_comments/_field.html" with field=form.yt_oauth_client_id %}
+                                {% include "yt_comments/_field.html" with field=form.yt_oauth_client_secret %}
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3 mb-4">
+                                {% for tag, field in form.policy_fields %}
+                                <div>
+                                    <label class="block text-xs text-muted mb-1 font-mono">{{ tag }}</label>
+                                    {{ field }}
+                                    {% for e in field.errors %}<p class="text-xs text-fail mt-1">{{ e }}</p>{% endfor %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                <div class="max-w-xs">{% include "yt_comments/_field.html" with field=form.auto_post_daily_cap %}</div>
+                                <label class="flex items-center gap-2.5 cursor-pointer pb-2.5">{{ form.moderate_spam }}<span class="text-sm text-text">{{ form.moderate_spam.label }}</span></label>
+                            </div>
+                        </div>
+
+                        <!-- Testimonial publishing -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Testimonial publishing</h3>
+                            <p class="text-xs text-faint mb-3">Testimonials are automatically graded for publish-worthiness (⭐ Feature / Solid / Generic). Avatars are archived under stable keys via <a href="{% url 'cpanel:services' %}" class="text-ok hover:underline">Services → Object Storage</a> — with a public base URL on the assets connection, exports carry permanent image links your website can hot-link.</p>
+                            <label class="flex items-center gap-2.5 cursor-pointer">{{ form.avatar_archive }}<span class="text-sm text-text">{{ form.avatar_archive.label }}</span></label>
+                        </div>
+
+                        <!-- Alerts -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Email alerts &amp; digest</h3>
+                            <p class="text-xs text-faint mb-3">Sent through PyRunner's email settings — one batched email per run, never one per comment. All alerts are suppressed on the first (backfill) run.</p>
+                            <div class="space-y-2.5 mb-3">
+                                <label class="flex items-center gap-2.5 cursor-pointer">{{ form.alerts_enabled }}<span class="text-sm text-text">{{ form.alerts_enabled.label }}</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer">{{ form.digest_enabled }}<span class="text-sm text-text">{{ form.digest_enabled.label }}</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer">{{ form.insights_enabled }}<span class="text-sm text-text">{{ form.insights_enabled.label }}</span></label>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="max-w-sm">{% include "yt_comments/_field.html" with field=form.alert_email %}</div>
+                                <div class="max-w-xs">{% include "yt_comments/_field.html" with field=form.insights_weekday %}</div>
+                            </div>
+                        </div>
+
+                        <!-- Channel alerts -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Messaging channel alerts (optional)</h3>
+                            <p class="text-xs text-faint mb-3">Send urgent + testimonial alerts to a chat channel too (or instead — the email toggles above are independent). Channels live under <a href="{% url 'cpanel:channel_list' %}" class="text-ok hover:underline">Channels</a>; this plugin only picks one by name.</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                {% include "yt_comments/_field.html" with field=form.alert_channel %}
+                                <label class="flex items-center gap-2.5 cursor-pointer pb-2.5">{{ form.channel_digest_enabled }}<span class="text-sm text-text">{{ form.channel_digest_enabled.label }}</span></label>
+                            </div>
+                        </div>
+
+                        <!-- Environment & schedule -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Environment &amp; schedule</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {% include "yt_comments/_field.html" with field=form.environment %}
+                                {% include "yt_comments/_field.html" with field=form.schedule_time %}
+                                {% include "yt_comments/_field.html" with field=form.timezone %}
+                            </div>
+                        </div>
+
+                        <!-- Operational alerts -->
+                        <div>
+                            <h3 class="eyebrow text-faint mb-3">Operational alerts</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {% include "yt_comments/_field.html" with field=form.notify_on %}
+                                {% include "yt_comments/_field.html" with field=form.notify_email %}
+                            </div>
+                            <p class="text-xs text-faint mt-2">These are run-failure alerts via <a href="{% url 'cpanel:settings' %}" class="text-ok hover:underline">Settings → Notifications</a> — separate from the comment alerts above.</p>
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4 border-t border-line-soft flex justify-end">
+                        <button type="submit" class="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const IS_CONFIGURED = {{ is_configured|yesno:"true,false" }};
+    const HAS_DATA = {{ has_data|yesno:"true,false" }};
+    const HAS_FILTERS = {{ filter_tag|yesno:"true,false" }} || {{ filter_video|yesno:"true,false" }} || {{ filter_status|yesno:"true,false" }};
+
+    // ---- Tabs ----
+    window.showTab = function (name) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(t => {
+            t.classList.remove('bg-panel-hi', 'text-text');
+            t.classList.add('text-muted', 'hover:text-text', 'hover:bg-panel-hi/50');
+        });
+        const panel = document.getElementById('panel-' + name);
+        const tab = document.getElementById('tab-' + name);
+        if (!panel || !tab) return;
+        panel.classList.remove('hidden');
+        tab.classList.remove('text-muted', 'hover:text-text', 'hover:bg-panel-hi/50');
+        tab.classList.add('bg-panel-hi', 'text-text');
+        if (history.replaceState) history.replaceState(null, '', location.search + '#' + name);
+    };
+    const validTabs = ['#inbox', '#replies', '#testimonials', '#brain', '#settings'];
+    const FORCE_TAB = '{{ force_tab|default:"" }}';  // re-render with form errors
+    const initial = validTabs.includes('#' + FORCE_TAB)
+        ? FORCE_TAB
+        : (validTabs.includes(location.hash)
+            ? location.hash.slice(1)
+            : (HAS_FILTERS ? 'inbox' : ((IS_CONFIGURED && HAS_DATA) ? 'inbox' : 'settings')));
+    showTab(initial);
+
+    // ---- AI fields follow the toggle ----
+    (function () {
+        const cb = document.getElementById('{{ form.ai_enabled.id_for_label }}');
+        const grp = document.getElementById('ai-fields');
+        if (!cb || !grp) return;
+        const apply = () => { grp.style.display = cb.checked ? '' : 'none'; };
+        cb.addEventListener('change', apply); apply();
+    })();
+
+    // ---- Client-side text filter (current page only) ----
+    const search = document.getElementById('feed-search');
+    function filterFeed() {
+        const q = (search ? search.value : '').toLowerCase().trim();
+        let shown = 0;
+        document.querySelectorAll('.feed-item').forEach(it => {
+            const ok = !q || it.dataset.text.includes(q);
+            it.style.display = ok ? '' : 'none';
+            if (ok) shown++;
+        });
+        const empty = document.getElementById('feed-empty');
+        if (empty) empty.classList.toggle('hidden', shown > 0);
+    }
+    if (search) search.addEventListener('input', filterFeed);
+
+    // ---- Test YouTube connection ----
+    function csrf() {
+        const el = document.querySelector('#settings-form [name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+    window.testYoutube = function () {
+        const btn = document.getElementById('btn-test-youtube');
+        const out = document.getElementById('test-youtube-result');
+        const body = new URLSearchParams();
+        body.append('csrfmiddlewaretoken', csrf());
+        const k = document.getElementById('{{ form.yt_api_key.id_for_label }}');
+        const ch = document.getElementById('{{ form.channel.id_for_label }}');
+        if (k) body.append('yt_api_key', k.value);
+        if (ch) body.append('channel', ch.value);
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Testing…';
+        out.className = 'text-xs mt-2 text-muted'; out.classList.remove('hidden'); out.textContent = 'Testing connection…';
+        fetch("{% url 'yt_comments:test_youtube' %}", { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body })
+            .then(r => r.json())
+            .then(d => { out.textContent = d.message; out.className = 'text-xs mt-2 ' + (d.ok ? 'text-ok' : 'text-fail'); })
+            .catch(() => { out.textContent = 'Test failed to run.'; out.className = 'text-xs mt-2 text-fail'; })
+            .finally(() => { btn.disabled = false; btn.textContent = orig; });
+    };
+
+    // ---- Live status polling ----
+    let wasActive = {{ is_active|yesno:"true,false" }};
+    const PHASE_LABEL = { fetching: 'Fetching comments', titles: 'Fetching video titles', analyzing: 'AI analysis', grading: 'Grading testimonials', avatars: 'Archiving avatars', replying: 'Drafting & posting replies', moderating: 'Moderating spam', insights: 'Weekly insights', alerts: 'Sending alerts' };
+    function render(d) {
+        const banner = document.getElementById('run-banner');
+        const hdr = document.getElementById('hdr-running');
+        const runForm = document.getElementById('btn-run-form');
+        if (d.active) {
+            if (banner) banner.classList.remove('hidden');
+            if (hdr) hdr.classList.remove('hidden');
+            if (runForm) runForm.classList.add('hidden');
+            const bar = document.getElementById('run-bar');
+            const label = document.getElementById('run-label');
+            const p = d.progress;
+            if (p && p.phase) {
+                const name = PHASE_LABEL[p.phase] || p.phase;
+                if (p.total > 0) {
+                    const pct = Math.max(4, Math.min(100, Math.round((p.index / p.total) * 100)));
+                    if (bar) bar.style.width = pct + '%';
+                    if (label) label.textContent = name + ' (' + p.index + '/' + p.total + ')';
+                } else {
+                    if (bar) bar.style.width = '15%';
+                    if (label) label.textContent = name + '…';
+                }
+            } else {
+                if (bar) bar.style.width = '12%';
+                const st = d.run ? d.run.status : 'running';
+                if (label) label.textContent = (st === 'pending') ? 'Queued…' : 'Running…';
+            }
+        } else {
+            if (wasActive) { window.location.reload(); return; }
+            if (banner) banner.classList.add('hidden');
+            if (hdr) hdr.classList.add('hidden');
+            if (runForm) runForm.classList.remove('hidden');
+        }
+    }
+    function poll() {
+        fetch("{% url 'yt_comments:status' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(d => { render(d); if (d.active) { wasActive = true; setTimeout(poll, 2500); } })
+            .catch(() => setTimeout(poll, 5000));
+    }
+    if (IS_CONFIGURED) poll();
+})();
+</script>
+{% endblock %}

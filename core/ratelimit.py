@@ -46,6 +46,24 @@ def rate_limit_exceeded(key: str, limit: int, window_seconds: int) -> bool:
     return count > limit
 
 
+def rate_limit_over(key: str, limit: int, window_seconds: int) -> bool:
+    """Peek: is ``key`` already over budget this window, WITHOUT counting a hit?
+
+    Gates expensive work behind a budget that only specific events consume —
+    the plugin API checks this before its token DB lookup so an IP that burned
+    its auth-fail budget (counted via ``rate_limit_exceeded`` on each failure)
+    stops costing a query per guess. Same fail-open stance as the counter.
+    """
+    bucket = int(time.time() // window_seconds)
+    count = cache.get(f"{key}:{bucket}") or 0
+    return count > limit
+
+
+def seconds_to_window_reset(window_seconds: int) -> int:
+    """Seconds until the current fixed window rolls over (for ``Retry-After``)."""
+    return max(1, window_seconds - int(time.time()) % window_seconds)
+
+
 def client_ip(request) -> str:
     """Best-effort client IP for per-IP rate-limit keys.
 

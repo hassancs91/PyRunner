@@ -18,7 +18,7 @@
                         <span class="text-muted">API Tokens</span>
                     </nav>
                     <h1 class="text-[22px] font-semibold tracking-tight">API Tokens</h1>
-                    <p class="text-sm text-muted mt-1">Manage API tokens for external access to datastores</p>
+                    <p class="text-sm text-muted mt-1">Manage API tokens for external access to datastores and plugin APIs</p>
                 </div>
                 <a href="{% url 'cpanel:api_token_create' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -47,7 +47,12 @@
                             <td class="px-6 py-3.5"><span class="font-medium text-text">{{ token.name }}</span></td>
                             <td class="px-6 py-3.5"><span class="font-mono text-sm text-faint">{{ token.get_masked_token }}</span></td>
                             <td class="px-6 py-3.5 text-sm">
-                                {% if token.datastore %}
+                                {% if token.scope == "plugin" %}
+                                <span class="px-2 py-0.5 rounded-md text-xs bg-warn/10 text-warn">Plugin: {{ token.plugin_slug }}</span>
+                                {% if token.plugin_slug not in loaded_plugin_slugs %}
+                                <span class="block text-xs text-fail mt-1">Plugin not installed</span>
+                                {% endif %}
+                                {% elif token.datastore %}
                                 <span class="px-2 py-0.5 rounded-md text-xs bg-info/10 text-info">{{ token.datastore.name }}</span>
                                 {% else %}
                                 <span class="px-2 py-0.5 rounded-md text-xs bg-accent/10 text-accent">All datastores</span>
@@ -100,6 +105,69 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                     Create token
                 </a>
+            </section>
+            {% endif %}
+
+            <!-- Public pages (oversight: shared from plugin dashboards) -->
+            {% if public_pages %}
+            <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-6 pt-5 pb-3">
+                    <h3 class="text-sm font-medium text-text">Public pages</h3>
+                    <p class="text-xs text-muted mt-1">Anyone with one of these links can view the page — no login. Revoking kills the URL permanently; re-sharing from the plugin issues a new one.</p>
+                </div>
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[720px]">
+                    <thead>
+                        <tr class="border-b border-line-soft text-left">
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Plugin / page</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Link</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Status</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Last viewed</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-line-soft">
+                        {% for page in public_pages %}
+                        <tr class="group hover:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5 text-sm">
+                                <span class="font-medium text-text">{{ page.plugin_slug }}</span> <span class="text-muted">/ {{ page.page }}</span>
+                                {% if page.created_by %}<span class="block text-xs text-faint mt-0.5">shared by {{ page.created_by.email }}</span>{% endif %}
+                            </td>
+                            <td class="px-6 py-3.5">
+                                {% if page.is_active and not page.is_expired %}
+                                <a href="{{ page.url_path }}" target="_blank" rel="noopener" class="font-mono text-xs text-info hover:underline">{{ page.url_path|truncatechars:28 }}</a>
+                                {% else %}
+                                <span class="font-mono text-xs text-faint line-through">{{ page.url_path|truncatechars:28 }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5">
+                                {% if page.is_active and not page.is_expired %}
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Live</span>
+                                {% elif page.is_expired %}
+                                <span class="px-2 py-0.5 text-xs rounded-md bg-panel-hi text-muted">Expired</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-xs rounded-md bg-panel-hi text-muted">Revoked</span>
+                                {% endif %}
+                                {% if page.expires_at %}
+                                <span class="block text-xs text-faint mt-1">Expires {{ page.expires_at|date:"M d, Y" }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5 text-right text-xs text-faint whitespace-nowrap">{% if page.last_accessed_at %}{{ page.last_accessed_at|timesince }} ago{% else %}Never{% endif %}</td>
+                            <td class="px-6 py-3.5">
+                                <div class="flex items-center justify-end gap-2">
+                                    {% if page.is_active and not page.is_expired %}
+                                    <form method="post" action="{% url 'cpanel:public_page_revoke' pk=page.pk %}" onsubmit="return confirm('Revoke this public page? Its URL becomes permanently dead; re-sharing from the plugin issues a new one.');" class="inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="text-[13px] px-3 py-1.5 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Revoke</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
             </section>
             {% endif %}
 

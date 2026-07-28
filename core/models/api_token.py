@@ -1,5 +1,5 @@
 """
-API Token model for datastore API access.
+API Token model for external HTTP API access (datastores + plugin APIs).
 """
 
 import secrets
@@ -9,11 +9,23 @@ from django.conf import settings
 from django.db import models
 
 
-class DataStoreAPIToken(models.Model):
+class APIToken(models.Model):
     """
-    API token for accessing datastore data via REST API.
-    Tokens can be scoped to a single datastore or grant access to all datastores.
+    API token for accessing PyRunner data via the external REST API.
+
+    Scopes (least privilege, one scope per token):
+    - ``datastore``  — a single datastore (the FK).
+    - ``datastores`` — all datastores in the token's workspace (legacy "global").
+    - ``plugin``     — one plugin's declared API resources (``plugin_slug``).
+
+    Historically named ``DataStoreAPIToken`` (the alias survives in
+    ``core.models``); the table name is pinned so the rename touched no SQL.
     """
+
+    class Scope(models.TextChoices):
+        DATASTORE = "datastore", "Single datastore"
+        DATASTORES = "datastores", "All datastores"
+        PLUGIN = "plugin", "Plugin API"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -31,7 +43,17 @@ class DataStoreAPIToken(models.Model):
         help_text="Friendly name for this token",
     )
 
-    # Optional: Restrict to specific datastore (null = global access to all datastores)
+    # What this token can reach. Enforced by CheckConstraints below:
+    # scope="datastore" ⇔ the datastore FK is set; scope="plugin" ⇔ plugin_slug
+    # is non-empty. A legacy pre-scope row was backfilled from its FK.
+    scope = models.CharField(
+        max_length=16,
+        choices=Scope.choices,
+        default=Scope.DATASTORES,
+        help_text="What this token grants access to",
+    )
+
+    # Optional: Restrict to specific datastore (null = access to all datastores)
     datastore = models.ForeignKey(
         "DataStore",
         on_delete=models.CASCADE,
@@ -41,9 +63,21 @@ class DataStoreAPIToken(models.Model):
         help_text="If set, token only grants access to this datastore. Leave empty for global access.",
     )
 
+    # Plugin scope target. Deliberately NOT an FK: plugins aren't rows (dev-mode
+    # plugins have no Plugin row at all); validated against loaded plugins at
+    # creation time only. A token for a later-removed plugin 404s at dispatch.
+    plugin_slug = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Plugin this token is scoped to (scope=plugin only)",
+    )
+
     # Tenancy Stage 3: the workspace this token acts in. A global (no-datastore)
     # token lists/resolves only this workspace's datastores; NULL falls back to
     # the default workspace (today's behavior on a single-workspace instance).
+    # Plugin-scoped tokens are FAIL-CLOSED instead: NULL workspace → 403.
     workspace = models.ForeignKey(
         "core.Workspace",
         on_delete=models.SET_NULL,
@@ -87,11 +121,40 @@ class DataStoreAPIToken(models.Model):
         verbose_name = "API token"
         verbose_name_plural = "API tokens"
         ordering = ["-created_at"]
+        constraints = [
+            # scope="datastore" ⇔ datastore FK set (integrity, not just form
+            # validation — a plugin/global token must never carry a store FK).
+            models.CheckConstraint(
+                condition=(
+                    models.Q(scope="datastore", datastore__isnull=False)
+                    | (~models.Q(scope="datastore") & models.Q(datastore__isnull=True))
+                ),
+                name="apitoken_scope_datastore_fk",
+            ),
+            # scope="plugin" ⇔ plugin_slug non-empty.
+            models.CheckConstraint(
+                condition=(
+                    (models.Q(scope="plugin") & ~models.Q(plugin_slug=""))
+                    | (~models.Q(scope="plugin") & models.Q(plugin_slug=""))
+                ),
+                name="apitoken_scope_plugin_slug",
+            ),
+        ]
 
     def __str__(self):
+        if self.scope == self.Scope.PLUGIN:
+            return f"{self.name} (plugin: {self.plugin_slug})"
         if self.datastore:
             return f"{self.name} ({self.datastore.name})"
         return f"{self.name} (global)"
+
+    def save(self, *args, **kwargs):
+        # Legacy creation sites set only the datastore FK (pre-scope shape);
+        # derive the single-store scope so those callers keep working unchanged.
+        # An explicit plugin scope with an FK still hits the CheckConstraint.
+        if self.datastore_id and self.scope == self.Scope.DATASTORES:
+            self.scope = self.Scope.DATASTORE
+        super().save(*args, **kwargs)
 
     @staticmethod
     def generate_token() -> str:
@@ -112,6 +175,13 @@ class DataStoreAPIToken(models.Model):
     @property
     def scope_display(self) -> str:
         """Return a human-readable scope description."""
+        if self.scope == self.Scope.PLUGIN:
+            return f"Plugin: {self.plugin_slug}"
         if self.datastore:
             return f"Datastore: {self.datastore.name}"
         return "All datastores"
+
+
+# Historical name — kept importable so existing code and migrations referencing
+# the old class keep working (the rename was state-only; table name unchanged).
+DataStoreAPIToken = APIToken

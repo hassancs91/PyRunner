@@ -177,9 +177,11 @@ class OwnedCountsTests(_LoggedIn):
                               workspace=self.ws, owner_plugin="pp", owner_key="k")
         _secret("S", "v", self.ws, owner_plugin="pp")
         DataStore.objects.create(name="pp:x", workspace=self.ws, owner_plugin="pp")
+        # 'libraries' is always present (0 here — none owned); the delete preview
+        # must list every model the cleanup actually deletes.
         self.assertEqual(
             PluginService.owned_resource_counts("pp"),
-            {"scripts": 1, "secrets": 1, "datastores": 1, "total": 3},
+            {"scripts": 1, "secrets": 1, "datastores": 1, "libraries": 0, "total": 3},
         )
 
     def test_counts_zero_for_unknown(self):

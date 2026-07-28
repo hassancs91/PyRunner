@@ -61,7 +61,18 @@
                             <td class="px-6 py-3.5">
                                 <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-[13.5px] font-medium text-text hover:text-ok transition-colors">{{ run.script.name }}</a>
                             </td>
-                            <td class="px-6 py-3.5">{% include "cpanel/runs/_status_badge.html" %}</td>
+                            <td class="px-6 py-3.5">
+                                <div class="flex items-center gap-1.5">
+                                    {% include "cpanel/runs/_status_badge.html" %}
+                                    {% if run.stderr %}
+                                    <button type="button" data-error-toggle="run-err-{{ run.pk }}" aria-expanded="false"
+                                            aria-controls="run-err-{{ run.pk }}" title="Show error output"
+                                            class="inline-grid place-items-center w-5 h-5 rounded text-fail/60 hover:text-fail hover:bg-fail/10 transition-colors">
+                                        <svg class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
                             <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{% if run.duration_display %}{{ run.duration_display }}{% else %}—{% endif %}</td>
                             <td class="px-6 py-3.5 text-sm text-muted truncate max-w-[12rem]">{% if run.triggered_by %}{{ run.triggered_by.email }}{% else %}<span class="text-faint">System</span>{% endif %}</td>
                             <td class="px-6 py-3.5 text-right text-xs text-faint whitespace-nowrap">{% if run.started_at %}{{ run.started_at|date:"M d, H:i" }}{% else %}{{ run.created_at|date:"M d, H:i" }}{% endif %}</td>
@@ -71,6 +82,23 @@
                                 </a>
                             </td>
                         </tr>
+                        {% if run.stderr %}
+                        {# Collapsed by default. `hidden` also keeps this row out of the
+                           tbody's divide-y selector, so collapsed rows add no rule. #}
+                        <tr id="run-err-{{ run.pk }}" hidden class="bg-fail/[0.04] !border-t-0">
+                            <td colspan="6" class="px-6 pb-4">
+                                <div class="rounded-lg border border-fail/30 overflow-hidden">
+                                    <div class="flex items-center justify-between gap-3 px-3 py-1.5 border-b border-fail/30 bg-fail/10">
+                                        <span class="eyebrow text-fail/70">
+                                            stderr{% if run.exit_code is not None %} · exit {{ run.exit_code }}{% endif %}
+                                        </span>
+                                        <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-xs text-muted hover:text-text transition-colors">View full run &rarr;</a>
+                                    </div>
+                                    <pre class="bg-ink text-fail font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap px-3 py-2.5 max-h-64 overflow-auto">{{ run.get_stderr_preview }}</pre>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -100,4 +128,23 @@
         </div>
     </div>
 </div>
+
+<script>
+/* Expand a failed run's stderr inline, so the list answers "why did it fail?"
+   without a round-trip to the detail page. */
+(function () {
+    document.querySelectorAll("[data-error-toggle]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var row = document.getElementById(btn.getAttribute("data-error-toggle"));
+            if (!row) return;
+            var open = row.hasAttribute("hidden");
+            row.toggleAttribute("hidden", !open);
+            btn.setAttribute("aria-expanded", String(open));
+            btn.setAttribute("title", open ? "Hide error output" : "Show error output");
+            var caret = btn.querySelector("svg");
+            if (caret) caret.classList.toggle("rotate-180", open);
+        });
+    });
+})();
+</script>
 {% endblock %}

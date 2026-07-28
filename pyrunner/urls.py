@@ -17,6 +17,7 @@ from django.shortcuts import redirect
 
 from core.views.webhooks import webhook_trigger_view
 from core.views.channel_webhooks import channel_webhook_view
+from core.views.public_pages import plugin_public_page_view
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ urlpatterns = [
     path("webhook/<str:token>/", webhook_trigger_view, name="webhook_trigger"),
     # Public inbound chat webhook for Channels (signature-verified, no auth).
     path("channels/<str:token>/", channel_webhook_view, name="channel_webhook"),
+    # Plugin public pages (capability URLs — no session, per-IP rate-limited).
+    path("p/<str:token>/", plugin_public_page_view, name="plugin_public_page"),
     path("", lambda request: redirect("auth:login")),
 ]
 

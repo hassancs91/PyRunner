@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from core.models import (
@@ -20,6 +20,7 @@ from core.models import (
     DataStoreEntry,
     Environment,
     GlobalSettings,
+    Library,
     PackageOperation,
     Run,
     ScheduleHistory,
@@ -32,6 +33,7 @@ from core.models import (
     Workspace,
     WorkspaceMembership,
 )
+from core.models.library import hash_modules
 from core.services.encryption_service import EncryptionService
 from core.services.schedule_service import ScheduleService
 from pyrunner.version import __version__ as PYRUNNER_VERSION
@@ -83,6 +85,18 @@ class BackupService:
     # ``secret_providers`` key and no ``source`` on its secrets → every secret
     # defaults to ``source="local"`` (today's path, byte-for-byte).
     #
+    # 1.7.0 — Script Libraries: a ``libraries`` array (one row per library, with
+    # its HEAD revision's ``modules`` inlined and ``current_version`` carried
+    # verbatim), plus ``libraries`` (attachment ids) on each script and
+    # ``library_versions`` on each run. HEAD ONLY, by design: a backup restores a
+    # working system, and forensic revision history is not operational state —
+    # so restore recreates a single revision numbered ``current_version`` rather
+    # than renumbering to 1. That keeps every restored run's stamp meaningful
+    # (a run pinned to the head still resolves); a run pinned to an OLDER version
+    # fails closed after restore, which is the documented trade. Backward
+    # compatible: a pre-1.7.0 backup has no ``libraries`` key, no attachments and
+    # no run stamps → nothing to materialize, exactly today's behavior.
+    #
     # Deliberately NOT in the backup (documented so the omission reads as a choice,
     # not an oversight): S3/backup credentials, AI provider rows + settings,
     # reCAPTCHA keys, ``admin_url_slug``, worker/heartbeat settings, the Channels
@@ -90,7 +104,7 @@ class BackupService:
     # deployment-/secret-bound to a specific instance — restoring them onto a
     # different host would be wrong (stale endpoints) or a credential-leak vector —
     # so they are reconfigured per instance rather than carried in a portable dump.
-    BACKUP_VERSION = "1.6.0"
+    BACKUP_VERSION = "1.7.0"
     MAX_BACKUP_SIZE_MB = 100
 
     # Backup format constants
@@ -135,6 +149,7 @@ class BackupService:
             "workspaces": cls._export_workspaces(),
             "environments": cls._export_environments(),
             "users": cls._export_users(),
+            "libraries": cls._export_libraries(),
             "scripts": cls._export_scripts(),
             "script_schedules": cls._export_schedules(),
             "schedule_history": cls._export_schedule_history(),
@@ -235,12 +250,49 @@ class BackupService:
         return users
 
     @classmethod
+    def _export_libraries(cls) -> List[dict]:
+        """Export libraries with their HEAD revision inlined (never full history).
+
+        ``current_version`` is carried verbatim so restore can recreate the head
+        under its original number — a restored run's ``library_versions`` stamp
+        must keep pointing at the content it actually ran.
+        """
+        from core.models import Library, LibraryRevision
+
+        libraries = []
+        queryset = Library.objects.select_related("created_by").order_by("created_at")
+        # One query for every head revision instead of one per library.
+        heads = {
+            rev.library_id: rev
+            for rev in LibraryRevision.objects.filter(
+                library__in=queryset, version=models.F("library__current_version")
+            )
+        }
+        for library in queryset:
+            head = heads.get(library.id)
+            libraries.append({
+                "id": str(library.id),
+                "key": library.key,
+                "name": library.name,
+                "description": library.description,
+                "workspace_id": str(library.workspace_id) if library.workspace_id else None,
+                "owner_plugin": library.owner_plugin,
+                "owner_key": library.owner_key,
+                "current_version": library.current_version,
+                "modules": head.modules if head else {},
+                "created_at": cls._serialize_datetime(library.created_at),
+                "updated_at": cls._serialize_datetime(library.updated_at),
+                "created_by_email": library.created_by.email if library.created_by else None,
+            })
+        return libraries
+
+    @classmethod
     def _export_scripts(cls) -> List[dict]:
         """Export scripts with all fields."""
         scripts = []
         queryset = (
             Script.objects.select_related("environment", "created_by", "archived_by")
-            .prefetch_related("tags", "secret_grants")
+            .prefetch_related("tags", "secret_grants", "library_attachments")
             .all()
             .order_by("created_at")
         )
@@ -281,6 +333,12 @@ class BackupService:
                 "secret_grants": [
                     {"secret_id": str(g.secret_id), "active": g.active}
                     for g in script.secret_grants.all()
+                ],
+                # Attached libraries (ids; UUIDs are preserved across restore).
+                # Imported in their own pass once both sides exist, exactly like
+                # secret_grants. Old backups carry none.
+                "libraries": [
+                    str(a.library_id) for a in script.library_attachments.all()
                 ],
                 "created_at": cls._serialize_datetime(script.created_at),
                 "updated_at": cls._serialize_datetime(script.updated_at),
@@ -400,6 +458,9 @@ class BackupService:
                 "started_at": cls._serialize_datetime(run.started_at),
                 "ended_at": cls._serialize_datetime(run.ended_at),
                 "code_snapshot": run.code_snapshot,
+                # code_snapshot's counterpart for shared code — without it a
+                # restored run couldn't say which library versions it ran.
+                "library_versions": run.library_versions,
                 "trigger_type": run.trigger_type,
                 "triggered_by_email": run.triggered_by.email if run.triggered_by else None,
                 "created_at": cls._serialize_datetime(run.created_at),
@@ -800,6 +861,11 @@ class BackupService:
             ScheduleHistory.objects.all().delete()
             ScriptSchedule.objects.all().delete()
             Script.objects.all().delete()
+            # After Scripts (whose deletion cascades the attachment rows) and
+            # before the import: restore is a full replace, and a library key is
+            # unique per workspace, so a surviving row would collide with the
+            # incoming one. Cascades to revisions.
+            Library.objects.all().delete()
             Secret.objects.all().delete()
             Environment.objects.all().delete()
             DataStoreEntry.objects.all().delete()
@@ -840,10 +906,15 @@ class BackupService:
             warnings.extend(
                 cls._import_secrets(backup_data.get("secrets", []), user_map, current_user, ws_map, default_ws)
             )
+            libraries_restored = cls._import_libraries(
+                backup_data.get("libraries", []), user_map, current_user, ws_map, default_ws
+            )
             script_map = cls._import_scripts(backup_data.get("scripts", []), env_map, user_map, current_user, ws_map, default_ws)
             # Grants reference both Secrets (imported above) and Scripts (just
             # imported), so they go in their own pass. Old backups carry none.
             cls._import_secret_grants(backup_data.get("scripts", []), script_map)
+            # Library attachments need both sides too — same pass-ordering reason.
+            cls._import_library_attachments(backup_data.get("scripts", []), script_map)
             cls._import_schedules(backup_data.get("script_schedules", []), script_map, user_map, current_user, ws_map, default_ws)
             cls._import_schedule_history(backup_data.get("schedule_history", []), user_map, current_user)
 
@@ -872,6 +943,7 @@ class BackupService:
                 "datastores": len(ds_map),
                 "datastore_entries": DataStoreEntry.objects.count(),
                 "databases": databases_restored,
+                "libraries": libraries_restored,
             }
 
             return {"success": True, "counts": counts, "errors": [], "warnings": warnings}
@@ -1140,6 +1212,68 @@ class BackupService:
         return script_map
 
     @classmethod
+    def _import_libraries(cls, libraries_data: List[dict], user_map: dict, current_user, ws_map: dict, default_ws) -> int:
+        """Recreate libraries and their head revision. Returns the count restored.
+
+        The head is recreated under its ORIGINAL version number (not renumbered to
+        1), so a restored run's ``library_versions`` stamp still resolves and
+        ``current_version`` never moves backwards. History before the head is not
+        in the backup by design — see the 1.7.0 note above.
+        """
+        from core.models import Library, LibraryRevision
+
+        restored = 0
+        for data in libraries_data:
+            created_by = user_map.get(data.get("created_by_email"), current_user)
+            library, _ = Library.objects.update_or_create(
+                id=data["id"],  # Preserve UUID (script attachments resolve by id)
+                defaults={
+                    "key": data["key"],
+                    "name": data.get("name", ""),
+                    "description": data.get("description", ""),
+                    "workspace": cls._resolve_workspace(data.get("workspace_id"), ws_map, default_ws),
+                    "owner_plugin": data.get("owner_plugin"),
+                    "owner_key": data.get("owner_key"),
+                    "current_version": data.get("current_version", 0),
+                    "created_by": created_by,
+                },
+            )
+            modules = data.get("modules") or {}
+            version = data.get("current_version", 0)
+            if version and modules:
+                LibraryRevision.objects.update_or_create(
+                    library=library,
+                    version=version,
+                    defaults={
+                        "modules": modules,
+                        "content_hash": hash_modules(modules),
+                        "created_by": created_by,
+                    },
+                )
+            restored += 1
+        return restored
+
+    @classmethod
+    def _import_library_attachments(cls, scripts_data: List[dict], script_map: dict) -> None:
+        """Reattach libraries to scripts from the embedded ids in the script export.
+
+        Runs after both libraries and scripts exist (UUIDs preserved, so ids
+        resolve). An attachment pointing at a missing library is skipped
+        (best-effort). Pre-1.7.0 backups carry no ``libraries`` key.
+        """
+        from core.models import Library, ScriptLibrary
+
+        for script_data in scripts_data:
+            script = script_map.get(script_data["id"])
+            if not script:
+                continue
+            for library_id in script_data.get("libraries", []):
+                library = Library.objects.filter(id=library_id).first()
+                if library is None:
+                    continue
+                ScriptLibrary.objects.get_or_create(script=script, library=library)
+
+    @classmethod
     def _import_secret_grants(cls, scripts_data: List[dict], script_map: dict) -> None:
         """Recreate per-script secret grants embedded in the script export.
 
@@ -1236,6 +1370,7 @@ class BackupService:
                 started_at=cls._deserialize_datetime(run_data.get("started_at")),
                 ended_at=cls._deserialize_datetime(run_data.get("ended_at")),
                 code_snapshot=run_data.get("code_snapshot", ""),
+                library_versions=run_data.get("library_versions"),
                 trigger_type=run_data.get("trigger_type", "manual"),
                 triggered_by=triggered_by,
                 created_at=cls._deserialize_datetime(run_data.get("created_at")),

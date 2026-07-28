@@ -82,6 +82,19 @@ class Script(models.Model):
         help_text="Secrets explicitly attached to this script (selected mode).",
     )
 
+    # Shared multi-module code attached to this script (Script Libraries). Each
+    # attached library is materialized onto the run's PYTHONPATH as an importable
+    # package, pinned to the revision stamped on the Run at queue time. Explicit-
+    # only: no attachment row, no import.
+    libraries = models.ManyToManyField(
+        "core.Library",
+        through="core.ScriptLibrary",
+        through_fields=("script", "library"),
+        related_name="attached_scripts",
+        blank=True,
+        help_text="Libraries this script can import at run time.",
+    )
+
     # The actual Python code
     code = models.TextField(help_text="Python code to execute")
 

@@ -15,7 +15,7 @@
                 <p class="text-sm text-muted mt-1">Configure external service integrations</p>
             </div>
 
-            <!-- S3 Storage Service Card -->
+            <!-- Object Storage Service Card -->
             <div class="rounded-2xl border border-line bg-panel overflow-hidden">
                 <div class="p-6 border-b border-line-soft">
                     <div class="flex items-center justify-between gap-4">
@@ -24,8 +24,8 @@
                                 <svg class="w-6 h-6 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
                             </div>
                             <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-text">S3 Storage</h2>
-                                <p class="text-sm text-muted">S3-compatible storage for scheduled backups</p>
+                                <h2 class="text-lg font-semibold text-text">Object Storage</h2>
+                                <p class="text-sm text-muted">S3-compatible buckets for backups and plugin assets &mdash; Cloudflare R2, AWS S3, Backblaze B2, Spaces, MinIO, or any compatible endpoint</p>
                             </div>
                         </div>
 
@@ -44,15 +44,22 @@
                         </div>
                     </div>
 
-                    {% if s3_status.configured %}
                     <div class="mt-4 flex flex-wrap gap-2.5">
                         <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
-                            <span class="eyebrow text-faint">Bucket</span>
+                            <span class="eyebrow text-faint">Backups</span>
+                            {% if s3_status.configured %}
                             <span class="text-text font-mono text-sm">{{ s3_status.bucket }}</span>
+                            {% else %}
+                            <span class="text-faint text-sm">Not configured</span>
+                            {% endif %}
                         </div>
                         <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
-                            <span class="eyebrow text-faint">Endpoint</span>
-                            <span class="text-text font-mono text-sm truncate max-w-xs">{{ s3_status.endpoint }}</span>
+                            <span class="eyebrow text-faint">Plugin assets</span>
+                            {% if assets_connection %}
+                            <span class="text-text font-mono text-sm">{{ assets_connection.bucket }}</span>
+                            {% else %}
+                            <span class="text-faint text-sm">Unavailable</span>
+                            {% endif %}
                         </div>
                         {% if s3_status.last_tested %}
                         <div class="flex items-center gap-2 px-3 py-1.5 bg-panel-hi border border-line-soft rounded-lg">
@@ -61,70 +68,186 @@
                         </div>
                         {% endif %}
                     </div>
-                    {% endif %}
                 </div>
 
                 <div id="s3-config" class="hidden">
-                    <form method="post" action="{% url 'cpanel:s3_settings' %}" class="p-6">
-                        {% csrf_token %}
+                    <div class="p-6 space-y-6">
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                            <div class="md:col-span-2">
-                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_endpoint_url.label }}</label>
-                                {{ s3_form.s3_endpoint_url }}
-                                <p class="mt-1.5 text-xs text-faint">{{ s3_form.s3_endpoint_url.help_text }}</p>
+                        <!-- Saved connections -->
+                        <div>
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <p class="text-[13px] font-medium text-text">Saved connections</p>
+                                <button type="button" onclick="storageNewConnection()" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">+ Add connection</button>
                             </div>
 
-                            <div>
-                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_region.label }}</label>
-                                {{ s3_form.s3_region }}
+                            {% if storage_connections %}
+                            <div class="border border-line-soft rounded-lg overflow-hidden">
+                                <div class="overflow-x-auto">
+                                <table class="w-full text-sm min-w-[720px]">
+                                    <thead>
+                                        <tr class="text-left bg-panel-hi/40">
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Name</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Type</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Bucket</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">URLs</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Last tested</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for c in storage_connections %}
+                                        <tr class="border-t border-line-soft">
+                                            <td class="px-4 py-2.5 text-text font-medium whitespace-nowrap">
+                                                {{ c.name }}
+                                                {% if c.is_default %}
+                                                <span class="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-md bg-ok/10 text-ok align-middle"><span class="w-1 h-1 rounded-full bg-ok"></span>Backups</span>
+                                                {% endif %}
+                                                {% if settings.assets_storage_id == c.id %}
+                                                <span class="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-md bg-info/10 text-info align-middle"><span class="w-1 h-1 rounded-full bg-info"></span>Assets</span>
+                                                {% endif %}
+                                                {% if not c.enabled %}
+                                                <span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-panel-hi text-faint align-middle">Disabled</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">{{ c.get_provider_type_display }}</td>
+                                            <td class="px-4 py-2.5 font-mono text-xs text-muted">{{ c.bucket|default:"—" }}</td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">
+                                                {% if c.public_base_url %}
+                                                <span class="text-ok">Public</span>
+                                                {% else %}
+                                                <span class="text-faint">Presigned</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">{% if c.last_tested_at %}{{ c.last_tested_at|timesince }} ago{% else %}&mdash;{% endif %}</td>
+                                            <td class="px-4 py-2.5">
+                                                <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                                    {% if not c.is_default %}
+                                                    <form method="post" action="{% url 'cpanel:storage_connection_default' connection_id=c.id %}" class="inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Use for backups</button>
+                                                    </form>
+                                                    {% endif %}
+                                                    <button type="button" onclick="storageTestRow('{{ c.id }}', this)" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test</button>
+                                                    <button type="button" onclick="storageEditConnection('{{ c.id }}')" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Edit</button>
+                                                    <form method="post" action="{% url 'cpanel:storage_connection_delete' connection_id=c.id %}" class="inline" onsubmit="return confirm('Delete connection \'{{ c.name|escapejs }}\'? Its saved credentials will be removed. Objects already in the bucket are NOT deleted.');">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-fail/80 hover:text-fail hover:border-fail/50 transition-colors">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                </div>
                             </div>
-
-                            <div>
-                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_bucket_name.label }}</label>
-                                {{ s3_form.s3_bucket_name }}
-                                {% if s3_form.s3_bucket_name.errors %}<p class="mt-1.5 text-xs text-fail">{{ s3_form.s3_bucket_name.errors.0 }}</p>{% endif %}
+                            {% else %}
+                            <div class="border border-dashed border-line rounded-lg p-5 text-center text-sm text-muted">
+                                No connections saved yet. Add one to enable scheduled backups and plugin storage.
                             </div>
-
-                            <div>
-                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_access_key.label }}</label>
-                                {{ s3_form.s3_access_key }}
-                                {% if settings.s3_access_key_encrypted %}<p class="mt-1.5 text-xs text-ok">Access key is configured</p>{% endif %}
-                            </div>
-
-                            <div>
-                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ s3_form.s3_secret_key.label }}</label>
-                                {{ s3_form.s3_secret_key }}
-                                {% if settings.s3_secret_key_encrypted %}<p class="mt-1.5 text-xs text-ok">Secret key is configured</p>{% endif %}
-                            </div>
+                            {% endif %}
                         </div>
 
-                        <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
-                            <label class="flex items-center gap-2 cursor-pointer">{{ s3_form.s3_use_ssl }}<span class="text-sm text-muted">{{ s3_form.s3_use_ssl.label }}</span></label>
-                            <label class="flex items-center gap-2 cursor-pointer">{{ s3_form.s3_path_style }}<span class="text-sm text-muted">{{ s3_form.s3_path_style.label }}</span></label>
-                            <label class="flex items-center gap-2 cursor-pointer">{{ s3_form.s3_enabled }}<span class="text-sm text-muted">{{ s3_form.s3_enabled.label }}</span></label>
+                        <!-- Add / edit connection form -->
+                        <div id="storage-form-wrap" class="hidden border border-line-soft rounded-lg p-5 bg-panel-hi/30">
+                            <p id="storage-form-title" class="text-[13px] font-medium text-text mb-4">Add connection</p>
+                            <form method="post" action="{% url 'cpanel:storage_connection_save' %}" id="storage-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="connection_id" id="storage-connection-id" value="">
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.provider_type.label }}</label>
+                                        {{ storage_form.provider_type }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.name.label }}</label>
+                                        {{ storage_form.name }}
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.endpoint_url.label }}</label>
+                                        {{ storage_form.endpoint_url }}
+                                        <p class="mt-1.5 text-xs text-faint">{{ storage_form.endpoint_url.help_text }}</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.region.label }}</label>
+                                        {{ storage_form.region }}
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.bucket.label }}</label>
+                                        {{ storage_form.bucket }}
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.access_key.label }}</label>
+                                        {{ storage_form.access_key }}
+                                        <p class="mt-1.5 text-xs text-ok hidden" id="storage-credentials-saved">Credentials are saved &mdash; leave blank to keep them.</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.secret_key.label }}</label>
+                                        {{ storage_form.secret_key }}
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ storage_form.public_base_url.label }}</label>
+                                        {{ storage_form.public_base_url }}
+                                        <p class="mt-1.5 text-xs text-faint">{{ storage_form.public_base_url.help_text }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ storage_form.use_ssl }}<span class="text-sm text-muted">{{ storage_form.use_ssl.label }}</span></label>
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ storage_form.path_style }}<span class="text-sm text-muted">{{ storage_form.path_style.label }}</span></label>
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ storage_form.is_default }}<span class="text-sm text-muted">{{ storage_form.is_default.label }}</span></label>
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ storage_form.enabled }}<span class="text-sm text-muted">{{ storage_form.enabled.label }}</span></label>
+                                </div>
+
+                                <p id="storage-notes" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs"></p>
+                                <p id="storage-docs" class="hidden mb-5 text-xs text-faint"></p>
+
+                                <div class="flex items-center gap-2.5">
+                                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save connection</button>
+                                    <button type="button" onclick="testS3Connection()" id="test-s3-btn" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test connection</button>
+                                    <button type="button" onclick="storageCancelForm()" class="text-[13px] px-3.5 py-2 rounded-lg text-muted hover:text-text transition-colors">Cancel</button>
+                                </div>
+                            </form>
                         </div>
 
-                        <div class="mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
-                            <p class="text-[13px] font-medium text-text mb-3">Quick setup presets</p>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="button" onclick="setPreset('aws')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">AWS S3</button>
-                                <button type="button" onclick="setPreset('minio')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">MinIO</button>
-                                <button type="button" onclick="setPreset('digitalocean')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">DigitalOcean Spaces</button>
-                                <button type="button" onclick="setPreset('backblaze')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Backblaze B2</button>
-                                <button type="button" onclick="setPreset('cloudflare')" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cloudflare R2</button>
+                        <!-- Plugin assets selector -->
+                        <form method="post" action="{% url 'cpanel:assets_storage' %}" class="flex flex-wrap items-end gap-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                            {% csrf_token %}
+                            <div class="min-w-[280px]">
+                                <label class="block text-[13px] font-medium text-text mb-1.5">{{ assets_form.assets_storage.label }}</label>
+                                {{ assets_form.assets_storage }}
+                                <p class="mt-1.5 text-xs text-faint">{{ assets_form.assets_storage.help_text }}</p>
                             </div>
+                            <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition mb-1">Save</button>
+                        </form>
+
+                        <!-- Usage help -->
+                        <div class="p-4 bg-panel-hi/40 border border-line-soft rounded-lg text-sm text-muted">
+                            <p class="text-text font-medium mb-2">How plugins use storage</p>
+                            <p class="mb-2">A plugin reads and writes through the SDK, confined to its own prefix:</p>
+                            <pre class="bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto text-text"><code>from core.plugins.api import StorageAPI
+
+storage = StorageAPI(OWNER)  # confined to apps/&lt;your-plugin&gt;/
+storage.put("avatars/abc.jpg", data, content_type="image/jpeg")
+url = storage.url("avatars/abc.jpg")</code></pre>
+                            <p class="mt-3">Pick an <span class="text-text">assets connection</span> above to enable it &mdash; keep it separate from the backup bucket, which should stay private. Without a <span class="text-text">public base URL</span>, <span class="font-mono text-text">url()</span> returns a presigned link that expires.</p>
                         </div>
 
-                        <div class="flex items-center gap-2.5">
-                            <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
-                            <button type="button" onclick="testS3Connection()" id="test-s3-btn" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test connection</button>
-                        </div>
-                    </form>
+                    </div>
 
                     <div id="s3-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
                 </div>
             </div>
+
+            {{ storage_connections_json|json_script:"storage-connections-data" }}
+            {{ storage_presets_json|json_script:"storage-presets-data" }}
 
             <!-- AI Provider Service Card -->
             <div class="rounded-2xl border border-line bg-panel overflow-hidden">
@@ -506,24 +629,31 @@ function toggleS3Config() {
     chevron.classList.toggle('rotate-180');
 }
 
-function testS3Connection() {
-    const btn = document.getElementById('test-s3-btn');
+// ---- Object Storage card ----
+const STORAGE_CONNECTIONS = JSON.parse(document.getElementById('storage-connections-data').textContent);
+const STORAGE_PRESETS = JSON.parse(document.getElementById('storage-presets-data').textContent);
+
+function storageFormField(name) {
+    return document.querySelector('#storage-form [name="' + name + '"]');
+}
+
+function storageShowResult(data) {
     const resultDiv = document.getElementById('s3-test-result');
+    resultDiv.classList.remove('hidden');
+    if (data.success) {
+        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-ok/10 border border-ok/30 text-ok';
+        resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
+    } else {
+        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
+        resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
+    }
+}
 
+function storagePostTest(payload, btn, busyLabel) {
+    const original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Testing...';
-    resultDiv.classList.add('hidden');
-
-    // Collect form data to test without saving
-    const formData = {
-        s3_endpoint_url: document.querySelector('[name="s3_endpoint_url"]').value,
-        s3_region: document.querySelector('[name="s3_region"]').value,
-        s3_bucket_name: document.querySelector('[name="s3_bucket_name"]').value,
-        s3_access_key: document.querySelector('[name="s3_access_key"]').value,
-        s3_secret_key: document.querySelector('[name="s3_secret_key"]').value,
-        s3_use_ssl: document.querySelector('[name="s3_use_ssl"]').checked,
-        s3_path_style: document.querySelector('[name="s3_path_style"]').checked,
-    };
+    btn.textContent = busyLabel;
+    document.getElementById('s3-test-result').classList.add('hidden');
 
     fetch('{% url "cpanel:s3_test_connection" %}', {
         method: 'POST',
@@ -531,68 +661,104 @@ function testS3Connection() {
             'X-CSRFToken': '{{ csrf_token }}',
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
     })
     .then(response => response.json())
-    .then(data => {
-        resultDiv.classList.remove('hidden');
-        if (data.success) {
-            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-ok/10 border border-ok/30 text-ok';
-            resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
-        } else {
-            resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
-            resultDiv.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
-        }
-    })
+    .then(storageShowResult)
     .catch(error => {
-        resultDiv.classList.remove('hidden');
-        resultDiv.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
-        resultDiv.textContent = 'Error: ' + escapeHtml(error.message);
+        storageShowResult({success: false, error: error.message});
     })
     .finally(() => {
         btn.disabled = false;
-        btn.textContent = 'Test connection';
+        btn.textContent = original;
     });
 }
 
-function setPreset(provider) {
-    const endpoint = document.querySelector('[name="s3_endpoint_url"]');
-    const region = document.querySelector('[name="s3_region"]');
-    const useSSL = document.querySelector('[name="s3_use_ssl"]');
-    const pathStyle = document.querySelector('[name="s3_path_style"]');
+// Test a saved row: send only its id, so the server uses its stored credentials.
+function storageTestRow(id, btn) {
+    storagePostTest({connection_id: id}, btn, 'Testing…');
+}
 
-    switch(provider) {
-        case 'aws':
-            endpoint.value = '';
-            region.value = 'us-east-1';
-            useSSL.checked = true;
-            pathStyle.checked = false;
-            break;
-        case 'minio':
-            endpoint.value = 'http://localhost:9000';
-            region.value = 'us-east-1';
-            useSSL.checked = false;
-            pathStyle.checked = true;
-            break;
-        case 'digitalocean':
-            endpoint.value = 'https://nyc3.digitaloceanspaces.com';
-            region.value = 'nyc3';
-            useSSL.checked = true;
-            pathStyle.checked = false;
-            break;
-        case 'backblaze':
-            endpoint.value = 'https://s3.us-west-002.backblazeb2.com';
-            region.value = 'us-west-002';
-            useSSL.checked = true;
-            pathStyle.checked = false;
-            break;
-        case 'cloudflare':
-            endpoint.value = 'https://<account_id>.r2.cloudflarestorage.com';
-            region.value = 'auto';
-            useSSL.checked = true;
-            pathStyle.checked = false;
-            break;
+// Test what's typed in the form, before saving. A blank credential falls back to
+// the edited row's stored one server-side.
+function testS3Connection() {
+    storagePostTest({
+        connection_id: document.getElementById('storage-connection-id').value,
+        endpoint_url: storageFormField('endpoint_url').value,
+        region: storageFormField('region').value,
+        bucket: storageFormField('bucket').value,
+        access_key: storageFormField('access_key').value,
+        secret_key: storageFormField('secret_key').value,
+        use_ssl: storageFormField('use_ssl').checked,
+        path_style: storageFormField('path_style').checked,
+    }, document.getElementById('test-s3-btn'), 'Testing…');
+}
+
+function storageApplyPreset(ptype, {prefillEndpoint = false} = {}) {
+    const preset = STORAGE_PRESETS[ptype] || {};
+    const endpoint = storageFormField('endpoint_url');
+    const notes = document.getElementById('storage-notes');
+    const docs = document.getElementById('storage-docs');
+    const typeLabel = storageFormField('provider_type').selectedOptions[0]?.text || ptype;
+
+    endpoint.placeholder = preset.endpoint_placeholder || 'https://…';
+    if (prefillEndpoint) {
+        storageFormField('region').value = preset.region_default || 'us-east-1';
+        storageFormField('path_style').checked = !!preset.path_style_default;
     }
+
+    if (preset.notes) {
+        notes.textContent = preset.notes;
+        notes.classList.remove('hidden');
+    } else {
+        notes.classList.add('hidden');
+    }
+
+    if (preset.docs_url) {
+        docs.innerHTML = 'Reference: <a href="' + escapeHtml(preset.docs_url) + '" target="_blank" rel="noopener" class="text-info hover:underline">' + escapeHtml(typeLabel) + ' docs</a>';
+        docs.classList.remove('hidden');
+    } else {
+        docs.classList.add('hidden');
+    }
+}
+
+function storageCancelForm() {
+    document.getElementById('storage-form-wrap').classList.add('hidden');
+}
+
+function storageNewConnection() {
+    document.getElementById('storage-form-title').textContent = 'Add connection';
+    document.getElementById('storage-connection-id').value = '';
+    document.getElementById('storage-form').reset();
+    document.getElementById('storage-credentials-saved').classList.add('hidden');
+    document.getElementById('storage-form-wrap').classList.remove('hidden');
+    storageApplyPreset(storageFormField('provider_type').value, {prefillEndpoint: true});
+}
+
+function storageEditConnection(id) {
+    const c = STORAGE_CONNECTIONS.find(x => x.id === id);
+    if (!c) return;
+
+    document.getElementById('storage-form-title').textContent = 'Edit connection';
+    document.getElementById('storage-connection-id').value = c.id;
+    storageFormField('provider_type').value = c.provider_type;
+    storageFormField('name').value = c.name;
+    storageFormField('endpoint_url').value = c.endpoint_url;
+    storageFormField('region').value = c.region;
+    storageFormField('bucket').value = c.bucket;
+    storageFormField('public_base_url').value = c.public_base_url;
+    storageFormField('use_ssl').checked = c.use_ssl;
+    storageFormField('path_style').checked = c.path_style;
+    storageFormField('is_default').checked = c.is_default;
+    storageFormField('enabled').checked = c.enabled;
+    // Never prefill secrets — blank means "keep the stored ones".
+    storageFormField('access_key').value = '';
+    storageFormField('secret_key').value = '';
+    document.getElementById('storage-credentials-saved').classList.toggle('hidden', !c.has_credentials);
+
+    // Don't clobber the row's own endpoint/region with preset defaults.
+    storageApplyPreset(c.provider_type, {prefillEndpoint: false});
+    document.getElementById('storage-form-wrap').classList.remove('hidden');
 }
 
 // ---- AI Provider card ----
@@ -872,8 +1038,19 @@ function spTestForm() {
 
 // Auto-expand if form has errors or if not configured
 document.addEventListener('DOMContentLoaded', function() {
-    {% if s3_form.errors or not s3_status.configured %}
+    {% if not s3_status.configured %}
     toggleS3Config();
+    {% endif %}
+
+    const storageType = storageFormField('provider_type');
+    if (storageType) {
+        storageType.addEventListener('change', function () {
+            storageApplyPreset(this.value, {prefillEndpoint: true});
+        });
+    }
+    {% if not storage_connections %}
+    // First run: open the add-connection form (the card is already open above).
+    storageNewConnection();
     {% endif %}
 
     const aiType = aiFormField('provider_type');

@@ -354,12 +354,26 @@ class PluginService:
 
     @staticmethod
     def owned_resource_counts(slug: str) -> dict:
-        """Count Script/Secret/DataStore rows owned by ``slug`` (for the delete
-        preview). Field-gated + best-effort, so it's safe on a pre-v2 schema."""
-        from core.models import DataStore, Script, Secret
+        """Count Script/Secret/DataStore/Library rows owned by ``slug`` (for the
+        delete preview). Field-gated + best-effort, so it's safe on a pre-v2 schema.
+
+        Must list the same models as ``_cleanup_owned_resources`` — a preview that
+        undercounts is a promise the delete then breaks.
+
+        Stored objects are the ONE deliberate exception: counting them means a
+        remote list call per plugin, and this runs in a loop on the plugins list
+        page. The delete dialog names them in prose instead, so the promise is
+        still kept — just not as a number.
+        """
+        from core.models import DataStore, Library, Script, Secret
 
         counts = {}
-        for model, label in ((Script, "scripts"), (Secret, "secrets"), (DataStore, "datastores")):
+        for model, label in (
+            (Script, "scripts"),
+            (Secret, "secrets"),
+            (DataStore, "datastores"),
+            (Library, "libraries"),
+        ):
             try:
                 model._meta.get_field("owner_plugin")
                 counts[label] = model.objects.filter(owner_plugin=slug).count()
@@ -369,17 +383,40 @@ class PluginService:
         return counts
 
     @staticmethod
+    def owned_resource_summary(slug: str) -> str:
+        """Human one-liner of what a delete with remove_data would ACTUALLY drop.
+
+        Shares one label table with the manifest's ``provisions_summary``, so the
+        delete-confirm preview can never quietly under-report a resource the
+        cleanup deletes — the promise the dialog makes and the promise the delete
+        keeps come from the same list.
+        """
+        from core.models.plugin import format_resource_counts
+
+        return format_resource_counts(PluginService.owned_resource_counts(slug))
+
+    @staticmethod
     def _cleanup_owned_resources(slug: str) -> dict:
-        """Delete Script/Secret/DataStore rows owned by ``slug``. Returns counts.
+        """Delete Script/Secret/DataStore/Library rows owned by ``slug``. Returns counts.
 
         Field-gated (a pre-v2 schema has no ``owner_plugin`` column) and wrapped so
         a cleanup failure can never block plugin removal — the files + registry row
         are still removed by the caller.
+
+        Libraries come last so owned Scripts (and their attachment rows) are gone
+        first; deleting a Library cascades its revisions and any remaining
+        attachments, including to a USER script that had attached it — which is
+        the point of remove_data.
         """
-        from core.models import DataStore, Script, Secret
+        from core.models import DataStore, Library, Script, Secret
 
         counts = {}
-        for model, label in ((Script, "scripts"), (Secret, "secrets"), (DataStore, "datastores")):
+        for model, label in (
+            (Script, "scripts"),
+            (Secret, "secrets"),
+            (DataStore, "datastores"),
+            (Library, "libraries"),
+        ):
             try:
                 model._meta.get_field("owner_plugin")  # raises if column absent
                 deleted, _ = model.objects.filter(owner_plugin=slug).delete()
@@ -389,6 +426,20 @@ class PluginService:
                 logger.warning(
                     "Owned-%s cleanup skipped for plugin %r: %s", label, slug, exc
                 )
+
+        # Stored objects under apps/<slug>/. Best-effort and last: these live in a
+        # remote bucket, so a network failure must not block the local removal the
+        # rest of this function just did. Counted separately from DB rows because
+        # it is a remote side effect, not a row delete.
+        try:
+            from core.plugins.api import StorageAPI
+
+            deleted = StorageAPI(slug).delete_all()
+            if deleted:
+                counts["storage objects"] = deleted
+        except Exception as exc:
+            logger.warning("Owned-storage cleanup skipped for plugin %r: %s", slug, exc)
+
         return counts
 
     # ------------------------------------------------------------- restart info

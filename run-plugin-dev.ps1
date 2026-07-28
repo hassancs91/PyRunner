@@ -84,7 +84,7 @@ Write-Host "    plugin:  $PluginFull  (slug: $Slug)"
 Write-Host "    url:     http://127.0.0.1:$Port/plugins/$Slug/"
 Write-Host "    db:      data\db.sqlite3  (SQLite - NOT the Docker Postgres stack)"
 Write-Host "    web:     manage.py runserver (DEBUG=True, live reload)"
-if (-not $NoWorker) { Write-Host "    worker:  manage.py qcluster (django-q - runs execute)" }
+if (-not $NoWorker) { Write-Host "    worker:  manage.py pyrunner_qcluster (django-q - runs execute)" }
 Write-Host ""
 
 # --- Quick static-lint of the plugin (non-fatal in dev) ---------------------
@@ -106,9 +106,12 @@ $worker = $null
 try {
     if (-not $NoWorker) {
         Write-Step "Starting django-q worker"
+        # pyrunner_qcluster (not plain qcluster): applies the DB-backed
+        # Settings -> Workers values before the cluster starts, same as
+        # entrypoint.sh does in Docker.
         # -NoNewWindow: shares this console so logs stream inline AND a console
         # Ctrl+C reaches it too; the finally below is the cleanup safety net.
-        $worker = Start-Process -FilePath $Python -ArgumentList 'manage.py', 'qcluster' `
+        $worker = Start-Process -FilePath $Python -ArgumentList 'manage.py', 'pyrunner_qcluster' `
             -PassThru -NoNewWindow
         Write-Ok "Worker started (pid $($worker.Id))."
     }

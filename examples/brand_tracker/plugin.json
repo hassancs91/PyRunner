@@ -3,9 +3,9 @@
     "slug": "brand_tracker",
     "publisher": "learnwithhasan",
     "name": "Brand Tracker",
-    "version": "1.0.0",
-    "api": "2.1",
-    "min_pyrunner": "1.13.0",
+    "version": "1.1.0",
+    "api": "2.3",
+    "min_pyrunner": "1.16.0",
     "summary": "Weekly web & community tracking of brand / keyword mentions, with a live feed and optional AI sentiment.",
     "description": "Track mentions of your brand or keywords across Google web + news, Hacker News, and Reddit on a weekly schedule. Configure once in a form; the plugin provisions a managed Script, secrets, a data store, and a weekly schedule, dedupes results across sources, and shows a live mention feed. Optional AI enrichment (platform Claude or OpenRouter) tags each mention with source type and sentiment.",
     "icon": "assets/icon.svg",
@@ -23,5 +23,14 @@
         "datastores": 1,
         "schedules": 1,
         "secret_keys": ["SERPER_API_KEY", "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "OPENROUTER_API_KEY", "RESEND_API_KEY"]
+    },
+    "provides": {
+        "api_resources": [
+            {"name": "mentions", "summary": "Deduped mention feed (filterable by keyword/source/sentiment/since, paginated)", "methods": ["GET"]},
+            {"name": "stats", "summary": "Run/source counters and recent run history", "methods": ["GET"]}
+        ],
+        "public_pages": [
+            {"name": "report", "summary": "Shareable read-only mentions report"}
+        ]
     }
 }

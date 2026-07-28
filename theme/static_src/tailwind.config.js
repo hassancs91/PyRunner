@@ -14,8 +14,15 @@ module.exports = {
         '../templates/**/*.html',
         '../../templates/**/*.html',
         '../../**/templates/**/*.html',
-        // Python files that carry Tailwind classes in form widget attrs.
+        // Python files that carry Tailwind classes in form widget attrs —
+        // including plugins (dev mode) and the bundled examples.
         '../../core/**/*.py',
+        '../../plugins/**/*.py',
+        '../../examples/**/*.py',
+        // JS that builds markup at runtime (e.g. the Library module tabs) — its
+        // classes appear nowhere else, so without this they get purged and the
+        // element renders unstyled.
+        '../../static/js/**/*.js',
     ],
     darkMode: 'class',
     theme: {

@@ -104,11 +104,15 @@ def send(request: HttpRequest) -> JsonResponse:
     if target == "email":
         from core.services import NotificationService
 
+        html = data.get("html")
+        if html is not None and not isinstance(html, str):
+            return _bad_request("'html' must be a string")
         try:
             NotificationService.send_email(
                 subject=data.get("subject") or "[PyRunner] Notification",
                 body=text,
                 to=data.get("to") or None,
+                html=html or None,
             )
         except Exception as e:
             logger.warning("channels send email failed for run %s: %s", run_id, e)

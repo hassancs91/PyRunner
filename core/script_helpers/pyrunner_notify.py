@@ -66,12 +66,19 @@ def send(channel: str, text: str, reply_ref: dict | None = None) -> dict:
     return _post(payload)
 
 
-def email(subject: str, body: str, to: str | None = None) -> dict:
+def email(
+    subject: str, body: str, to: str | None = None, html: str | None = None
+) -> dict:
     """Send an email via PyRunner's configured core email backend.
 
     ``to`` defaults to the instance's default notification email when omitted.
+    ``html`` optionally adds an HTML alternative; ``body`` stays the plain-text
+    fallback for clients that don't render HTML.
     """
-    return _post({"target": "email", "subject": subject, "text": body, "to": to})
+    payload = {"target": "email", "subject": subject, "text": body, "to": to}
+    if html:
+        payload["html"] = html
+    return _post(payload)
 
 
 def reply(text: str) -> dict:

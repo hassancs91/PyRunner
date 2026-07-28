@@ -33,6 +33,19 @@
     Host port to publish the app on. Default 8124 (the container always listens
     on 8000 internally; this only changes the host side of the mapping).
 
+.PARAMETER Dev
+    Plugin DEV MODE on this same stack (same Postgres data/volumes): layers
+    docker-compose.dev.yml so the app container boots `manage.py runserver`
+    (live reload; dev mode's RUN_MAIN guard) with DEBUG=True instead of
+    gunicorn, and bind-mounts the plugin folder from the repo. Plugin edits
+    reload live - no rebuild, no zip, no reinstall. Note: if the same slug is
+    installed AND ACTIVE on the instance, deactivate it first (dev mode won't
+    shadow it). Core code still runs from the image (rebuild to pick it up).
+
+.PARAMETER Plugin
+    With -Dev: the plugin slug to develop. The folder is auto-located under
+    .\plugins\<slug> (private) or .\examples\<slug> (public). Default: gmail_agent.
+
 .PARAMETER NoBuild
     Start the existing image without rebuilding (fastest; skips picking up code
     changes). By default the image is (re)built so your latest code is included.
@@ -65,6 +78,14 @@
 .EXAMPLE
     .\run-local-postgres.ps1 -Fresh
         Wipe the data + Postgres volumes and start completely clean.
+
+.EXAMPLE
+    .\run-local-postgres.ps1 -Dev -Detached
+        Same stack + data, but in plugin dev mode (default plugin: gmail_agent).
+
+.EXAMPLE
+    .\run-local-postgres.ps1 -Dev -Plugin youtube_scout
+        Dev-load a different plugin (found in .\plugins\ or .\examples\).
 #>
 [CmdletBinding()]
 param(
@@ -75,7 +96,9 @@ param(
     [switch]$Logs,
     [switch]$Down,
     [switch]$Fresh,
-    [switch]$Sandbox
+    [switch]$Sandbox,
+    [switch]$Dev,
+    [string]$Plugin = 'gmail_agent'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -91,6 +114,23 @@ $ComposeFile = Join-Path $Root 'docker-compose.postgres.yml'
 # namespaces work and the FULL script sandbox (bwrap/nsjail) can be tested. Local
 # only — see docker-compose.sandbox-test.yml. Off by default (locked-down parity).
 $SandboxOverride = Join-Path $Root 'docker-compose.sandbox-test.yml'
+# Opt-in (-Dev): plugin dev mode on the same stack - runserver + DEBUG + the
+# plugin folder bind-mounted (see docker-compose.dev.yml).
+$DevOverride = Join-Path $Root 'docker-compose.dev.yml'
+
+# --- Dev mode: resolve the plugin folder (name IS the slug) ------------------
+if ($Dev) {
+    $devDir = $null
+    foreach ($home_ in @('plugins', 'examples')) {
+        if (Test-Path (Join-Path $Root "$home_\$Plugin\apps.py")) { $devDir = $home_; break }
+    }
+    if (-not $devDir) {
+        throw "Plugin '$Plugin' not found (no plugins\$Plugin\apps.py or examples\$Plugin\apps.py)."
+    }
+    # Consumed by docker-compose.dev.yml's mount + PYRUNNER_PLUGIN_DEV.
+    $env:DEV_PLUGIN = $Plugin
+    $env:DEV_PLUGIN_DIR = "./$devDir"
+}
 
 # --- 1. Verify Docker + Compose ---------------------------------------------
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -117,6 +157,7 @@ function Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
     $all = @('-f', $ComposeFile)
     if ($Sandbox) { $all += @('-f', $SandboxOverride) }   # relaxed-seccomp test layer
+    if ($Dev)     { $all += @('-f', $DevOverride) }       # plugin dev-mode layer
     $all += $Rest
     if ($script:UseV2) { & docker compose @all } else { & docker-compose @all }
 }
@@ -191,10 +232,14 @@ Set-IfMissing 'POSTGRES_PASSWORD' (New-UrlSafeToken 24)
 Set-IfMissing 'POSTGRES_DB'       'pyrunner'
 
 # Force the production-parity flags (this is the whole point of this script).
-if ($envVars['DEBUG'] -ne 'False') {
-    Write-Warn2 "Setting DEBUG=False for production parity (was '$($envVars['DEBUG'])')."
+# In -Dev the compose override injects DEBUG=True into the container directly,
+# so .env is left alone - a later parity run restores it.
+if (-not $Dev) {
+    if ($envVars['DEBUG'] -ne 'False') {
+        Write-Warn2 "Setting DEBUG=False for production parity (was '$($envVars['DEBUG'])')."
+    }
+    $envVars['DEBUG'] = 'False'
 }
-$envVars['DEBUG'] = 'False'
 $envVars['SECURE_SSL_REDIRECT'] = 'False'   # plain http locally; edge/proxy does TLS in prod
 # Secure cookies require HTTPS; on plain-http localhost a Secure cookie is never
 # sent back, which silently logs you out on every request. Off for local runs.
@@ -238,12 +283,21 @@ if ($Sandbox) {
     Write-Warn2 "  work and the FULL script sandbox can be tested. Do NOT use this in production."
 }
 
-Write-Step "Starting full PyRunner stack on Postgres (gunicorn + django-q2 + db) -> $url"
-Write-Host "    image:   built from Dockerfile (production)"
-Write-Host "    web:     gunicorn pyrunner.wsgi (DEBUG=False, WhiteNoise static)"
-Write-Host "    worker:  django-q2 qcluster (auto-restart monitor)"
-Write-Host "    db:      postgres:16-alpine (DATABASE_URL -> db:5432)"
-Write-Host "    data:    volumes 'pyrunner_pgdata' (DB) + 'pyrunner_data' (venvs)"
+if ($Dev) {
+    Write-Step "Starting PyRunner stack on Postgres in PLUGIN DEV MODE -> $url"
+    Write-Host "    plugin:  $($env:DEV_PLUGIN_DIR)/$($env:DEV_PLUGIN)  (live reload -> $url/plugins/$($env:DEV_PLUGIN)/)"
+    Write-Host "    web:     manage.py runserver (DEBUG=True, autoreload)"
+    Write-Host "    worker:  django-q2 pyrunner_qcluster (respawn loop)"
+    Write-Host "    db:      postgres:16-alpine - SAME data/volumes as the parity stack"
+    Write-Warn2 "If '$($env:DEV_PLUGIN)' is installed AND ACTIVE here, deactivate it (Plugins page) or dev mode won't load."
+} else {
+    Write-Step "Starting full PyRunner stack on Postgres (gunicorn + django-q2 + db) -> $url"
+    Write-Host "    image:   built from Dockerfile (production)"
+    Write-Host "    web:     gunicorn pyrunner.wsgi (DEBUG=False, WhiteNoise static)"
+    Write-Host "    worker:  django-q2 qcluster (auto-restart monitor)"
+    Write-Host "    db:      postgres:16-alpine (DATABASE_URL -> db:5432)"
+    Write-Host "    data:    volumes 'pyrunner_pgdata' (DB) + 'pyrunner_data' (venvs)"
+}
 Write-Host ""
 
 if ($Detached) {

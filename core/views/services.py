@@ -24,9 +24,17 @@ from core.models import (
     GlobalSettings,
     ClaudeUsage,
     PROVIDER_PRESETS,
+    STORAGE_PRESETS,
     SecretProvider,
+    StorageConnection,
 )
-from core.forms import S3SettingsForm, AISettingsForm, AIProviderForm, SecretProviderForm
+from core.forms import (
+    AISettingsForm,
+    AIProviderForm,
+    AssetsStorageForm,
+    SecretProviderForm,
+    StorageConnectionForm,
+)
 from core.services.s3_service import S3Service
 from core.services.claude_service import ClaudeService
 from core.services.encryption_service import EncryptionService
@@ -45,10 +53,38 @@ logger = logging.getLogger(__name__)
 def services_view(request: HttpRequest) -> HttpResponse:
     """Display services configuration page."""
     settings = GlobalSettings.get_settings()
-    s3_form = S3SettingsForm(instance=settings)
-    s3_status = S3Service.get_status()
     claude_form = AISettingsForm(instance=settings)
     claude_status = ClaudeService.get_status()
+
+    # Object storage — many connections; backups use `is_default`, plugins use the
+    # `assets_storage` FK. `s3_status` describes the BACKUP connection, keeping the
+    # existing backup card and its template contract unchanged.
+    storage_form = StorageConnectionForm()
+    assets_form = AssetsStorageForm(instance=settings)
+    s3_status = S3Service.get_status()
+    storage_connections = list(StorageConnection.objects.all())
+    # Plain-dict mirror for the template JS (edit prefill, per-type hints), same
+    # shape as providers_data below. Credentials are never mirrored — only whether
+    # they exist.
+    storage_connections_data = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "provider_type": c.provider_type,
+            "endpoint_url": c.endpoint_url,
+            "region": c.region,
+            "bucket": c.bucket,
+            "public_base_url": c.public_base_url,
+            "use_ssl": c.use_ssl,
+            "path_style": c.path_style,
+            "is_default": c.is_default,
+            "enabled": c.enabled,
+            "has_credentials": bool(c.access_key_encrypted and c.secret_key_encrypted),
+        }
+        for c in storage_connections
+    ]
+    storage_presets_data = {str(key): value for key, value in STORAGE_PRESETS.items()}
+    assets_connection = settings.assets_storage
 
     providers = list(AIProvider.objects.all())
     # Plain-dict mirror for the template JS (edit prefill, per-type hints).
@@ -107,8 +143,13 @@ def services_view(request: HttpRequest) -> HttpResponse:
         "cpanel/services/list.html",
         {
             "settings": settings,
-            "s3_form": s3_form,
             "s3_status": s3_status,
+            "storage_form": storage_form,
+            "storage_connections": storage_connections,
+            "storage_connections_json": storage_connections_data,
+            "storage_presets_json": storage_presets_data,
+            "assets_form": assets_form,
+            "assets_connection": assets_connection,
             "claude_form": claude_form,
             "claude_status": claude_status,
             "ai_providers": providers,
@@ -145,14 +186,113 @@ def _secret_counts_by_provider() -> dict:
 @login_required
 @superuser_required
 @require_POST
-def s3_settings_view(request: HttpRequest) -> HttpResponse:
-    """Update S3 storage settings."""
+def storage_connection_save_view(request: HttpRequest) -> HttpResponse:
+    """Create or update a StorageConnection (hidden connection_id = edit)."""
+    instance = None
+    connection_id = request.POST.get("connection_id")
+    if connection_id:
+        # Hidden POST field, not a URL-validated <uuid:…>; a malformed value would
+        # raise on the pk lookup, so guard it into the friendly "not found".
+        try:
+            instance = StorageConnection.objects.filter(pk=connection_id).first()
+        except (ValidationError, ValueError):
+            instance = None
+        if instance is None:
+            messages.error(request, "Storage connection not found.")
+            return redirect("cpanel:services")
+
+    form = StorageConnectionForm(request.POST, instance=instance)
+    if form.is_valid():
+        connection = form.save()
+        # Convenience: the first connection ever saved becomes the backup default,
+        # matching the pre-multi-connection world where the only config WAS backups.
+        if (
+            not connection.is_default
+            and not StorageConnection.objects.filter(is_default=True).exists()
+        ):
+            connection.is_default = True
+            connection.save(update_fields=["is_default"])
+        messages.success(request, f"Storage connection '{connection.name}' saved.")
+    else:
+        for field, errors in form.errors.items():
+            label = "" if field == "__all__" else f"{field}: "
+            for error in errors:
+                messages.error(request, f"{label}{error}")
+
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def storage_connection_delete_view(request: HttpRequest, connection_id) -> HttpResponse:
+    """Delete a storage connection.
+
+    Nothing cascades: `assets_storage` is SET_NULL (the seam degrades to
+    unavailable) and backups resolve `is_default` fresh each run. Both cases get a
+    warning rather than a silent behavior change.
+    """
+    connection = StorageConnection.objects.filter(pk=connection_id).first()
+    if connection is None:
+        messages.error(request, "Storage connection not found.")
+        return redirect("cpanel:services")
+
     settings = GlobalSettings.get_settings()
-    form = S3SettingsForm(request.POST, instance=settings)
+    was_assets = settings.assets_storage_id == connection.id
+    was_default = connection.is_default
+    name = connection.name
+    connection.delete()
+
+    if was_default:
+        messages.warning(
+            request,
+            f"Connection '{name}' deleted. No connection is set for backups now — "
+            "scheduled backups will not run until you mark another one.",
+        )
+    elif was_assets:
+        messages.warning(
+            request,
+            f"Connection '{name}' deleted. Plugin storage is unavailable now — "
+            "select another assets connection to restore it.",
+        )
+    else:
+        messages.success(request, f"Storage connection '{name}' deleted.")
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def storage_connection_default_view(request: HttpRequest, connection_id) -> HttpResponse:
+    """Mark one connection as the backup default (one-click switch)."""
+    connection = StorageConnection.objects.filter(pk=connection_id).first()
+    if connection is None:
+        messages.error(request, "Storage connection not found.")
+        return redirect("cpanel:services")
+
+    connection.is_default = True
+    connection.save()  # clears the flag on every other row
+    messages.success(request, f"Backups now use '{connection.name}'.")
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def assets_storage_view(request: HttpRequest) -> HttpResponse:
+    """Select the connection the plugin storage seam uses."""
+    settings = GlobalSettings.get_settings()
+    form = AssetsStorageForm(request.POST, instance=settings)
 
     if form.is_valid():
         form.save(settings)
-        messages.success(request, "S3 storage settings saved successfully.")
+        chosen = form.cleaned_data.get("assets_storage")
+        if chosen:
+            messages.success(request, f"Plugin storage now uses '{chosen.name}'.")
+        else:
+            messages.success(
+                request, "Plugin storage is now unavailable (no connection selected)."
+            )
     else:
         for field, errors in form.errors.items():
             for error in errors:
@@ -165,10 +305,11 @@ def s3_settings_view(request: HttpRequest) -> HttpResponse:
 @superuser_required
 @require_POST
 def s3_test_connection_view(request: HttpRequest) -> JsonResponse:
-    """Test S3 connection and return result.
+    """Test a storage connection and return the result.
 
-    Accepts form data in POST body to test credentials before saving.
-    Falls back to saved settings if no form data provided.
+    Accepts unsaved form data in the POST body so credentials can be validated
+    before saving. A blank key falls back to the named connection's stored one, so
+    "Test" works on an existing row without re-typing secrets.
     """
     try:
         # Try to parse form data from request body
@@ -182,31 +323,37 @@ def s3_test_connection_view(request: HttpRequest) -> JsonResponse:
                     status=400,
                 )
 
+        # The row being edited, when there is one — the source of any credential
+        # the form left blank.
+        saved = None
+        connection_id = data.get("connection_id")
+        if connection_id:
+            try:
+                saved = StorageConnection.objects.filter(pk=connection_id).first()
+            except (ValidationError, ValueError):
+                saved = None
+
         if data:
-            # Test with provided form data
-            settings = GlobalSettings.get_settings()
+            access_key = data.get("access_key", "")
+            if not access_key and saved and saved.access_key_encrypted:
+                access_key = EncryptionService.decrypt(saved.access_key_encrypted)
 
-            # Get credentials from form or fall back to saved encrypted values
-            access_key = data.get("s3_access_key", "")
-            if not access_key and settings.s3_access_key_encrypted:
-                access_key = EncryptionService.decrypt(settings.s3_access_key_encrypted)
-
-            secret_key = data.get("s3_secret_key", "")
-            if not secret_key and settings.s3_secret_key_encrypted:
-                secret_key = EncryptionService.decrypt(settings.s3_secret_key_encrypted)
+            secret_key = data.get("secret_key", "")
+            if not secret_key and saved and saved.secret_key_encrypted:
+                secret_key = EncryptionService.decrypt(saved.secret_key_encrypted)
 
             success, message = S3Service.test_connection_with_credentials(
-                bucket_name=data.get("s3_bucket_name", ""),
+                bucket_name=data.get("bucket", ""),
                 access_key=access_key,
                 secret_key=secret_key,
-                endpoint_url=data.get("s3_endpoint_url", ""),
-                region=data.get("s3_region", "us-east-1"),
-                use_ssl=data.get("s3_use_ssl", True),
-                path_style=data.get("s3_path_style", False),
+                endpoint_url=data.get("endpoint_url", ""),
+                region=data.get("region", "us-east-1"),
+                use_ssl=data.get("use_ssl", True),
+                path_style=data.get("path_style", False),
             )
         else:
-            # Fall back to testing saved settings
-            success, message = S3Service.test_connection()
+            # No body: test the saved backup connection.
+            success, message = S3Service.test_connection(S3Service.for_backup())
 
         return JsonResponse(
             {
