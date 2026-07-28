@@ -41,10 +41,18 @@ Open `http://localhost:8000` in your browser.
 ### Using Docker Hub Image
 
 ```bash
+# Generate the two required keys first (copy the output somewhere safe):
+docker run --rm --entrypoint python hasanaboulhasan/pyrunner:latest \
+  -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+docker run --rm --entrypoint python hasanaboulhasan/pyrunner:latest \
+  -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
 docker run -d \
   --name pyrunner \
   -p 8000:8000 \
   -v pyrunner_data:/app/data \
+  -e SECRET_KEY='<generated-secret-key>' \
+  -e ENCRYPTION_KEY='<generated-fernet-key>' \
   -e DEBUG=False \
   -e ALLOWED_HOSTS=localhost \
   hasanaboulhasan/pyrunner:latest
