@@ -43,3 +43,15 @@ Thumbs.db
 
 # Claude plans
 .claude/
+
+# Local dev artifacts & credentials — must never enter the image.
+# (COPY . . copies gitignored files too; .gitignore does not protect the
+# Docker build context, only this file does.)
+client_secret.json
+token.json
+dist/
+landing/
+design-preview/
+.ruff_cache/
+plugins/gmail_agent/
+plugins/youtube_scout/
