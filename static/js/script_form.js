@@ -14,6 +14,10 @@ function toggleScheduleOptions(mode) {
         var el = document.getElementById(m + '-options');
         if (el) el.classList.toggle('hidden', m !== mode);
     });
+    // The timezone select lives outside the panels (one control, one name) and
+    // applies to every clock-based mode.
+    var tz = document.getElementById('timezone-option');
+    if (tz) tz.classList.toggle('hidden', ['daily', 'weekly', 'monthly'].indexOf(mode) === -1);
 }
 
 // Monaco code editor — initialised over the hidden <textarea id="id_code">.

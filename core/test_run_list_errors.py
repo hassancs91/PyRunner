@@ -73,7 +73,10 @@ class RunListErrorExpanderTests(TestCase):
 
         body = self._get_list()
 
-        self.assertNotIn("data-error-toggle", body)
+        # Assert the attribute-with-value form, as the sibling test does: the
+        # bare name also appears in the page's own querySelectorAll wiring, which
+        # ships on every render and says nothing about the rows.
+        self.assertNotIn('data-error-toggle="run-err-', body)
         self.assertNotIn("run-err-", body)
 
     def test_long_stderr_is_truncated_to_the_tail(self):

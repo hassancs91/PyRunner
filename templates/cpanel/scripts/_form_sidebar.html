@@ -190,11 +190,6 @@
                     <p class="mt-1.5 text-xs text-faint">{{ schedule_form.daily_times_input.help_text }}</p>
                     {% if schedule_form.daily_times_input.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.daily_times_input.errors.0 }}</p>{% endif %}
                 </div>
-                <div>
-                    <label for="id_timezone" class="block text-[13px] font-medium text-text mb-1.5">Timezone</label>
-                    {{ schedule_form.timezone }}
-                    {% if schedule_form.timezone.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.timezone.errors.0 }}</p>{% endif %}
-                </div>
             </div>
 
             <!-- Weekly -->
@@ -216,10 +211,6 @@
                     {{ schedule_form.weekly_times_input }}
                     <p class="mt-1.5 text-xs text-faint">{{ schedule_form.weekly_times_input.help_text }}</p>
                     {% if schedule_form.weekly_times_input.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.weekly_times_input.errors.0 }}</p>{% endif %}
-                </div>
-                <div>
-                    <label class="block text-[13px] font-medium text-text mb-1.5">Timezone</label>
-                    {{ schedule_form.timezone }}
                 </div>
             </div>
 
@@ -243,10 +234,18 @@
                     <p class="mt-1.5 text-xs text-faint">{{ schedule_form.monthly_times_input.help_text }}</p>
                     {% if schedule_form.monthly_times_input.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.monthly_times_input.errors.0 }}</p>{% endif %}
                 </div>
-                <div>
-                    <label class="block text-[13px] font-medium text-text mb-1.5">Timezone</label>
-                    {{ schedule_form.timezone }}
-                </div>
+            </div>
+
+            {% comment %}
+            Timezone — ONE control shared by daily/weekly/monthly. Rendering the
+            field inside each mode panel emitted three selects sharing a single
+            field name; hidden panels are still submitted, so Django kept the last
+            (monthly) copy and silently discarded the timezone the user picked.
+            {% endcomment %}
+            <div id="timezone-option" class="{% if schedule_form.instance.run_mode != 'daily' and schedule_form.instance.run_mode != 'weekly' and schedule_form.instance.run_mode != 'monthly' %}hidden{% endif %}">
+                <label for="id_timezone" class="block text-[13px] font-medium text-text mb-1.5">Timezone</label>
+                {{ schedule_form.timezone }}
+                {% if schedule_form.timezone.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.timezone.errors.0 }}</p>{% endif %}
             </div>
 
             <label class="flex items-center gap-3 pt-3 border-t border-line-soft cursor-pointer">

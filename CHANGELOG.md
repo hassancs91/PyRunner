@@ -8,6 +8,8 @@ begins tracking at the current release; earlier history is in the git log.
 
 ## [Unreleased]
 
+## [1.16.0] — July 29, 2026
+
 ### Added
 - **Object storage** — the S3 settings became a real storage service. You can now
   save **several connections** (Cloudflare R2, AWS S3, Backblaze B2, DigitalOcean
@@ -94,6 +96,19 @@ begins tracking at the current release; earlier history is in the git log.
   branch) and error responses carried no CORS headers, making cross-origin
   browser calls impossible. Preflights now succeed tokenless and every
   response, including errors, carries CORS headers.
+- **Schedule timezone is no longer discarded** — the script form rendered the
+  timezone selector three times (once per daily/weekly/monthly panel), all
+  sharing one field name. Hidden panels are still submitted, so the browser
+  posted three values and Django kept the last one: picking `Asia/Beirut` for a
+  daily run silently stored `UTC`, with no error and the selector reverting on
+  reload. The selector is now a single control shared by every clock-based mode.
+- **Schedule history records mode, timezone, and enabled changes** — the audit
+  snapshot of a schedule's previous state was taken after form validation had
+  already written the new values onto it, so run-mode, interval, timezone, and
+  active-state edits compared equal to themselves. Those edits wrote no history
+  entry at all, and an edit that also changed run times *did* write one but
+  recorded the new timezone as the previous one. The snapshot is now taken
+  before the form touches the schedule, so history shows the real before/after.
 
 ## [1.15.1] — July 28, 2026
 

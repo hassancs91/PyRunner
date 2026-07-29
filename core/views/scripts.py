@@ -279,13 +279,18 @@ def script_edit_view(request: HttpRequest, pk) -> HttpResponse:
     )
 
     if request.method == "POST":
+        # Snapshot BEFORE the form touches the instance. ScheduleForm is bound to
+        # this very object, and validation's construct_instance() already writes
+        # every Meta.fields value (run_mode/interval_minutes/timezone/is_active)
+        # onto it — snapshotting after is_valid() compared those four against
+        # themselves, so a mode/timezone/enabled-only edit wrote no history row
+        # at all, and a mixed edit recorded the NEW value as the previous one.
+        previous_config = schedule.config_snapshot()
+
         form = ScriptForm(request.POST, instance=script, workspace=request.workspace)
         schedule_form = ScheduleForm(request.POST, instance=schedule)
 
         if form.is_valid() and schedule_form.is_valid():
-            # Capture previous config for history (all modes — see config_snapshot)
-            previous_config = schedule.config_snapshot()
-
             script = form.save(commit=False)
             script.save()
             form.save_m2m()

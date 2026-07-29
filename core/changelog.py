@@ -8,6 +8,117 @@ When you cut a release, bump ``pyrunner/version.py`` and add an entry here.
 
 CHANGELOG = [
     {
+        "version": "1.16.0",
+        "date": "July 29, 2026",
+        "headline": (
+            "Write a helper once and import it from every script, store files "
+            "anywhere S3-compatible instead of just backups — and schedules now "
+            "keep the timezone you actually picked."
+        ),
+        "changes": [
+            {
+                "tag": "Added",
+                "title": "Libraries — shared code your scripts import",
+                "body": (
+                    "Stop pasting the same helper into five scripts. Create a "
+                    "library under Libraries, add one or more modules in the "
+                    "tabbed editor, attach it to a script from the script's "
+                    "form, and import it: from my_helpers.utils import clean. "
+                    "Every save that changes code creates a new version, and a "
+                    "run is pinned to the version that was current when it was "
+                    "queued — so editing a library can never change what an "
+                    "already-queued run executes, and each run's page shows "
+                    "exactly which versions it used. Full history per library "
+                    "with a diff against the current code and one-click "
+                    "restore. A library can't be deleted while a script still "
+                    "imports it."
+                ),
+            },
+            {
+                "tag": "Added",
+                "title": "Object storage — more than one bucket, more than backups",
+                "body": (
+                    "The S3 settings are now a real storage service. Save "
+                    "several connections (Cloudflare R2, AWS S3, Backblaze B2, "
+                    "DigitalOcean Spaces, MinIO, or any S3-compatible endpoint) "
+                    "instead of exactly one, switch which one backups use with "
+                    "a click, and point plugins at a different bucket so your "
+                    "backup bucket stays private. Your existing configuration "
+                    "carries over automatically — backups keep working with "
+                    "nothing to re-enter. Scripts can store files with "
+                    "import pyrunner_storage, no credentials and nothing to "
+                    "install, because the bytes travel over PyRunner's internal "
+                    "API instead of putting S3 keys in your script."
+                ),
+            },
+            {
+                "tag": "Added",
+                "title": "Plugins can serve APIs and publish shareable pages",
+                "body": (
+                    "A plugin can expose read-only HTTP resources that PyRunner "
+                    "serves for it, handling authentication, rate limiting, and "
+                    "workspace scoping itself — the plugin never sees a raw "
+                    "request or a token. New API tokens can be scoped to "
+                    "exactly one plugin. A plugin can also publish a "
+                    "read-only page at an unguessable link that needs no "
+                    "login — useful for sharing a report with someone outside "
+                    "your team — and every share is listed and revocable under "
+                    "Settings, with revoking killing the link for good."
+                ),
+            },
+            {
+                "tag": "Fixed",
+                "title": "Worker settings now actually apply",
+                "body": (
+                    "The values saved under Settings → Workers (worker count, "
+                    "task timeout, retry delay, queue limit) were never read — "
+                    "the cluster always ran on the built-in defaults no matter "
+                    "what the page said. \"Restart workers to apply\" is "
+                    "finally true."
+                ),
+            },
+            {
+                "tag": "Fixed",
+                "title": "Long runs no longer get stuck at \"running\"",
+                "body": (
+                    "A script that ran longer than the worker's re-delivery "
+                    "window could be handed to a second worker, which clobbered "
+                    "the live run: stuck at running forever, output never "
+                    "captured, force-stop broken. Duplicate deliveries are now "
+                    "no-ops, the window sizes itself above your longest script "
+                    "timeout, and the script form warns you when a timeout "
+                    "would outrun it. Runs left behind by a killed worker "
+                    "(container restart, out-of-memory) now heal themselves to "
+                    "failed with an explanation instead of hanging forever."
+                ),
+            },
+            {
+                "tag": "Fixed",
+                "title": "Schedules keep the timezone you picked",
+                "body": (
+                    "The timezone selector appeared once per schedule mode, and "
+                    "the browser submitted all of them — so the hidden copy won "
+                    "and your choice was silently replaced with UTC. Setting a "
+                    "23:30 daily run in Asia/Beirut ran it at 23:30 UTC, with "
+                    "no error and the selector reverting on reload. There is "
+                    "now one timezone selector, shared by daily, weekly, and "
+                    "monthly."
+                ),
+            },
+            {
+                "tag": "Fixed",
+                "title": "Schedule history shows what actually changed",
+                "body": (
+                    "Changing a schedule's mode, interval, timezone, or "
+                    "active state recorded nothing in its history, and an edit "
+                    "that also changed run times recorded the new timezone as "
+                    "though it had been the old one. History now captures the "
+                    "real before and after."
+                ),
+            },
+        ],
+    },
+    {
         "version": "1.15.1",
         "date": "July 28, 2026",
         "headline": (
