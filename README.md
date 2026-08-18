@@ -7,6 +7,10 @@
 
 A self-hosted Python script automation platform. Upload a script, schedule it, monitor it — nothing else to configure.
 
+**Docs:** [pyrunner.dev](https://pyrunner.dev) &nbsp;·&nbsp;
+[Getting started](https://learnwithhasan.com/pyrunner/docs/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=docs) &nbsp;·&nbsp;
+[Install it on a VPS with Coolify](https://learnwithhasan.com/guide/install-pyrunner-on-coolify/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=body)
+
 ## Features
 
 - **Script Management** — Create, edit, and organize Python scripts from your browser
