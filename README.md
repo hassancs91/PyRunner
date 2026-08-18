@@ -188,12 +188,12 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 Boring building blocks are what keep an app alive in production. The book has 47 of them.
 
-**[Vibe Engineering Blocks](https://learnwithhasan.com/blocks/)** is my free 74-page book.
+**[Vibe Engineering Blocks](https://learnwithhasan.com/blocks/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer)** is my free 74-page book.
 47 building blocks for shipping real apps with AI. One block per page, each with the exact
 prompt to hand your AI.
 
-Built by **[Hasan Aboul Hasan](https://learnwithhasan.com)**. I build real products with AI and
+Built by **[Hasan Aboul Hasan](https://learnwithhasan.com/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer)**. I build real products with AI and
 write down exactly how.
-[Guides](https://learnwithhasan.com/guides/) &nbsp;·&nbsp;
+[Guides](https://learnwithhasan.com/guides/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer) &nbsp;·&nbsp;
 [YouTube](https://www.youtube.com/@HasanAboulHasan) &nbsp;·&nbsp;
-[Community](https://learnwithhasan.com/community/)
+[Community](https://learnwithhasan.com/community/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer)
