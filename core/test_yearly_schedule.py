@@ -9,8 +9,9 @@ from django_q.models import Schedule as QSchedule
 from core.forms import ScheduleForm
 from core.models import Environment, Script, ScriptSchedule
 from core.plugins.api import ScheduleAPI
-from core.services.schedule_service import ScheduleService
 from core.services.backup_service import BackupService
+from core.services.schedule_service import ScheduleService
+from core.tasks import execute_yearly_scheduled_run
 
 
 def make_schedule(**kwargs):
@@ -46,6 +47,20 @@ class YearlyScheduleServiceTests(TestCase):
         ids = ScheduleService.sync_schedule(schedule)
         self.assertEqual(QSchedule.objects.get(id=ids[0]).cron, "30 15 31 12 *")
 
+    def test_uses_target_year_dst_offset(self):
+        schedule = make_schedule(
+            yearly_month=11,
+            yearly_day=2,
+            yearly_time="03:00",
+            timezone="America/New_York",
+        )
+        now = datetime(2025, 1, 1, tzinfo=ZoneInfo("UTC"))
+        with mock.patch("core.services.schedule_service.timezone.now", return_value=now):
+            ids = ScheduleService.sync_schedule(schedule)
+        q_schedule = QSchedule.objects.get(id=ids[0])
+        self.assertEqual(q_schedule.cron, "0 8 2 11 *")
+        self.assertEqual(q_schedule.next_run, datetime(2025, 11, 2, 8, tzinfo=ZoneInfo("UTC")))
+
     def test_february_29_skips_non_leap_years(self):
         schedule = make_schedule(yearly_month=2, yearly_day=29, yearly_time="12:00")
         now = datetime(2025, 3, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
@@ -53,6 +68,40 @@ class YearlyScheduleServiceTests(TestCase):
             next_run = ScheduleService.calculate_next_run(schedule)
         self.assertEqual(next_run.year, 2028)
         self.assertEqual((next_run.month, next_run.day), (2, 29))
+
+    def test_february_29_cron_uses_local_date_guard(self):
+        schedule = make_schedule(
+            yearly_month=2,
+            yearly_day=29,
+            yearly_time="00:30",
+            timezone="Asia/Tokyo",
+        )
+        now = datetime(2025, 1, 1, tzinfo=ZoneInfo("UTC"))
+        with mock.patch("core.services.schedule_service.timezone.now", return_value=now):
+            ids = ScheduleService.sync_schedule(schedule)
+        q_schedule = QSchedule.objects.get(id=ids[0])
+        self.assertEqual(q_schedule.cron, "30 15 28 2 *")
+        self.assertEqual(q_schedule.func, ScheduleService.YEARLY_TASK_FUNC)
+
+        non_leap_fire = datetime(2025, 2, 28, 15, 30, tzinfo=ZoneInfo("UTC"))
+        with (
+            mock.patch("core.tasks.timezone.now", return_value=non_leap_fire),
+            mock.patch("core.tasks.execute_scheduled_run") as execute,
+        ):
+            result = execute_yearly_scheduled_run(str(schedule.id))
+        self.assertFalse(result["success"])
+        execute.assert_not_called()
+
+        leap_fire = datetime(2028, 2, 28, 15, 30, tzinfo=ZoneInfo("UTC"))
+        with (
+            mock.patch("core.tasks.timezone.now", return_value=leap_fire),
+            mock.patch(
+                "core.tasks.execute_scheduled_run", return_value={"success": True}
+            ) as execute,
+        ):
+            result = execute_yearly_scheduled_run(str(schedule.id))
+        self.assertTrue(result["success"])
+        execute.assert_called_once_with(str(schedule.script_id))
 
     def test_next_run_before_annual_date_stays_in_current_year(self):
         schedule = make_schedule(yearly_month=12, yearly_day=31, yearly_time="23:00")

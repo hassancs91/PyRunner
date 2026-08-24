@@ -1071,7 +1071,7 @@ class ScheduleAPI:
         """Create/update the script's schedule and push it to django-q2.
 
         ``mode`` is a ``ScriptSchedule.RunMode`` value ('manual'/'interval'/'daily'
-        /'weekly'/'monthly'/'yearly'). Yearly mode takes ``month``, ``day`` and
+        /'weekly'/'yearly'). Yearly mode takes ``month``, ``day`` and
         one ``time_str`` in HH:MM format.
         """
         from core.models import ScriptSchedule
@@ -1113,6 +1113,7 @@ class ScheduleAPI:
             if not time_str:
                 raise ValueError("yearly mode requires time_str (HH:MM)")
             from calendar import monthrange
+
             try:
                 month, day = int(month), int(day)
                 if not 1 <= month <= 12 or not 1 <= day <= monthrange(2024, month)[1]:
