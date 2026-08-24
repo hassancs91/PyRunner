@@ -486,7 +486,7 @@ class ScheduleService:
         tz = cls._schedule_tz(script_schedule)
         local_now = (now or timezone.now()).astimezone(tz)
         hour, minute = map(int, time_str.split(":"))
-        for year_offset in range(8):
+        for year_offset in range(9):
             year = local_now.year + year_offset
             if day > calendar.monthrange(year, month)[1]:
                 continue

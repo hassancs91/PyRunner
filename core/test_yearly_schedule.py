@@ -69,6 +69,13 @@ class YearlyScheduleServiceTests(TestCase):
         self.assertEqual(next_run.year, 2028)
         self.assertEqual((next_run.month, next_run.day), (2, 29))
 
+    def test_february_29_skips_non_leap_century(self):
+        schedule = make_schedule(yearly_month=2, yearly_day=29, yearly_time="12:00")
+        now = datetime(2096, 3, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
+        with mock.patch("core.services.schedule_service.timezone.now", return_value=now):
+            next_run = ScheduleService.calculate_next_run(schedule)
+        self.assertEqual(next_run, datetime(2104, 2, 29, 12, 0, tzinfo=ZoneInfo("UTC")))
+
     def test_february_29_cron_uses_local_date_guard(self):
         schedule = make_schedule(
             yearly_month=2,
