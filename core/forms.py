@@ -1,6 +1,7 @@
 """
 Forms for the core app.
 """
+import calendar
 import re
 from zoneinfo import available_timezones
 
@@ -263,6 +264,7 @@ class ScheduleForm(forms.ModelForm):
     ]
 
     MONTHDAY_CHOICES = [(i, str(i)) for i in range(1, 32)]
+    MONTH_CHOICES = [(i, calendar.month_name[i]) for i in range(1, 13)]
 
     # Custom field for daily times (comma-separated input)
     daily_times_input = forms.CharField(
@@ -314,6 +316,22 @@ class ScheduleForm(forms.ModelForm):
         ),
         label="Run Times",
         help_text="Comma-separated times in HH:MM format (24-hour)",
+    )
+
+    yearly_month = forms.TypedChoiceField(
+        required=False, choices=MONTH_CHOICES, coerce=int,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}), label="Month",
+    )
+    yearly_day = forms.TypedChoiceField(
+        required=False, choices=MONTHDAY_CHOICES, coerce=int,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}), label="Day",
+    )
+    yearly_time = forms.CharField(
+        required=False,
+        widget=forms.TimeInput(
+            attrs={"class": INPUT_CLASS, "type": "time"}, format="%H:%M"
+        ),
+        label="Run time", help_text="24-hour format (HH:MM)",
     )
 
     timezone = forms.ChoiceField(
@@ -370,6 +388,9 @@ class ScheduleForm(forms.ModelForm):
                 self.fields["monthly_times_input"].initial = ", ".join(
                     self.instance.monthly_times
                 )
+            self.fields["yearly_month"].initial = self.instance.yearly_month
+            self.fields["yearly_day"].initial = self.instance.yearly_day
+            self.fields["yearly_time"].initial = self.instance.yearly_time
 
     def _parse_times(self, value):
         """Parse and validate comma-separated times input."""
@@ -413,6 +434,15 @@ class ScheduleForm(forms.ModelForm):
     def clean_monthly_times_input(self):
         """Parse and validate monthly times input."""
         return self._parse_times(self.cleaned_data.get("monthly_times_input", ""))
+
+    def clean_yearly_time(self):
+        value = self.cleaned_data.get("yearly_time")
+        if not value:
+            return ""
+        times = self._parse_times(value)
+        if len(times) != 1:
+            raise forms.ValidationError("Enter one time in HH:MM format.")
+        return times[0]
 
     def clean(self):
         cleaned_data = super().clean()
@@ -460,6 +490,18 @@ class ScheduleForm(forms.ModelForm):
                     "At least one time is required for monthly mode.",
                 )
 
+        elif run_mode == ScriptSchedule.RunMode.YEARLY:
+            month = cleaned_data.get("yearly_month")
+            day = cleaned_data.get("yearly_day")
+            if not month:
+                self.add_error("yearly_month", "Month is required for yearly mode.")
+            if not day:
+                self.add_error("yearly_day", "Day is required for yearly mode.")
+            elif month and day > calendar.monthrange(2024, month)[1]:
+                self.add_error("yearly_day", "That day does not exist in the selected month.")
+            if not cleaned_data.get("yearly_time"):
+                self.add_error("yearly_time", "Time is required for yearly mode.")
+
         return cleaned_data
 
     def save(self, commit=True):
@@ -477,6 +519,9 @@ class ScheduleForm(forms.ModelForm):
         monthly_days = self.cleaned_data.get("monthly_days_input", [])
         instance.monthly_days = [int(d) for d in monthly_days] if monthly_days else []
         instance.monthly_times = self.cleaned_data.get("monthly_times_input", [])
+        instance.yearly_month = self.cleaned_data.get("yearly_month") or None
+        instance.yearly_day = self.cleaned_data.get("yearly_day") or None
+        instance.yearly_time = self.cleaned_data.get("yearly_time", "")
 
         if commit:
             instance.save()

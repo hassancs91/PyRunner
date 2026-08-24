@@ -236,13 +236,35 @@
                 </div>
             </div>
 
+            <!-- Yearly -->
+            <div id="yearly-options" class="space-y-4 {% if schedule_form.instance.run_mode != 'yearly' %}hidden{% endif %}">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="id_yearly_month" class="block text-[13px] font-medium text-text mb-1.5">{{ schedule_form.yearly_month.label }}</label>
+                        {{ schedule_form.yearly_month }}
+                        {% if schedule_form.yearly_month.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.yearly_month.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_yearly_day" class="block text-[13px] font-medium text-text mb-1.5">{{ schedule_form.yearly_day.label }}</label>
+                        {{ schedule_form.yearly_day }}
+                        {% if schedule_form.yearly_day.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.yearly_day.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+                <div>
+                    <label for="id_yearly_time" class="block text-[13px] font-medium text-text mb-1.5">{{ schedule_form.yearly_time.label }}</label>
+                    {{ schedule_form.yearly_time }}
+                    <p class="mt-1.5 text-xs text-faint">{{ schedule_form.yearly_time.help_text }} 29 February runs only in leap years.</p>
+                    {% if schedule_form.yearly_time.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.yearly_time.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+
             {% comment %}
             Timezone — ONE control shared by daily/weekly/monthly. Rendering the
             field inside each mode panel emitted three selects sharing a single
             field name; hidden panels are still submitted, so Django kept the last
             (monthly) copy and silently discarded the timezone the user picked.
             {% endcomment %}
-            <div id="timezone-option" class="{% if schedule_form.instance.run_mode != 'daily' and schedule_form.instance.run_mode != 'weekly' and schedule_form.instance.run_mode != 'monthly' %}hidden{% endif %}">
+            <div id="timezone-option" class="{% if schedule_form.instance.run_mode != 'daily' and schedule_form.instance.run_mode != 'weekly' and schedule_form.instance.run_mode != 'monthly' and schedule_form.instance.run_mode != 'yearly' %}hidden{% endif %}">
                 <label for="id_timezone" class="block text-[13px] font-medium text-text mb-1.5">Timezone</label>
                 {{ schedule_form.timezone }}
                 {% if schedule_form.timezone.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.timezone.errors.0 }}</p>{% endif %}

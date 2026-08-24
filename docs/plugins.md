@@ -245,6 +245,8 @@ ScriptAPI(OWNER).set_environment(env)
 
 # Schedule + run, through the real RunBackend + scheduler:
 ScheduleAPI(OWNER).sync(script, mode="daily", time_str="02:00", tz="UTC")
+# Annual schedules use one calendar date; 29 February runs only in leap years.
+ScheduleAPI(OWNER).sync(script, mode="yearly", month=6, day=15, time_str="02:00", tz="UTC")
 ScriptAPI(OWNER).queue_run("backup")
 
 # Observe + control that run — no core.models import:
