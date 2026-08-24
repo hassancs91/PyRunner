@@ -10,14 +10,14 @@ function toggleSection(sectionId) {
 
 // Show the option group that matches the selected schedule run mode.
 function toggleScheduleOptions(mode) {
-    ['interval', 'daily', 'weekly', 'monthly'].forEach(function (m) {
+    ['interval', 'daily', 'weekly', 'monthly', 'yearly'].forEach(function (m) {
         var el = document.getElementById(m + '-options');
         if (el) el.classList.toggle('hidden', m !== mode);
     });
     // The timezone select lives outside the panels (one control, one name) and
     // applies to every clock-based mode.
     var tz = document.getElementById('timezone-option');
-    if (tz) tz.classList.toggle('hidden', ['daily', 'weekly', 'monthly'].indexOf(mode) === -1);
+    if (tz) tz.classList.toggle('hidden', ['daily', 'weekly', 'monthly', 'yearly'].indexOf(mode) === -1);
 }
 
 // Monaco code editor — initialised over the hidden <textarea id="id_code">.

@@ -206,6 +206,40 @@ def execute_scheduled_run(script_id: str) -> dict:
     }
 
 
+def execute_yearly_scheduled_run(schedule_id: str) -> dict:
+    """Run a yearly schedule only when its configured local date exists.
+
+    A timezone conversion can place 29 February on 28 February or 1 March in
+    UTC. The cron therefore fires in non-leap years too; this guard preserves
+    the schedule's local-calendar semantics before delegating to the normal
+    scheduled-run path.
+    """
+    from core.services.schedule_service import ScheduleService
+
+    try:
+        schedule = ScriptSchedule.objects.select_related("script").get(id=UUID(schedule_id))
+    except ScriptSchedule.DoesNotExist:
+        return {"success": False, "error": "Schedule not found"}
+    except ValueError as exc:
+        return {"success": False, "error": f"Invalid UUID format: {exc}"}
+
+    if not schedule.is_active or schedule.run_mode != ScriptSchedule.RunMode.YEARLY:
+        return {"success": False, "error": "Yearly schedule inactive"}
+
+    local_now = timezone.now().astimezone(ScheduleService._schedule_tz(schedule))
+    if (local_now.month, local_now.day) != (
+        schedule.yearly_month,
+        schedule.yearly_day,
+    ):
+        logger.info(
+            "Yearly schedule %s skipped outside configured local date",
+            schedule.id,
+        )
+        return {"success": False, "error": "Outside configured local date"}
+
+    return execute_scheduled_run(str(schedule.script_id))
+
+
 def execute_package_operation(operation_id: str) -> dict:
     """
     Execute a package operation (install/uninstall) asynchronously.
@@ -373,6 +407,7 @@ def resync_schedules_task() -> dict:
                     ScriptSchedule.RunMode.DAILY,
                     ScriptSchedule.RunMode.WEEKLY,
                     ScriptSchedule.RunMode.MONTHLY,
+                    ScriptSchedule.RunMode.YEARLY,
                 ],
             )
             .exclude(timezone__in=["", "UTC"])

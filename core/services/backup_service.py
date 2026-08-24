@@ -104,7 +104,7 @@ class BackupService:
     # deployment-/secret-bound to a specific instance — restoring them onto a
     # different host would be wrong (stale endpoints) or a credential-leak vector —
     # so they are reconfigured per instance rather than carried in a portable dump.
-    BACKUP_VERSION = "1.7.0"
+    BACKUP_VERSION = "1.8.0"
     MAX_BACKUP_SIZE_MB = 100
 
     # Backup format constants
@@ -362,6 +362,9 @@ class BackupService:
                 "weekly_times": schedule.weekly_times,
                 "monthly_days": schedule.monthly_days,
                 "monthly_times": schedule.monthly_times,
+                "yearly_month": schedule.yearly_month,
+                "yearly_day": schedule.yearly_day,
+                "yearly_time": schedule.yearly_time,
                 "timezone": schedule.timezone,
                 "is_active": schedule.is_active,
                 "created_at": cls._serialize_datetime(schedule.created_at),
@@ -1318,6 +1321,9 @@ class BackupService:
                 weekly_times=schedule_data.get("weekly_times", []),
                 monthly_days=schedule_data.get("monthly_days", []),
                 monthly_times=schedule_data.get("monthly_times", []),
+                yearly_month=schedule_data.get("yearly_month"),
+                yearly_day=schedule_data.get("yearly_day"),
+                yearly_time=schedule_data.get("yearly_time", ""),
                 timezone=schedule_data.get("timezone", "UTC"),
                 is_active=schedule_data.get("is_active", True),
                 q_schedule_ids=[],  # Will be regenerated

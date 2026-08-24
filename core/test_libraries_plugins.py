@@ -385,7 +385,7 @@ class BackupRoundTripTests(TestCase):
         )
 
     def test_backup_version_is_bumped(self):
-        self.assertEqual(BackupService.BACKUP_VERSION, "1.7.0")
+        self.assertEqual(BackupService.BACKUP_VERSION, "1.8.0")
 
     def test_export_carries_head_only_with_its_version(self):
         data = BackupService.create_backup()

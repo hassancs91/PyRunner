@@ -2,6 +2,7 @@
 Service for managing django-q2 schedules.
 """
 
+import calendar
 import logging
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
@@ -39,6 +40,7 @@ class ScheduleService:
     """
 
     TASK_FUNC = "core.tasks.execute_scheduled_run"
+    YEARLY_TASK_FUNC = "core.tasks.execute_yearly_scheduled_run"
 
     @staticmethod
     def _schedule_tz(script_schedule) -> ZoneInfo:
@@ -138,6 +140,8 @@ class ScheduleService:
             q_schedule_ids = cls._create_weekly_schedules(script_schedule)
         elif script_schedule.run_mode == ScriptSchedule.RunMode.MONTHLY:
             q_schedule_ids = cls._create_monthly_schedules(script_schedule)
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.YEARLY:
+            q_schedule_ids = cls._create_yearly_schedule(script_schedule)
 
         # Update the ScriptSchedule with new IDs and next_run
         script_schedule.q_schedule_ids = q_schedule_ids
@@ -287,6 +291,50 @@ class ScheduleService:
         return q_schedule_ids
 
     @classmethod
+    def _create_yearly_schedule(cls, script_schedule) -> list[int]:
+        """Create one UTC cron for a yearly local calendar date."""
+        local_dt = cls._next_yearly_occurrence(script_schedule)
+        if local_dt is None:
+            return []
+        month, day = script_schedule.yearly_month, script_schedule.yearly_day
+        hour, minute = map(int, script_schedule.yearly_time.split(":"))
+        utc_dt = local_dt.astimezone(dt_timezone.utc)
+        cron_expr = f"{utc_dt.minute} {utc_dt.hour} {utc_dt.day} {utc_dt.month} *"
+        q_schedule = QSchedule.objects.create(
+            name=f"pyrunner-{script_schedule.script.id}-yearly-{month:02d}{day:02d}{hour:02d}{minute:02d}",
+            func=cls.YEARLY_TASK_FUNC,
+            args=f"'{script_schedule.id}'",
+            schedule_type=QSchedule.CRON,
+            cron=cron_expr,
+            repeats=-1,
+            next_run=utc_dt,
+        )
+        return [q_schedule.id]
+
+    @classmethod
+    def _next_yearly_occurrence(cls, script_schedule, now=None) -> Optional[datetime]:
+        """Return the next valid yearly occurrence in the schedule's timezone."""
+        month, day, time_str = (
+            script_schedule.yearly_month,
+            script_schedule.yearly_day,
+            script_schedule.yearly_time,
+        )
+        if not (month and day and time_str):
+            return None
+
+        tz = cls._schedule_tz(script_schedule)
+        local_now = (now or timezone.now()).astimezone(tz)
+        hour, minute = map(int, time_str.split(":"))
+        for year_offset in range(9):
+            year = local_now.year + year_offset
+            if day > calendar.monthrange(year, month)[1]:
+                continue
+            candidate = datetime(year, month, day, hour, minute, tzinfo=tz)
+            if candidate > local_now:
+                return candidate
+        return None
+
+    @classmethod
     def delete_q_schedules(cls, script_schedule) -> int:
         """Delete all django-q2 schedules associated with a ScriptSchedule."""
         if not script_schedule.q_schedule_ids:
@@ -419,6 +467,10 @@ class ScheduleService:
 
             return min(candidates).astimezone(dt_timezone.utc) if candidates else None
 
+        elif script_schedule.run_mode == ScriptSchedule.RunMode.YEARLY:
+            candidate = cls._next_yearly_occurrence(script_schedule, now=now)
+            return candidate.astimezone(dt_timezone.utc) if candidate else None
+
         return None
 
     @classmethod
@@ -478,6 +530,7 @@ class ScheduleService:
                 ScriptSchedule.RunMode.DAILY,
                 ScriptSchedule.RunMode.WEEKLY,
                 ScriptSchedule.RunMode.MONTHLY,
+                ScriptSchedule.RunMode.YEARLY,
             ],
         ).select_related("script"):
             ids = cls.sync_schedule(schedule)
