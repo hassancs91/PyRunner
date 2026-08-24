@@ -161,7 +161,8 @@ class BackupFidelityTests(TestCase):
         self.assertEqual(restored_tags, {("production", Tag.Color.BLUE)})
 
     def test_backup_version_is_current(self):
-        # 1.7.0 = Script Libraries joined the format: a ``libraries`` array
+        # 1.8.0 = yearly schedule fields joined the format; 1.7.0 added
+        # Script Libraries as a ``libraries`` array
         # (head revision inlined), attachment ids on scripts, and
         # ``library_versions`` on runs (1.6.0 added External Secret Providers,
         # 1.5.0 the Databases array).

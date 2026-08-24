@@ -14,7 +14,7 @@ A self-hosted Python script automation platform. Upload a script, schedule it, m
 ## Features
 
 - **Script Management** — Create, edit, and organize Python scripts from your browser
-- **Flexible Scheduling** — Run scripts manually, at intervals, daily/weekly/monthly at specific times, or on any [cron expression](docs/scheduling.md) — all timezone-aware
+- **Flexible Scheduling** — Run scripts manually, at intervals, daily/weekly/monthly/yearly at specific times, or on any [cron expression](docs/scheduling.md) — all timezone-aware
 - **Virtual Environments** — Isolated Python environments with custom pip packages per script
 - **Run History & Logs** — Track every execution with stdout/stderr capture
 - **Secrets Management** — Store encrypted environment variables and secrets

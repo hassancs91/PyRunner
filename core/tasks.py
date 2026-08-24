@@ -374,6 +374,7 @@ def resync_schedules_task() -> dict:
                     ScriptSchedule.RunMode.WEEKLY,
                     ScriptSchedule.RunMode.MONTHLY,
                     ScriptSchedule.RunMode.CRON,
+                    ScriptSchedule.RunMode.YEARLY,
                 ],
             )
             .exclude(timezone__in=["", "UTC"])

@@ -1063,6 +1063,8 @@ class ScheduleAPI:
         mode,
         time_str=None,
         weekday=None,
+        month=None,
+        day=None,
         interval_minutes=None,
         cron=None,
         tz="UTC",
@@ -1070,8 +1072,10 @@ class ScheduleAPI:
         """Create/update the script's schedule and push it to django-q2.
 
         ``mode`` is a ``ScriptSchedule.RunMode`` value ('manual'/'interval'/'daily'
-        /'weekly'/'monthly'/'cron'). Mirrors the hand-rolled qdrant sync_schedule,
-        generalized. For ``cron`` mode pass a raw 5-field expression via ``cron``.
+        /'weekly'/'monthly'/'yearly'/'cron'). Mirrors the hand-rolled qdrant
+        sync_schedule, generalized. Yearly mode takes ``month``, ``day`` and one
+        ``time_str`` in HH:MM format; ``cron`` mode takes a raw 5-field expression
+        via ``cron``. Both are written in ``tz``.
         """
         from core.models import ScriptSchedule
         from core.services.schedule_service import ScheduleService
@@ -1088,6 +1092,9 @@ class ScheduleAPI:
         sched.monthly_days = []
         sched.monthly_times = []
         sched.cron_expression = ""
+        sched.yearly_month = None
+        sched.yearly_day = None
+        sched.yearly_time = ""
 
         if mode == ScriptSchedule.RunMode.INTERVAL:
             if not interval_minutes:
@@ -1109,6 +1116,25 @@ class ScheduleAPI:
             if not is_valid:
                 raise ValueError(f"Invalid cron expression: {error}")
             sched.cron_expression = (cron or "").strip()
+        elif mode == ScriptSchedule.RunMode.YEARLY:
+            if month is None or day is None:
+                raise ValueError("yearly mode requires month and day")
+            if not time_str:
+                raise ValueError("yearly mode requires time_str (HH:MM)")
+            from calendar import monthrange
+            try:
+                month, day = int(month), int(day)
+                if not 1 <= month <= 12 or not 1 <= day <= monthrange(2024, month)[1]:
+                    raise ValueError
+                hour, minute = map(int, time_str.split(":"))
+                if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                    raise ValueError
+                time_str = f"{hour:02d}:{minute:02d}"
+            except (TypeError, ValueError):
+                raise ValueError("yearly mode requires a valid month, day, and time_str (HH:MM)")
+            sched.yearly_month = month
+            sched.yearly_day = day
+            sched.yearly_time = time_str
 
         sched.is_active = mode != ScriptSchedule.RunMode.MANUAL
         sched.save()

@@ -247,6 +247,8 @@ ScriptAPI(OWNER).set_environment(env)
 ScheduleAPI(OWNER).sync(script, mode="daily", time_str="02:00", tz="UTC")
 # ...or any 5-field cron expression, written in ``tz`` (converted to UTC for you):
 ScheduleAPI(OWNER).sync(script, mode="cron", cron="0 9 * * 1-5", tz="Asia/Tokyo")
+# Annual schedules use one calendar date; 29 February runs only in leap years.
+ScheduleAPI(OWNER).sync(script, mode="yearly", month=6, day=15, time_str="02:00", tz="UTC")
 ScriptAPI(OWNER).queue_run("backup")
 
 # Observe + control that run — no core.models import:
