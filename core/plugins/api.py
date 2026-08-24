@@ -1122,6 +1122,7 @@ class ScheduleAPI:
             if not time_str:
                 raise ValueError("yearly mode requires time_str (HH:MM)")
             from calendar import monthrange
+
             try:
                 month, day = int(month), int(day)
                 if not 1 <= month <= 12 or not 1 <= day <= monthrange(2024, month)[1]:

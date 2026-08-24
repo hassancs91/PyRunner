@@ -40,6 +40,7 @@ class ScheduleService:
     """
 
     TASK_FUNC = "core.tasks.execute_scheduled_run"
+    YEARLY_TASK_FUNC = "core.tasks.execute_yearly_scheduled_run"
 
     @staticmethod
     def _schedule_tz(script_schedule) -> ZoneInfo:
@@ -453,29 +454,46 @@ class ScheduleService:
     @classmethod
     def _create_yearly_schedule(cls, script_schedule) -> list[int]:
         """Create one UTC cron for a yearly local calendar date."""
-        if not (
-            script_schedule.yearly_month
-            and script_schedule.yearly_day
-            and script_schedule.yearly_time
-        ):
+        local_dt = cls._next_yearly_occurrence(script_schedule)
+        if local_dt is None:
             return []
         month, day = script_schedule.yearly_month, script_schedule.yearly_day
         hour, minute = map(int, script_schedule.yearly_time.split(":"))
-        tz = cls._schedule_tz(script_schedule)
-        # 2024 is a leap-year reference so 29 February is representable.
-        local_dt = datetime(2024, month, day, hour, minute, tzinfo=tz)
         utc_dt = local_dt.astimezone(dt_timezone.utc)
         cron_expr = f"{utc_dt.minute} {utc_dt.hour} {utc_dt.day} {utc_dt.month} *"
         q_schedule = QSchedule.objects.create(
             name=f"pyrunner-{script_schedule.script.id}-yearly-{month:02d}{day:02d}{hour:02d}{minute:02d}",
-            func=cls.TASK_FUNC,
-            args=f"'{script_schedule.script.id}'",
+            func=cls.YEARLY_TASK_FUNC,
+            args=f"'{script_schedule.id}'",
             schedule_type=QSchedule.CRON,
             cron=cron_expr,
             repeats=-1,
-            next_run=timezone.now(),
+            next_run=utc_dt,
         )
         return [q_schedule.id]
+
+    @classmethod
+    def _next_yearly_occurrence(cls, script_schedule, now=None) -> Optional[datetime]:
+        """Return the next valid yearly occurrence in the schedule's timezone."""
+        month, day, time_str = (
+            script_schedule.yearly_month,
+            script_schedule.yearly_day,
+            script_schedule.yearly_time,
+        )
+        if not (month and day and time_str):
+            return None
+
+        tz = cls._schedule_tz(script_schedule)
+        local_now = (now or timezone.now()).astimezone(tz)
+        hour, minute = map(int, time_str.split(":"))
+        for year_offset in range(8):
+            year = local_now.year + year_offset
+            if day > calendar.monthrange(year, month)[1]:
+                continue
+            candidate = datetime(year, month, day, hour, minute, tzinfo=tz)
+            if candidate > local_now:
+                return candidate
+        return None
 
     @classmethod
     def delete_q_schedules(cls, script_schedule) -> int:
@@ -626,25 +644,8 @@ class ScheduleService:
                 )
                 return None
         elif script_schedule.run_mode == ScriptSchedule.RunMode.YEARLY:
-            month, day, time_str = (
-                script_schedule.yearly_month,
-                script_schedule.yearly_day,
-                script_schedule.yearly_time,
-            )
-            if not (month and day and time_str):
-                return None
-            hour, minute = map(int, time_str.split(":"))
-            for year_offset in range(0, 8):
-                year = now.year + year_offset
-                if day > calendar.monthrange(year, month)[1]:
-                    continue
-                candidate = now.replace(
-                    year=year, month=month, day=day,
-                    hour=hour, minute=minute, second=0, microsecond=0,
-                )
-                if candidate > now:
-                    return candidate.astimezone(dt_timezone.utc)
-            return None
+            candidate = cls._next_yearly_occurrence(script_schedule, now=now)
+            return candidate.astimezone(dt_timezone.utc) if candidate else None
 
         return None
 
