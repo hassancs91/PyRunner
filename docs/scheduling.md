@@ -2,7 +2,7 @@
 
 PyRunner can run a script automatically on a schedule. Every script has one
 schedule, configured in the **Schedule** panel of the script edit form. There
-are six run modes:
+are seven run modes:
 
 | Mode | What it does |
 |------|--------------|
@@ -11,10 +11,11 @@ are six run modes:
 | **Daily** | One or more `HH:MM` times, every day. |
 | **Weekly** | One or more days of the week, at one or more `HH:MM` times. |
 | **Monthly** | One or more days of the month, at one or more `HH:MM` times. |
+| **Yearly** | One calendar date (month + day) at one `HH:MM` time. 29 February runs only in leap years. |
 | **Cron expression** | Any standard 5-field cron expression. |
 
 Under the hood all non-manual modes compile to a
-[django-q2](https://django-q2.readthedocs.io/) schedule. The daily/weekly/monthly
+[django-q2](https://django-q2.readthedocs.io/) schedule. The daily/weekly/monthly/yearly
 modes build a cron expression for you; **Cron expression** mode simply lets you
 type that expression directly, for schedules the guided modes can't express
 (e.g. "every 15 minutes during business hours on weekdays").

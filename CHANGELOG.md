@@ -20,6 +20,14 @@ begins tracking at the current release; earlier history is in the git log.
   daily DST resync covers cron too), so `0 9 * * 1-5` in `Asia/Tokyo` really
   fires at 09:00 Tokyo time. Contributed by @cmcau (#5); timezone conversion
   added on merge. Backup format 1.8.0 carries the new field.
+- **Yearly schedules** — a run mode for "once a year on this date": pick a
+  month, day, time and timezone. The scheduler stores the next real local
+  occurrence (so the right DST offset applies for that date and a schedule
+  set late in December can land in the next UTC year), and 29 February runs
+  only in leap years — including when the timezone conversion pushes the UTC
+  date onto 28 February or 1 March. Available to plugins via
+  `ScheduleAPI.sync(..., mode="yearly", month=, day=, time_str=, tz=)` and
+  carried by backups (format 1.8.0). Contributed by @djpfs (#16).
 
 ### Fixed
 - **Weekly and monthly schedules survive a backup/restore** — the export
