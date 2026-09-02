@@ -14,7 +14,12 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Default rule set (pyflakes + a subset of pycodestyle). This enforces the
+# Explicit rule set = Ruff's classic defaults (pyflakes + a subset of
+# pycodestyle). Pinned by name on purpose: Ruff 0.16 widened its *implicit*
+# defaults to ~400 rules, which turned CI red overnight with 600+ findings
+# that were never part of this project's baseline.
+select = ["E4", "E7", "E9", "F"]
+# This enforces the
 # high-value checks immediately — syntax errors (E9) and real bugs like undefined
 # names / redefinitions (F8xx).
 #

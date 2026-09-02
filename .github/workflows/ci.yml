@@ -25,6 +25,11 @@ jobs:
         run: pip install -r requirements.txt
       - name: Django system check
         run: python manage.py check
+      # The test runner forces DEBUG=False, so {% static %} resolves through the
+      # WhiteNoise manifest storage and needs a built manifest — without this
+      # step every page-render test fails with "Missing staticfiles manifest".
+      - name: Collect static files
+        run: python manage.py collectstatic --noinput
       - name: Run tests (SQLite)
         run: python manage.py test core --verbosity=2
 
@@ -35,7 +40,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      # Pinned to the same version as .pre-commit-config.yaml so CI and the
+      # local hook agree; bump both together.
       - name: Install Ruff
-        run: pip install ruff
+        run: pip install ruff==0.15.20
       - name: Ruff lint
         run: ruff check .
