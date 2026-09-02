@@ -7,7 +7,7 @@ gunicorn>=21.0.0
 whitenoise>=6.6.0
 # Enables WhiteNoise to emit Brotli-compressed (.br) static assets at
 # collectstatic time, in addition to gzip — smaller payloads for modern browsers.
-Brotli>=1.1.0
+Brotli>=1.2.0
 resend>=0.7.0
 cryptography>=42.0.0
 python-dotenv>=1.0.0
