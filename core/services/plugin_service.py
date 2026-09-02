@@ -16,6 +16,7 @@ Safety is the whole point (see docs/PLAN_plugin_system.md):
 
 import hashlib
 import io
+import re
 import logging
 import os
 import shutil
@@ -64,12 +65,11 @@ class PluginService:
         with zf:
             slug = PluginService._validate_zip(zf)
 
-            if Plugin.objects.filter(slug=slug).exists() or (
-                Path(settings.PLUGINS_DIR) / slug
-            ).exists():
+            if Plugin.objects.filter(slug=slug).exists():
                 raise PluginInstallError(
                     f"A plugin named '{slug}' already exists. Delete it first to replace it."
                 )
+            PluginService._retire_orphan_folder(slug)
 
             # Unpack to a temp dir, validate structure + manifest, then atomically
             # move the slug folder into PLUGINS_DIR.
@@ -78,6 +78,9 @@ class PluginService:
                 PluginService._safe_extract(zf, tmp_root)
                 src = Path(tmp_root) / slug
                 manifest = PluginService._read_manifest(src, slug)
+                too_old = PluginService.min_version_problem(manifest, slug)
+                if too_old:
+                    raise PluginInstallError(too_old)
 
                 if not (src / "__init__.py").exists():
                     raise PluginInstallError(
@@ -181,6 +184,62 @@ class PluginService:
                     out.write(chunk)
 
     @staticmethod
+    def min_version_problem(manifest, slug: str):
+        """A user-facing message when ``min_pyrunner`` exceeds this PyRunner, else None.
+
+        Numeric dotted compare on up to three components; an unparseable value is
+        ignored rather than blocking (the doctor flags malformed metadata).
+        """
+        required = (manifest or {}).get("min_pyrunner") if isinstance(manifest, dict) else None
+        if not required:
+            return None
+        from pyrunner.version import __version__
+
+        def key(value):
+            parts = re.findall(r"\d+", str(value))[:3]
+            if not parts:
+                raise ValueError(value)
+            return tuple(int(x) for x in parts) + (0,) * (3 - len(parts))
+
+        try:
+            if key(required) > key(__version__):
+                return (
+                    f"Plugin '{slug}' needs PyRunner {required} or newer "
+                    f"(this instance is {__version__}). Upgrade PyRunner first."
+                )
+        except ValueError:
+            return None
+        return None
+
+    @staticmethod
+    def _retire_orphan_folder(slug: str) -> None:
+        """Move aside a ``PLUGINS_DIR/<slug>`` folder that has no Plugin row.
+
+        Such a folder is not a plugin: nothing loads it and the UI can't delete
+        it, yet it used to block every upload of the same slug ("already
+        exists"). It appears when an image ships stray dev folders or a delete
+        crashed halfway. Renaming (never deleting) keeps the bytes recoverable.
+        """
+        folder = Path(settings.PLUGINS_DIR) / slug
+        if not folder.exists():
+            return
+        if getattr(settings, "DEV_PLUGIN", None) == f"plugins.{slug}":
+            raise PluginInstallError(
+                f"'{slug}' is currently loaded in dev mode from disk; stop the dev "
+                "server (PYRUNNER_PLUGIN_DEV) before uploading a zip of it."
+            )
+        target = folder.with_name(f"{slug}.orphaned-{timezone.now():%Y%m%d%H%M%S}")
+        try:
+            folder.rename(target)
+        except OSError as exc:
+            raise PluginInstallError(
+                f"A folder named '{slug}' already exists in the plugins directory "
+                f"without a plugin record and could not be moved aside ({exc}). "
+                "Remove it on the server, then retry."
+            )
+        logger.warning("Moved orphan plugin folder %s aside to %s", folder, target)
+
+    @staticmethod
     def _read_manifest(plugin_dir: Path, slug: str) -> dict:
         import json
 
@@ -278,6 +337,15 @@ class PluginService:
         # so it is safe here. The boot path never runs it (contract: an
         # already-active plugin stays active across upgrade regardless of new rules).
         from core.services.plugin_doctor import run_doctor
+
+        too_old = PluginService.min_version_problem(plugin.manifest, plugin.slug)
+        if too_old:
+            plugin.error_message = too_old
+            if plugin.status == Plugin.Status.ACTIVE:
+                plugin.status = Plugin.Status.ERRORED
+            plugin.save(update_fields=["status", "error_message", "updated_at"])
+            logger.warning("Plugin %r refused: %s", plugin.slug, too_old)
+            return False, too_old
 
         report = run_doctor(Path(settings.PLUGINS_DIR) / plugin.slug)
         if not report.ok:

@@ -94,7 +94,24 @@ class EnvironmentService:
                 pythons.append(p)
                 seen_paths.add(p["path"])
 
-        return pythons
+        # Debian/Ubuntu ship /usr/bin/python3 without ensurepip unless
+        # python3-venv is installed; offering it produces a create that fails
+        # with "ensurepip is not available" and an orphan folder. Probe first.
+        return [p for p in pythons if cls._supports_venv(p["path"])]
+
+    @staticmethod
+    def _supports_venv(python_path: str) -> bool:
+        """True when ``python -m venv`` can bootstrap pip with this interpreter."""
+        try:
+            result = subprocess.run(
+                [python_path, "-c", "import ensurepip, venv"],
+                capture_output=True,
+                timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
 
     @classmethod
     def _discover_via_py_launcher(cls) -> list[dict]:
@@ -235,9 +252,21 @@ class EnvironmentService:
         except ValueError as e:
             return False, str(e)
 
-        # Check if path already exists
+        # Check if path already exists. A folder no Environment row references is
+        # the leftover of an earlier create that failed after ``python -m venv``
+        # started (e.g. an interpreter without ensurepip): reclaim it instead of
+        # blocking the name forever with no UI way out.
         if os.path.exists(full_path):
-            return False, f"Path already exists: {full_path}"
+            from core.models import Environment
+
+            if Environment.objects.filter(path=env_path).exists():
+                return False, f"Path already exists: {full_path}"
+            logger.warning(
+                f"Reclaiming orphan environment folder {full_path} (no Environment row)"
+            )
+            shutil.rmtree(full_path, ignore_errors=True)
+            if os.path.exists(full_path):
+                return False, f"Path already exists and could not be removed: {full_path}"
 
         # Ensure parent directory exists
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
@@ -256,6 +285,7 @@ class EnvironmentService:
 
             if result.returncode != 0:
                 error_msg = result.stderr or result.stdout or "Unknown error"
+                cls._discard_partial_venv(full_path)
                 return False, f"Failed to create venv: {error_msg}"
 
             # Verify the environment was created
@@ -266,9 +296,17 @@ class EnvironmentService:
             return True, "Environment created successfully"
 
         except subprocess.TimeoutExpired:
+            cls._discard_partial_venv(full_path)
             return False, "Timeout creating environment"
         except Exception as e:
+            cls._discard_partial_venv(full_path)
             return False, f"Error creating environment: {str(e)}"
+
+    @staticmethod
+    def _discard_partial_venv(full_path: str) -> None:
+        """Remove whatever a failed ``python -m venv`` left behind."""
+        if os.path.exists(full_path):
+            shutil.rmtree(full_path, ignore_errors=True)
 
     @classmethod
     def delete_environment(cls, environment) -> tuple[bool, str]:
@@ -371,6 +409,66 @@ class EnvironmentService:
             logger.error(f"pip freeze failed: {e}")
             return ""
 
+    # Wall-clock caps for the pip subprocess per operation. The django-q task
+    # that hosts each one is given this + TASK_TIMEOUT_GRACE (see
+    # ``task_timeout``) so pip's own timeout always fires first and kills the
+    # tree; the worker-level timeout is only a backstop. Before this the two
+    # were equal (600s), so the worker killed the task mid-install, the pip
+    # process kept running orphaned, and the broker re-delivered the task
+    # into the same venv - the "bulk install stuck" report.
+    PIP_TIMEOUTS = {"install": 300, "uninstall": 120, "bulk_install": 600}
+    TASK_TIMEOUT_GRACE = 60
+
+    @classmethod
+    def task_timeout(cls, operation: str) -> int:
+        """django-q per-task timeout for a package operation (pip cap + grace)."""
+        key = {"install": "install", "uninstall": "uninstall", "bulk_install": "bulk_install"}[
+            str(operation)
+        ]
+        return cls.PIP_TIMEOUTS[key] + cls.TASK_TIMEOUT_GRACE
+
+    @classmethod
+    def max_task_timeout(cls) -> int:
+        """The longest package-operation task the cluster can host."""
+        return max(cls.PIP_TIMEOUTS.values()) + cls.TASK_TIMEOUT_GRACE
+
+    @classmethod
+    def _run_pip(cls, cmd: list, timeout: int) -> subprocess.CompletedProcess:
+        """Run a pip command with the same hardening as script runs.
+
+        - Own process group / session, so a timeout kills pip *and* the build
+          backends it spawned (``kill_process_tree``), not just the leader.
+        - ``stdin`` closed + ``PIP_NO_INPUT=1``: pip can never block on a
+          prompt (e.g. a private index asking for credentials) inside a worker.
+        Raises ``subprocess.TimeoutExpired`` after killing the tree.
+        """
+        from core.executor_backends.local import kill_process_tree
+
+        popen_kwargs: dict = {
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": {**os.environ, "PIP_NO_INPUT": "1"},
+        }
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = (
+                subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+        else:
+            popen_kwargs["start_new_session"] = True
+        proc = subprocess.Popen(cmd, **popen_kwargs)
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_process_tree(proc.pid)
+            try:
+                proc.communicate(timeout=5)
+            except Exception:
+                pass
+            raise
+        return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+
     @classmethod
     def install_package(
         cls, environment, package_spec: str
@@ -395,15 +493,7 @@ class EnvironmentService:
 
         try:
             cmd = [pip_path, "install", package_spec]
-            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minutes timeout
-                creationflags=creationflags,
-            )
+            result = cls._run_pip(cmd, timeout=cls.PIP_TIMEOUTS["install"])
 
             success = result.returncode == 0
             if success:
@@ -442,15 +532,7 @@ class EnvironmentService:
 
         try:
             cmd = [pip_path, "uninstall", "-y", package_name]
-            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                creationflags=creationflags,
-            )
+            result = cls._run_pip(cmd, timeout=cls.PIP_TIMEOUTS["uninstall"])
 
             success = result.returncode == 0
             if success:
@@ -512,15 +594,7 @@ class EnvironmentService:
                 temp_path = f.name
 
             cmd = [pip_path, "install", "-r", temp_path]
-            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600,  # 10 minutes for bulk install
-                creationflags=creationflags,
-            )
+            result = cls._run_pip(cmd, timeout=cls.PIP_TIMEOUTS["bulk_install"])
 
             success = result.returncode == 0
             if success:

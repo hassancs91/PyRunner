@@ -82,7 +82,10 @@ class PackageOperation(models.Model):
     # An operation should never legitimately stay pending/running this long.
     # Past this, it almost certainly belongs to a worker that crashed/restarted
     # mid-task or a task stuck in a django-q2 re-queue loop.
-    STALE_AFTER = datetime.timedelta(minutes=15)
+    # Must outlast the longest package task (bulk install: 600s pip cap + 60s
+    # worker grace) plus realistic queue wait, or a slow-but-alive install is
+    # mislabelled failed while pip is still working.
+    STALE_AFTER = datetime.timedelta(minutes=30)
 
     class Meta:
         db_table = "package_operations"

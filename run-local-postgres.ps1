@@ -178,8 +178,27 @@ if ($Logs) {
 
 if ($Fresh) {
     Write-Step "Tearing down stack AND deleting data + Postgres volumes"
-    Compose down -v
-    Write-Ok "Clean slate - Postgres DB, venvs and environments removed."
+    Compose down -v --remove-orphans
+    # `down -v` only removes volumes it can attribute to THIS compose project.
+    # A stack brought up under another project name, or a half-finished earlier
+    # teardown, leaves them behind and the "fresh" boot silently reuses old
+    # data (QA sweep 2026-07-23, F1). Remove the three named volumes explicitly
+    # and verify, so -Fresh either wipes or says loudly that it could not.
+    $project = if ($env:COMPOSE_PROJECT_NAME) { $env:COMPOSE_PROJECT_NAME } else { (Split-Path -Leaf $PSScriptRoot).ToLower() }
+    foreach ($suffix in @('pyrunner_data', 'pyrunner_plugins', 'pyrunner_pgdata')) {
+        $name = "${project}_$suffix"
+        $exists = docker volume ls -q --filter "name=^${name}$"
+        if ($exists) {
+            Write-Warn2 "Volume '$name' survived 'down -v' - removing it explicitly."
+            docker volume rm -f $name | Out-Null
+        }
+    }
+    $left = @(docker volume ls -q --filter "name=pyrunner_pgdata") + @(docker volume ls -q --filter "name=pyrunner_data")
+    $left = $left | Where-Object { $_ }
+    if ($left) {
+        throw "-Fresh could not remove volume(s): $($left -join ', '). Remove them by hand (docker volume rm) and retry."
+    }
+    Write-Ok "Clean slate - Postgres DB, venvs and environments removed (verified: no pyrunner volumes left)."
 }
 
 # --- 3. Ensure .env with production-parity + Postgres values -----------------

@@ -3,6 +3,7 @@ Run model for tracking script execution history.
 """
 
 import datetime
+import logging
 import uuid
 
 from django.conf import settings
@@ -10,6 +11,9 @@ from django.db import models
 
 from .script import Script
 from .workspace import WorkspaceScopedManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class Run(models.Model):
@@ -192,6 +196,7 @@ class Run(models.Model):
 
         now = timezone.now()
         reconciled = 0
+        notify_pks: list = []
 
         # RUNNING: dead once well past started_at + the script's own timeout +
         # grace. The deadline is per-run, and the candidate set is tiny by
@@ -220,7 +225,7 @@ class Run(models.Model):
                 f"{run.script.timeout_seconds}s timeout. A detached script "
                 "process may have kept running after the worker died.]"
             )
-            reconciled += cls.objects.filter(
+            flipped = cls.objects.filter(
                 pk=run.pk, status=cls.Status.RUNNING
             ).update(
                 status=cls.Status.FAILED,
@@ -229,14 +234,22 @@ class Run(models.Model):
                 ended_at=now,
                 pid=None,
             )
+            reconciled += flipped
+            if flipped:
+                notify_pks.append(run.pk)
 
         # PENDING: only reconciled while workers are alive — with the cluster
         # down, "queued" is still the truth and these runs will execute when it
         # returns.
         if GlobalSettings.get_settings().worker_is_alive():
-            reconciled += cls.objects.filter(
-                status=cls.Status.PENDING,
-                created_at__lt=now - cls.RECONCILE_PENDING_AFTER,
+            stale_pending = list(
+                cls.objects.filter(
+                    status=cls.Status.PENDING,
+                    created_at__lt=now - cls.RECONCILE_PENDING_AFTER,
+                ).values_list("pk", flat=True)
+            )
+            flipped = cls.objects.filter(
+                pk__in=stale_pending, status=cls.Status.PENDING
             ).update(
                 status=cls.Status.FAILED,
                 exit_code=-1,
@@ -248,8 +261,36 @@ class Run(models.Model):
                 ),
                 ended_at=now,
             )
+            reconciled += flipped
+            if flipped:
+                notify_pks.extend(
+                    cls.objects.filter(
+                        pk__in=stale_pending, status=cls.Status.FAILED
+                    ).values_list("pk", flat=True)
+                )
 
+        cls._notify_reconciled(notify_pks)
         return reconciled
+
+    @classmethod
+    def _notify_reconciled(cls, pks) -> None:
+        """Send the normal failure notifications for reconciled runs.
+
+        A run the reconciler flips to FAILED never went through
+        ``execute_run_task``'s finalize path, so without this the one failure
+        class the platform most needs to report - "your worker died mid-run" -
+        was the one it stayed silent about. Best-effort per run: a broken
+        channel must not stop the reconciler (which is the heartbeat).
+        """
+        if not pks:
+            return
+        from core.services.notification_service import NotificationService
+
+        for run in cls.objects.filter(pk__in=pks).select_related("script"):
+            try:
+                NotificationService.send_notification(run)
+            except Exception:
+                logger.exception(f"Notification for reconciled run {run.pk} failed")
 
     @property
     def duration(self) -> float | None:

@@ -139,9 +139,10 @@ def connect(name: str, **kwargs):
         import psycopg
     except ImportError as e:
         raise PyRunnerDbError(
-            "The 'psycopg' package is required for pyrunner_db.connect(). It "
-            "ships with PyRunner's runtime; in a custom environment install it "
-            "with: pip install psycopg[binary]"
+            "The 'psycopg' package is not installed in this script's environment. "
+            "Add 'psycopg[binary]' under Environments -> (this environment) -> "
+            "Packages, then re-run. (pyrunner_db.dsn() / sqlalchemy_url() work "
+            "without it if you bring your own driver.)"
         ) from e
 
     return psycopg.connect(dsn(name), **kwargs)

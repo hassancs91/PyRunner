@@ -36,8 +36,14 @@ def apply_db_worker_settings() -> dict:
     from core.models import GlobalSettings, Script
 
     gs = GlobalSettings.get_settings()
-    max_script_timeout = (
-        Script.objects.aggregate(m=Max("timeout_seconds"))["m"] or 0
+    from core.services.environment_service import EnvironmentService
+
+    # Package operations ride the same cluster, so the re-delivery window must
+    # also outlast the longest pip task (bulk install) or the broker hands a
+    # still-running install to a second worker in the same venv.
+    max_script_timeout = max(
+        Script.objects.aggregate(m=Max("timeout_seconds"))["m"] or 0,
+        EnvironmentService.max_task_timeout(),
     )
     config = compute_effective_q_config(
         django_settings.Q_CLUSTER,

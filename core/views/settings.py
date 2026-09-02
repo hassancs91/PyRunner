@@ -156,8 +156,18 @@ def general_settings_view(request: HttpRequest) -> HttpResponse:
     form = GeneralSettingsForm(request.POST, instance=settings)
 
     if form.is_valid():
+        previous_slug = settings.admin_url_slug
         form.save(settings)
         messages.success(request, "General settings saved successfully.")
+        if settings.admin_url_slug != previous_slug:
+            # urlpatterns bake the slug in at import time (pyrunner/urls.py), so
+            # the new address only exists once every process has restarted.
+            messages.warning(
+                request,
+                "The admin URL changes after a restart: URL routes are built at "
+                f"startup, so /{previous_slug}/ stays live and /{settings.admin_url_slug}/ "
+                "only works once PyRunner has been restarted.",
+            )
     else:
         for field, errors in form.errors.items():
             for error in errors:

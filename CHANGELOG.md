@@ -41,6 +41,50 @@ begins tracking at the current release; earlier history is in the git log.
   files under the test runner's `DEBUG=False`), and an unpinned Ruff picked
   up 0.16's much larger default rule set. Both pinned down; no product code
   changed.
+- **A worker dying mid-run now triggers the run's failure notification** —
+  runs the stale-run reconciler flipped to *failed* never went through the
+  normal finalize path, so the one failure the platform most needs to report
+  (your worker was killed or restarted while your script ran) was the one it
+  stayed silent about. Reconciled runs, including runs lost from the queue,
+  now send the script's configured notifications.
+- **Bulk requirements install no longer gets stuck** — the pip subprocess and
+  the worker task that hosts it both had a 600 s limit, so on a slow install
+  the worker killed the task first, pip kept running orphaned in the venv,
+  and the queue re-delivered the same install into it. Every package task
+  now gets its own timeout above pip's cap, pip runs in its own process group
+  (a timeout kills its build helpers too), with stdin closed and
+  `PIP_NO_INPUT` set so it can never wait on a prompt; the worker retry
+  window accounts for the longest pip task, and stuck package operations
+  are reconciled by the worker heartbeat instead of only when someone opens
+  the packages page.
+- **A failed environment create no longer poisons its name** — a `python -m
+  venv` that failed halfway (typically Debian's `/usr/bin/python3` without
+  `python3-venv`) left a folder behind that blocked the name forever with
+  "Path already exists" and no way to clean up. Partial venvs are removed on
+  failure, an existing folder no environment references is reclaimed, and the
+  interpreter picker only lists Pythons that can actually bootstrap pip.
+- **A plugin's `min_pyrunner` is now enforced** — the manifest field was
+  documented but never checked, so a plugin built for a newer PyRunner
+  uploaded and activated on an older one and failed later in confusing ways.
+  Upload and activation now refuse it with the required version.
+- **A stray plugin folder no longer blocks uploads of that slug** — a folder
+  under the plugins directory with no plugin record (a delete that crashed
+  halfway, or files shipped inside an image) made every upload of the same
+  slug fail with "already exists" and nothing in the UI could remove it. It
+  is now moved aside (never deleted) and the upload proceeds; a folder loaded
+  in dev mode is left alone with a clear message.
+- **`pyrunner_db.connect()` tells the truth about `psycopg`** — the error
+  claimed the driver "ships with PyRunner's runtime"; it doesn't ship inside
+  script environments. The message now points at Environments → Packages.
+- **Changing the Django admin URL slug says it needs a restart** — routes are
+  built at startup, so the old slug stayed live and the new one 404'd until
+  the next restart, with nothing telling you so. Saving a changed slug now
+  shows exactly that.
+- **`run-local-postgres.ps1 -Fresh` really wipes** — `docker compose down -v`
+  only removes volumes it can attribute to its own project, so a stack that
+  had been brought up under another project name kept its month-old Postgres
+  data and the "fresh" boot silently reused it. The launcher now removes the
+  three named volumes explicitly and refuses to continue if any survive.
 
 ## [1.16.0] — July 29, 2026
 

@@ -473,6 +473,18 @@ def worker_heartbeat_task() -> dict:
         except Exception:
             logger.exception("Stale-run reconciliation failed")
 
+        # Same for package operations: the packages page used to be the only
+        # reconciler, so an install whose worker died stayed "running" (and the
+        # page kept polling) until someone opened it.
+        try:
+            from core.models import PackageOperation
+
+            stale_ops = PackageOperation.reconcile_stale()
+            if stale_ops:
+                logger.warning(f"Reconciled {stale_ops} stale package operation(s)")
+        except Exception:
+            logger.exception("Stale package-operation reconciliation failed")
+
         logger.debug("Worker heartbeat updated")
         return {"success": True, "heartbeat_at": str(settings.worker_heartbeat_at)}
     except Exception as e:

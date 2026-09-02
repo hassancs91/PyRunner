@@ -276,6 +276,7 @@ def package_install_view(request: HttpRequest, pk) -> HttpResponse:
             "core.tasks.execute_package_operation",
             str(operation.id),
             task_name=f"pkg-install-{operation.id}",
+            timeout=EnvironmentService.task_timeout(PackageOperation.Operation.INSTALL),
         )
 
         operation.task_id = task_id
@@ -318,6 +319,7 @@ def package_uninstall_view(request: HttpRequest, pk) -> HttpResponse:
         "core.tasks.execute_package_operation",
         str(operation.id),
         task_name=f"pkg-uninstall-{operation.id}",
+        timeout=EnvironmentService.task_timeout(PackageOperation.Operation.UNINSTALL),
     )
 
     operation.task_id = task_id
@@ -358,6 +360,7 @@ def bulk_install_view(request: HttpRequest, pk) -> HttpResponse:
             "core.tasks.execute_package_operation",
             str(operation.id),
             task_name=f"pkg-bulk-{operation.id}",
+            timeout=EnvironmentService.task_timeout(PackageOperation.Operation.BULK_INSTALL),
         )
 
         operation.task_id = task_id
