@@ -16,7 +16,7 @@ psycopg[binary]>=3.1.0
 dj-database-url>=2.1.0
 # Redis cache backend (opt-in via REDIS_URL; DatabaseCache is the default and
 # needs nothing extra). Only imported when REDIS_URL is set.
-redis>=5.0.0
+redis>=8.0.1
 psutil>=5.9.0
 boto3>=1.34.0
 claude-agent-sdk>=0.2.101,<0.3.0
