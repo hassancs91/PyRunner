@@ -1,5 +1,6 @@
-# Git
+# Git (.git-private = the private overlay repo's git dir, checked out in place)
 .git
+.git-private
 .gitignore
 
 # Environment files (should be passed as env vars)
@@ -12,11 +13,12 @@
 *.swp
 *.swo
 
-# Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+# Python (dockerignore patterns only match at the context root unless prefixed
+# with **/ — the bare form let 23 host __pycache__ dirs into the 1.17 image)
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
 .Python
 venv/
 env/
@@ -55,3 +57,7 @@ design-preview/
 .ruff_cache/
 plugins/gmail_agent/
 plugins/youtube_scout/
+# Private-overlay tooling (see docs/PRIVATE_OVERLAY.md) — local only.
+.privateignore
+private.ps1
+private.sh

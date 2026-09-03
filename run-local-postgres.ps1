@@ -193,7 +193,10 @@ if ($Fresh) {
             docker volume rm -f $name | Out-Null
         }
     }
-    $left = @(docker volume ls -q --filter "name=pyrunner_pgdata") + @(docker volume ls -q --filter "name=pyrunner_data")
+    # Anchor the names: Docker's `name=` filter is a substring match, so an
+    # unanchored "pyrunner_data" would also catch another project's
+    # "<other>_pyrunner_data" volume and make -Fresh throw for no reason.
+    $left = @(docker volume ls -q --filter "name=^${project}_pyrunner_pgdata$") + @(docker volume ls -q --filter "name=^${project}_pyrunner_data$")
     $left = $left | Where-Object { $_ }
     if ($left) {
         throw "-Fresh could not remove volume(s): $($left -join ', '). Remove them by hand (docker volume rm) and retry."
