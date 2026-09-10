@@ -98,3 +98,68 @@ class TimezoneChoicesTests(TestCase):
         gs = form.save(GlobalSettings.get_settings())
         self.assertEqual(gs.timezone, "Asia/Tokyo")
         self.assertEqual(gs.instance_name, "Acme Ops")
+
+
+class BrandingTests(TestCase):
+    """The product brand is "PyRun" (rebrand from PyRunner, v1.17).
+
+    Guards the user-visible surfaces: the console <title>/header fallback when
+    no instance name is set, the login page, the password-reset email subject,
+    and the update-check repo. Code identifiers (pyrunner package, PYRUNNER_*
+    env vars, pyrunner_* helpers, PyRunnerPlugin) deliberately keep their names.
+    """
+
+    def setUp(self):
+        gs = GlobalSettings.get_settings()
+        gs.instance_name = ""
+        gs.setup_completed = True
+        gs.save()
+        Environment.objects.get_or_create(
+            name="default", defaults={"is_default": True, "python_version": "3.12"}
+        )
+        # An admin must exist or the setup middleware redirects every page.
+        self.admin = User.objects.create(
+            email="admin@example.com", is_superuser=True, is_staff=True
+        )
+        WorkspaceMembership.ensure(
+            self.admin, Workspace.get_default(), role=WorkspaceMembership.ROLE_OWNER
+        )
+
+    def test_console_title_falls_back_to_brand(self):
+        self.client.force_login(self.admin)
+
+        resp = self.client.get(reverse("cpanel:services"))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "<title>Services - PyRun</title>", html=False)
+        self.assertNotContains(resp, "PyRunner")
+
+    def test_login_page_shows_brand(self):
+        resp = self.client.get(reverse("auth:login"))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "PyRun")
+        self.assertNotContains(resp, "PyRunner")
+
+    def test_password_reset_subject_uses_brand(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from core.email import send_password_reset_email
+
+        request = RequestFactory().get("/")
+        user = SimpleNamespace(email="someone@example.com")
+        token = SimpleNamespace(token="abc123")
+        with patch("core.email._send_email", return_value=True) as send:
+            send_password_reset_email(request, user, token)
+
+        _to, subject, text, html = send.call_args.args
+        self.assertEqual(subject, "Reset Your PyRun Password")
+        self.assertIn("PyRun", text)
+        self.assertNotIn("PyRunner", text)
+        self.assertNotIn("PyRunner", html)
+
+    def test_update_check_points_at_renamed_repo(self):
+        from core.services.update_service import UpdateService
+
+        self.assertIn("hassancs91/PyRun/", UpdateService.GITHUB_TAGS_URL)
