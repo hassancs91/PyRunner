@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Create Database - PyRunner{% endblock %}
+{% block title %}Create Database - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -44,7 +44,7 @@
                         <ul class="mt-2 space-y-1 list-disc list-inside text-xs">
                             <li>Creates a dedicated PostgreSQL schema and login role on the data server</li>
                             <li>Granted scripts get full SQL inside it — create tables, insert, query, join</li>
-                            <li>Isolation is enforced by PostgreSQL: a script can never reach another database's schema (or PyRunner's own data)</li>
+                            <li>Isolation is enforced by PostgreSQL: a script can never reach another database's schema (or PyRun's own data)</li>
                             <li>Access from scripts using <code class="font-mono text-info">pyrunner_db.connect("name")</code> after granting them on the database's page</li>
                         </ul>
                     </div>

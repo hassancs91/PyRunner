@@ -1,6 +1,6 @@
 # Scheduling scripts
 
-PyRunner can run a script automatically on a schedule. Every script has one
+PyRun can run a script automatically on a schedule. Every script has one
 schedule, configured in the **Schedule** panel of the script edit form. There
 are seven run modes:
 
@@ -29,7 +29,7 @@ type that expression directly, for schedules the guided modes can't express
 1. Open a script → **Edit** → the **Schedule** panel.
 2. Choose **Cron expression** as the run mode.
 3. Type a standard **5-field** cron expression, for example `0 9 * * 1-5`.
-4. As you type, PyRunner validates the expression and shows the **next three run
+4. As you type, PyRun validates the expression and shows the **next three run
    times** so you can confirm it before saving.
 5. Make sure **Schedule Active** is ticked, then **Save**.
 
@@ -75,7 +75,7 @@ also links to it.
 
 ### What is *not* accepted
 
-To keep behaviour predictable, PyRunner intentionally rejects:
+To keep behaviour predictable, PyRun intentionally rejects:
 
 - **Named shortcuts** like `@daily`, `@hourly`, `@reboot`.
 - **6-field (seconds) expressions** — use exactly five fields.
@@ -89,7 +89,7 @@ Pick the **Timezone** next to the expression: it is written in that zone, like
 the times in the daily/weekly/monthly modes. `0 9 * * 1-5` with `Asia/Tokyo`
 runs at 09:00 Tokyo time on weekdays, whatever the server's clock says.
 
-Under the hood PyRunner converts the expression to UTC before handing it to
+Under the hood PyRun converts the expression to UTC before handing it to
 the scheduler (`0 9 * * 1-5` in Tokyo is stored as `0 0 * * 1-5`). When a time
 crosses UTC midnight the day fields move with it - `30 0 * * 1-5` in Tokyo
 becomes `30 15 * * 0,1,2,3,4` - and an expression with several hours can turn
@@ -122,7 +122,7 @@ cron expression before/after), so you can audit who changed what and when.
 ## Backup & restore
 
 Cron schedules — and the full weekly/monthly configuration — are included in
-PyRunner backups and are recreated on restore. The django-q2 schedule objects
+PyRun backups and are recreated on restore. The django-q2 schedule objects
 themselves are regenerated from the stored configuration after import, so
 `next_run` is recomputed on the restored instance.
 

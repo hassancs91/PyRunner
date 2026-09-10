@@ -1,6 +1,6 @@
-# Writing a PyRunner plugin
+# Writing a PyRun plugin
 
-A plugin is a self-contained Django app that adds UI and behavior to PyRunner
+A plugin is a self-contained Django app that adds UI and behavior to PyRun
 **without editing any core file**. Admins upload it, activate it, and it serves at
 `/plugins/<slug>/` and appears in the console sidebar.
 
@@ -11,7 +11,7 @@ pre-activation **doctor** (see below) refuses rule-breakers before they can touc
 the live process.
 
 > **Plugin Platform v2** adds four things on top of the v1 system: **Dev Mode**
-> (live local iteration), the **SDK** (`core.plugins.api` — orchestrate PyRunner
+> (live local iteration), the **SDK** (`core.plugins.api` — orchestrate PyRun
 > primitives without importing core internals), **resource ownership + scoped
 > secrets** (your scripts/secrets/datastores are grouped, idempotent, and
 > delete-guarded), and the **doctor** (a static-lint activation gate). Everything
@@ -169,7 +169,7 @@ template (the doctor checks this):
 
 ```django
 {% extends "base.html" %}
-{% block title %}My Flows - PyRunner{% endblock %}
+{% block title %}My Flows - PyRun{% endblock %}
 {% block content %}
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
@@ -207,7 +207,7 @@ detector. Validate a folder anytime with `manage.py plugin_doctor --path ./my_fl
 
 ## The plugin SDK — `core.plugins.api`
 
-Orchestrate PyRunner primitives (scripts, secrets, datastores, schedules,
+Orchestrate PyRun primitives (scripts, secrets, datastores, schedules,
 environments, runs) **through the SDK** instead of importing `core.models` /
 `core.tasks` / `core.services` directly. The SDK auto-stamps **ownership** (your
 plugin slug) **and the workspace**, is **idempotent**, auto-names datastores, and
@@ -474,7 +474,7 @@ for obj in pyrunner_storage.list("avatars/"):
   fine for a redirect, wrong to bake into a stored page or an email. Ask the
   admin for a public base URL when you need durable links.
 - **In the worker, objects are capped at 25 MB per call.** The bytes travel over
-  PyRunner's internal loopback API, which is what keeps S3 credentials out of
+  PyRun's internal loopback API, which is what keeps S3 credentials out of
   your run. Storage in a worker is available to **plugin-owned scripts only**; a
   user's own script gets a 403.
 - **Uninstall cleans up.** Deleting your plugin with *remove data* clears
@@ -686,7 +686,7 @@ dashboard; the per-IP rate limit and size cap are core's, not yours.
 ## Running real work: `run_in_environment`
 
 Keep the web layer thin. Anything that needs third-party packages must run in a
-**PyRunner environment's venv** as an isolated subprocess — never imported into
+**PyRun environment's venv** as an isolated subprocess — never imported into
 the Django process:
 
 ```python

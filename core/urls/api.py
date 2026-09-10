@@ -1,5 +1,5 @@
 """
-URL patterns for the PyRunner REST API.
+URL patterns for the PyRun REST API.
 """
 
 from django.urls import path

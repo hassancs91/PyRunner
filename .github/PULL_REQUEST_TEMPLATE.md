@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to PyRunner! Please fill this out to help review. -->
+<!-- Thanks for contributing to PyRun! Please fill this out to help review. -->
 
 ## Summary
 

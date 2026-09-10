@@ -1,7 +1,7 @@
 # YouTube Comments AI
 
 AI-powered comment intelligence for your YouTube channel, as a self-provisioning
-PyRunner plugin. Connect a channel once; every day the plugin fetches new
+PyRun plugin. Connect a channel once; every day the plugin fetches new
 comments in a single channel-wide API sweep, classifies them with your
 instance's AI provider into your own tag taxonomy, scores sentiment, stores
 everything in a managed Postgres database, and emails you batched urgent
@@ -61,7 +61,7 @@ auto-publish for the tags you trust it with.
 
 ## Requirements
 
-- PyRunner **1.16.0+** with a **data server attached** (`PYRUNNER_DATA_DB_URL`
+- PyRun **1.16.0+** with a **data server attached** (`PYRUNNER_DATA_DB_URL`
   — see the Databases documentation). The plugin refuses to provision without
   one; comments live in a real Postgres schema, not a key-value store.
 - **Optional, for avatar archiving**: an assets connection under *Services →
@@ -153,7 +153,7 @@ One Save provisions (all owned by `yt_comments`, removed with the plugin):
 ## Development
 
 ```bash
-# Dev mode — live-edit without uploading (inside a PyRunner checkout)
+# Dev mode — live-edit without uploading (inside a PyRun checkout)
 export DEBUG=True
 export PYRUNNER_PLUGIN_DEV=/abs/path/to/examples/yt_comments
 python manage.py runserver

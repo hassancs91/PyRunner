@@ -1,13 +1,13 @@
 """
-PyRunner object storage API for scripts.
+PyRun object storage API for scripts.
 
 Read and write files in your plugin's own storage space — server-side, so your
 script never handles S3 credentials and never needs boto3 installed. Mirrors
-``pyrunner_notify``: stdlib-only, talking to PyRunner's internal loopback API
+``pyrunner_notify``: stdlib-only, talking to PyRun's internal loopback API
 authenticated by a signed per-run token.
 
 Every key is confined to your plugin's own prefix (``apps/<your-plugin>/``),
-which PyRunner derives from the run itself — you cannot name, read, or overwrite
+which PyRun derives from the run itself — you cannot name, read, or overwrite
 another plugin's files, and you never write the prefix yourself.
 
 v1 is available to PLUGIN-OWNED scripts only; a user-created script gets
@@ -44,7 +44,7 @@ def _post(endpoint: str, payload: dict) -> dict:
     base = os.environ.get("PYRUNNER_INTERNAL_URL")
     token = os.environ.get("PYRUNNER_INTERNAL_TOKEN")
     if not base or not token:
-        raise StorageError("PyRunner storage is not available in this run context.")
+        raise StorageError("PyRun storage is not available in this run context.")
     url = f"{base.rstrip('/')}/internal/storage/{endpoint}"
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -72,7 +72,7 @@ def _post(endpoint: str, payload: dict) -> dict:
             raise FileNotFoundError(message)
         raise StorageError(f"Storage {endpoint} failed (HTTP {e.code}): {message}")
     except urllib.error.URLError as e:
-        raise StorageError(f"Could not reach PyRunner: {e}")
+        raise StorageError(f"Could not reach PyRun: {e}")
 
 
 def put(key: str, data, content_type: str = "application/octet-stream") -> str:

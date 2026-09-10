@@ -3,7 +3,7 @@ Internal Channels send API (loopback-only).
 
 The only way an in-run script can deliver a chat message or email: a sandboxed
 run has no DB / encryption key / provider access, so ``pyrunner_notify`` POSTs
-here and PyRunner does the send server-side. Authenticated by the same signed
+here and PyRun does the send server-side. Authenticated by the same signed
 per-run token the internal datastore API uses (loopback-only), so the run's
 workspace is derived server-side and a run cannot send through another
 workspace's channel.
@@ -100,7 +100,7 @@ def send(request: HttpRequest) -> JsonResponse:
     if not isinstance(text, str) or not text:
         return _bad_request("Missing 'text'")
 
-    # --- email target: delegate to PyRunner core email ---
+    # --- email target: delegate to PyRun core email ---
     if target == "email":
         from core.services import NotificationService
 
@@ -109,7 +109,7 @@ def send(request: HttpRequest) -> JsonResponse:
             return _bad_request("'html' must be a string")
         try:
             NotificationService.send_email(
-                subject=data.get("subject") or "[PyRunner] Notification",
+                subject=data.get("subject") or "[PyRun] Notification",
                 body=text,
                 to=data.get("to") or None,
                 html=html or None,

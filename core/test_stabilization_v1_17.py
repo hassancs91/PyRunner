@@ -432,7 +432,7 @@ class AdminSlugNoticeTests(TestCase):
     def _post(self, slug):
         response = self.client.post(
             reverse("cpanel:general_settings"),
-            {"instance_name": "PyRunner", "timezone": "UTC", "admin_url_slug": slug},
+            {"instance_name": "PyRun", "timezone": "UTC", "admin_url_slug": slug},
         )
         return [str(m) for m in get_messages(response.wsgi_request)]
 

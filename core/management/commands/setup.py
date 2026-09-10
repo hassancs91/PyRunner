@@ -29,7 +29,7 @@ class Command(BaseCommand):
         skip_env = options["skip_env"]
         force = options["force"]
 
-        self.stdout.write("Starting PyRunner setup...\n")
+        self.stdout.write("Starting PyRun setup...\n")
 
         # ALWAYS run migrations (required for upgrades)
         self.stdout.write("Running database migrations...")

@@ -94,7 +94,7 @@ class GlobalSettings(models.Model):
     # General Settings
     instance_name = models.CharField(
         max_length=100,
-        default="PyRunner",
+        default="PyRun",
         blank=True,
         help_text="Instance name displayed in header and emails",
     )
@@ -303,7 +303,7 @@ class GlobalSettings(models.Model):
         max_length=50,
         blank=True,
         default="",
-        help_text="Latest PyRunner version seen on GitHub (populated by the update check)",
+        help_text="Latest PyRun version seen on GitHub (populated by the update check)",
     )
     update_checked_at = models.DateTimeField(
         null=True,

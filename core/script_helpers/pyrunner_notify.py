@@ -1,10 +1,10 @@
 """
-PyRunner notifications API for scripts.
+PyRun notifications API for scripts.
 
 Send a message to a configured Channel, reply to an inbound chat message, or send
-an email through PyRunner's core email config — all server-side, so your script
+an email through PyRun's core email config — all server-side, so your script
 never handles credentials. Mirrors ``pyrunner_datastore``: stdlib-only, talking
-to PyRunner's internal loopback API authenticated by a signed per-run token.
+to PyRun's internal loopback API authenticated by a signed per-run token.
 
 Usage:
     import pyrunner_notify
@@ -29,7 +29,7 @@ def _post(payload: dict) -> dict:
     token = os.environ.get("PYRUNNER_INTERNAL_TOKEN")
     if not base or not token:
         raise NotifyError(
-            "PyRunner notifications are not available in this run context."
+            "PyRun notifications are not available in this run context."
         )
     url = f"{base.rstrip('/')}/internal/channels/send"
     data = json.dumps(payload).encode("utf-8")
@@ -55,7 +55,7 @@ def _post(payload: dict) -> dict:
             message = raw.decode("utf-8", "ignore")
         raise NotifyError(f"Send failed (HTTP {e.code}): {message}")
     except urllib.error.URLError as e:
-        raise NotifyError(f"Could not reach PyRunner: {e}")
+        raise NotifyError(f"Could not reach PyRun: {e}")
 
 
 def send(channel: str, text: str, reply_ref: dict | None = None) -> dict:
@@ -69,7 +69,7 @@ def send(channel: str, text: str, reply_ref: dict | None = None) -> dict:
 def email(
     subject: str, body: str, to: str | None = None, html: str | None = None
 ) -> dict:
-    """Send an email via PyRunner's configured core email backend.
+    """Send an email via PyRun's configured core email backend.
 
     ``to`` defaults to the instance's default notification email when omitted.
     ``html`` optionally adds an HTML alternative; ``body`` stays the plain-text
@@ -85,7 +85,7 @@ def reply(text: str) -> dict:
     """Reply to the inbound chat message that triggered this run.
 
     Available only when the run was triggered by an inbound channel message
-    (Phase 2); PyRunner injects ``INBOUND_CHANNEL`` + ``INBOUND_REPLY_REF``.
+    (Phase 2); PyRun injects ``INBOUND_CHANNEL`` + ``INBOUND_REPLY_REF``.
     """
     channel = os.environ.get("INBOUND_CHANNEL")
     if not channel:

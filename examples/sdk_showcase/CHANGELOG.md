@@ -19,5 +19,5 @@ First release — a reference plugin that demonstrates the whole plugin SDK
 - A standard-library-only demo worker, so it runs in any environment.
 
 ### Notes
-- Requires PyRunner **1.13.0+** (plugin SDK API `2.1`).
+- Requires PyRun **1.13.0+** (plugin SDK API `2.1`).
 - The worker needs **no third-party packages**.

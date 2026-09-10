@@ -1,5 +1,5 @@
 """
-Custom middleware for PyRunner.
+Custom middleware for PyRun.
 """
 
 import logging

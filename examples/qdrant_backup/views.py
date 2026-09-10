@@ -186,7 +186,7 @@ def download(request):
 
     The key is resolved from the stored run history (never trusted from the
     query string), so only objects we actually backed up can be signed. The file
-    then downloads browser→R2 directly — it never streams through PyRunner.
+    then downloads browser→R2 directly — it never streams through PyRun.
     """
     date = request.GET.get("date", "").strip()
     collection = request.GET.get("collection", "").strip()

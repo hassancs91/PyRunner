@@ -1,5 +1,5 @@
 """
-Restore a PyRunner backup file from the CLI.
+Restore a PyRun backup file from the CLI.
 
 A thin wrapper over ``BackupService.restore_backup`` (the same code path the
 Settings UI uses), plus a tenancy-seam touch-up: any restored row left without a
@@ -39,7 +39,7 @@ def assign_default_workspace() -> int:
 
 
 class Command(BaseCommand):
-    help = "Restore a PyRunner backup file (.json or .json.gz). REPLACES existing data."
+    help = "Restore a PyRun backup file (.json or .json.gz). REPLACES existing data."
 
     def add_arguments(self, parser):
         parser.add_argument("path", help="Path to the backup file")

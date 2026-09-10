@@ -12,7 +12,7 @@ class ExamplePluginConfig(PluginAppConfig):
             NavItem(
                 label="Example Plugin",
                 url_name="example_plugin:index",
-                # Optional inline SVG <path>; omit to use PyRunner's default icon.
+                # Optional inline SVG <path>; omit to use PyRun's default icon.
                 icon_svg='<path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>',
             )
         ],

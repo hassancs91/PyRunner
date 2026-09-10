@@ -40,7 +40,7 @@ class Command(BaseCommand):
 
         if not _in_container():
             self.stdout.write(
-                "Not running under a container init — restart PyRunner manually "
+                "Not running under a container init — restart PyRun manually "
                 "to apply plugin changes."
             )
             return

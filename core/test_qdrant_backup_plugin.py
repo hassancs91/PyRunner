@@ -3,7 +3,7 @@ Discovery shim for the Qdrant Backup plugin's tests.
 
 The real tests live with the plugin (``examples/qdrant_backup/tests.py``) so they
 travel with it in the catalogue and serve as the reference for "how to test a
-PyRunner plugin". The plugin folder isn't on the import path during a normal test
+PyRun plugin". The plugin folder isn't on the import path during a normal test
 run, so here we splice ``examples/`` onto the ``plugins`` package ``__path__``
 (exactly as Dev Mode does in ``pyrunner/settings.py``) — making the plugin import
 as ``plugins.qdrant_backup`` — then re-export its TestCase classes so

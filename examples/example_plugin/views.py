@@ -2,7 +2,7 @@
 Example plugin views.
 
 Demonstrates the safe "compute in an environment" pattern: the web layer stays
-thin and any real work runs as an isolated subprocess in a chosen PyRunner
+thin and any real work runs as an isolated subprocess in a chosen PyRun
 environment's venv via ``run_in_environment`` — never inside the Django process.
 """
 

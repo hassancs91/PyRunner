@@ -166,7 +166,7 @@ def general_settings_view(request: HttpRequest) -> HttpResponse:
                 request,
                 "The admin URL changes after a restart: URL routes are built at "
                 f"startup, so /{previous_slug}/ stays live and /{settings.admin_url_slug}/ "
-                "only works once PyRunner has been restarted.",
+                "only works once PyRun has been restarted.",
             )
     else:
         for field, errors in form.errors.items():

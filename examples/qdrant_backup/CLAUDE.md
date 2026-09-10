@@ -1,7 +1,7 @@
 # Qdrant Backup — plugin guide (for humans & AI agents)
 
 This file is context for anyone (or any AI) working **on** this plugin. It is the
-flagship reference plugin for the PyRunner plugin SDK (`core.plugins.api`): a
+flagship reference plugin for the PyRun plugin SDK (`core.plugins.api`): a
 **self-provisioning** plugin where one form **Save** creates and keeps in sync a
 managed Script, its secrets, a data store, and a schedule.
 
@@ -17,9 +17,9 @@ The plugin spans **two separate processes that cannot import each other**:
 | `apps.py`, `urls.py`, `views.py`, `forms.py`, `templates/` | `worker_body.py` (the managed backup script) |
 | `provisioning.py` — all SDK calls (provision + reads) | `demo_seed.py` (optional dashboard seed) |
 
-The web layer talks to PyRunner **only** through `core.plugins.api`. The worker
-is a standalone script PyRunner runs in an environment; it can import only
-stdlib + `requests` + `boto3` + `pyrunner_datastore` (PyRunner injects the last).
+The web layer talks to PyRun **only** through `core.plugins.api`. The worker
+is a standalone script PyRun runs in an environment; it can import only
+stdlib + `requests` + `boto3` + `pyrunner_datastore` (PyRun injects the last).
 
 ## Contracts you must not break
 
@@ -73,12 +73,12 @@ stdlib + `requests` + `boto3` + `pyrunner_datastore` (PyRunner injects the last)
 
 The version lives in **three places** — keep them in sync on every release:
 `plugin.json` `"version"`, `apps.py` `PyRunnerPlugin(version=...)`, and
-`CHANGELOG.md`. Use semver — PyRunner's update-detection depends on it.
+`CHANGELOG.md`. Use semver — PyRun's update-detection depends on it.
 
 ## Develop · validate · package
 
 ```bash
-# Dev mode — live-edit without uploading (run inside a PyRunner checkout)
+# Dev mode — live-edit without uploading (run inside a PyRun checkout)
 export DEBUG=True
 export PYRUNNER_PLUGIN_DEV=/abs/path/to/examples/qdrant_backup
 python manage.py runserver
@@ -90,7 +90,7 @@ python manage.py plugin_doctor --path examples/qdrant_backup
 cd examples && zip -r qdrant_backup.zip qdrant_backup -x '*/__pycache__/*'
 ```
 
-Tests run inside the PyRunner repo with the normal Django test runner (this
+Tests run inside the PyRun repo with the normal Django test runner (this
 plugin is developed in-tree, so `core.plugins.api` is always importable — no SDK
 stub needed). Mirror the style of `core/test_plugin_sdk.py`.
 

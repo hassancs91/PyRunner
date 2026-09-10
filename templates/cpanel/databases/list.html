@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Databases - PyRunner{% endblock %}
+{% block title %}Databases - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -48,7 +48,7 @@
                 <svg class="w-5 h-5 text-warn flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 <div class="text-sm text-muted">
                     <p class="font-medium text-text">No data server attached</p>
-                    <p class="mt-1">Set <code class="font-mono text-info">PYRUNNER_DATA_DB_URL</code> to a PostgreSQL URL (a separate database from PyRunner's own) and restart to enable managed databases. Works with a SQLite core — no migration needed. See <code class="font-mono">.env.example</code> for the setup snippet.</p>
+                    <p class="mt-1">Set <code class="font-mono text-info">PYRUNNER_DATA_DB_URL</code> to a PostgreSQL URL (a separate database from PyRun's own) and restart to enable managed databases. Works with a SQLite core — no migration needed. See <code class="font-mono">.env.example</code> for the setup snippet.</p>
                 </div>
             </div>
             {% endif %}

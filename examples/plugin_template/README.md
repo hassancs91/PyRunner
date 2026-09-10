@@ -1,6 +1,6 @@
-# Plugin Template (PyRunner)
+# Plugin Template (PyRun)
 
-The smallest **correct** PyRunner plugin — a starting point you copy and rename.
+The smallest **correct** PyRun plugin — a starting point you copy and rename.
 It's a single superuser page that stores and reads one value through the SDK
 (`core.plugins.api`), with no models, no migrations, and import-light.
 

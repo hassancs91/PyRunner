@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
             name="instance_name",
             field=models.CharField(
                 blank=True,
-                default="PyRunner",
+                default="PyRun",
                 help_text="Instance name displayed in header and emails",
                 max_length=100,
             ),

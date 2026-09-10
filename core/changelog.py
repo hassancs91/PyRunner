@@ -47,7 +47,7 @@ CHANGELOG = [
                     "carries over automatically — backups keep working with "
                     "nothing to re-enter. Scripts can store files with "
                     "import pyrunner_storage, no credentials and nothing to "
-                    "install, because the bytes travel over PyRunner's internal "
+                    "install, because the bytes travel over PyRun's internal "
                     "API instead of putting S3 keys in your script."
                 ),
             },
@@ -55,7 +55,7 @@ CHANGELOG = [
                 "tag": "Added",
                 "title": "Plugins can serve APIs and publish shareable pages",
                 "body": (
-                    "A plugin can expose read-only HTTP resources that PyRunner "
+                    "A plugin can expose read-only HTTP resources that PyRun "
                     "serves for it, handling authentication, rate limiting, and "
                     "workspace scoping itself — the plugin never sees a raw "
                     "request or a token. New API tokens can be scoped to "
@@ -137,9 +137,9 @@ CHANGELOG = [
                     "image. A deployment that didn't set its own keys would "
                     "boot normally but run on those publicly-known values — "
                     "meaning sessions could be forged and secrets stored in "
-                    "PyRunner could be decrypted by anyone with the public "
+                    "PyRun could be decrypted by anyone with the public "
                     "image. The keys are now stripped from the image, and "
-                    "PyRunner refuses to start on the old known values, with "
+                    "PyRun refuses to start on the old known values, with "
                     "clear instructions for generating real ones. If your "
                     "deployment never set its own keys: upgrade, generate "
                     "fresh keys, and rotate the secrets you had stored."
@@ -162,7 +162,7 @@ CHANGELOG = [
         "version": "1.15.0",
         "date": "July 15, 2026",
         "headline": (
-            "PyRunner scripts get real SQL: managed PostgreSQL databases with "
+            "PyRun scripts get real SQL: managed PostgreSQL databases with "
             "tables, joins, and transactions — plus secrets you can pull live "
             "from Vault, AWS, Infisical, or Doppler instead of storing them here."
         ),
@@ -174,7 +174,7 @@ CHANGELOG = [
                     "Scripts and plugins can now use a real PostgreSQL database "
                     "— tables, joins, indexes, transactions, the whole Python DB "
                     "ecosystem — alongside the simple key-value Data Stores. "
-                    "Point PyRunner at a data server with a single environment "
+                    "Point PyRun at a data server with a single environment "
                     "variable (it can sit next to a SQLite core), then provision "
                     "databases from the console: each one is its own isolated "
                     "Postgres schema with a dedicated login role, so a script "
@@ -190,7 +190,7 @@ CHANGELOG = [
                 "tag": "Added",
                 "title": "External Secret Providers — bring your own vault",
                 "body": (
-                    "A secret no longer has to live inside PyRunner. Save a "
+                    "A secret no longer has to live inside PyRun. Save a "
                     "provider profile for HashiCorp Vault / OpenBao, AWS Secrets "
                     "Manager, Infisical, Doppler, or any HTTP JSON endpoint, then "
                     "point a secret at it with a reference like kv/myapp#API_KEY. "
@@ -207,7 +207,7 @@ CHANGELOG = [
                 "tag": "Improved",
                 "title": "Container-aware resource stats + pinned meters",
                 "body": (
-                    "When PyRunner runs in Docker, the dashboard's CPU and "
+                    "When PyRun runs in Docker, the dashboard's CPU and "
                     "memory now show the container's own usage — matching "
                     "docker stats — with the full host/VPS as a secondary line, "
                     "and memory measured against the container's limit when one "
@@ -251,7 +251,7 @@ CHANGELOG = [
         "version": "1.14.0",
         "date": "July 15, 2026",
         "headline": (
-            "PyRunner now talks to more than Claude: save multiple AI provider "
+            "PyRun now talks to more than Claude: save multiple AI provider "
             "profiles — Anthropic, Z.AI GLM, OpenRouter, even a local Ollama — "
             "and switch the active one with a click. Plus Telegram channels "
             "with an approval inbox, and Py AI, an assistant that knows your "
@@ -292,7 +292,7 @@ CHANGELOG = [
                 "title": "Py AI — ask your instance anything",
                 "body": (
                     "A read-only assistant that answers questions about this "
-                    "PyRunner instance — “how many scripts do I have?”, "
+                    "PyRun instance — “how many scripts do I have?”, "
                     "“did the backup run last night?” — using live "
                     "data from your scripts, runs, schedules, and datastores. "
                     "Chat from the dashboard, or bind it to a Telegram channel. "
@@ -334,7 +334,7 @@ CHANGELOG = [
         "headline": (
             "Operational plugins can now watch and stop the runs they create — "
             "live status, run history, and a Stop button — straight from the "
-            "plugin SDK, with no coupling to PyRunner's internals."
+            "plugin SDK, with no coupling to PyRun's internals."
         ),
         "changes": [
             {
@@ -486,7 +486,7 @@ CHANGELOG = [
         "version": "1.10.0",
         "date": "June 15, 2026",
         "headline": (
-            "Plugins — extend PyRunner with self-contained apps you upload, "
+            "Plugins — extend PyRun with self-contained apps you upload, "
             "validate, and activate, with a hard guarantee that a broken plugin "
             "can never take down your site."
         ),
@@ -583,7 +583,7 @@ CHANGELOG = [
                 "tag": "Improved",
                 "title": "Mobile responsive layout",
                 "body": (
-                    "PyRunner now works on phones and tablets. The sidebar "
+                    "PyRun now works on phones and tablets. The sidebar "
                     "becomes an off-canvas drawer, and tables, editors, and forms "
                     "reflow to fit small screens so you can manage runs on the go."
                 ),

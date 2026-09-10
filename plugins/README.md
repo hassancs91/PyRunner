@@ -1,6 +1,6 @@
-# PyRunner plugins
+# PyRun plugins
 
-This directory is the install location for PyRunner plugins. On a deployed
+This directory is the install location for PyRun plugins. On a deployed
 instance it is a **persistent volume** (`pyrunner_plugins` → `/app/plugins`), so
 plugins you install survive redeploys of the stock image.
 

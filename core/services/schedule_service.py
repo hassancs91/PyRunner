@@ -14,7 +14,7 @@ from django_q.models import Schedule as QSchedule
 
 logger = logging.getLogger(__name__)
 
-# PyRunner's own infrastructure q-schedules. They share the "pyrunner-" name
+# PyRun's own infrastructure q-schedules. They share the "pyrunner-" name
 # prefix with script schedules, so pause/resume must explicitly exclude them:
 # deleting them silently kills worker-liveness reporting, update checks,
 # scheduled backups, and auto-cleanup until the next container restart.
@@ -778,7 +778,7 @@ class ScheduleService:
             count += len(ids)
 
         # Belt-and-braces: re-ensure the infrastructure schedules. A pause on
-        # an older PyRunner deleted them (shared "pyrunner-" prefix) and
+        # an older PyRun deleted them (shared "pyrunner-" prefix) and
         # nothing recreated them until the next container restart — resume is
         # the natural heal point. All of these are idempotent, and backup/
         # cleanup stay off unless their settings enable them.

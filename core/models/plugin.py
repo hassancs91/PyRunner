@@ -56,7 +56,7 @@ def format_resource_counts(counts) -> str:
 
 
 class Plugin(models.Model):
-    """A plugin known to PyRunner (its files live on the data volume)."""
+    """A plugin known to PyRun (its files live on the data volume)."""
 
     class Status(models.TextChoices):
         INSTALLED = "installed", "Installed"  # files on disk, not loaded

@@ -47,8 +47,8 @@ MODULE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\.py$")
 # break surfaces far from its cause, so the name is refused up front instead.
 #
 # Two reserved sets, both fences behind PYTHONPATH ordering (helpers resolve
-# first): PyRunner's own helper prefix, and every stdlib top-level module. These
-# are exactly the two namespaces PyRunner ships and can therefore guarantee —
+# first): PyRun's own helper prefix, and every stdlib top-level module. These
+# are exactly the two namespaces PyRun ships and can therefore guarantee —
 # venv package names are unbounded and deliberately not policed here.
 RESERVED_KEY_PREFIX = "pyrunner"
 STDLIB_MODULE_NAMES = getattr(sys, "stdlib_module_names", frozenset())
@@ -76,7 +76,7 @@ def validate_library_key(value: str) -> None:
     if value.startswith(RESERVED_KEY_PREFIX):
         raise ValidationError(
             f"Key must not start with '{RESERVED_KEY_PREFIX}' — that prefix is "
-            "reserved for PyRunner's built-in script helpers."
+            "reserved for PyRun's built-in script helpers."
         )
     if value in STDLIB_MODULE_NAMES:
         raise ValidationError(

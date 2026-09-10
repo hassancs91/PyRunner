@@ -1,15 +1,15 @@
-# PyRunner
+# PyRun
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/hasanaboulhasan/pyrunner)
-[![Version](https://img.shields.io/badge/Version-1.16.0-green.svg)](https://github.com/hassancs91/PyRunner/releases)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/hasanaboulhasan/pyrun)
+[![Version](https://img.shields.io/badge/Version-1.16.0-green.svg)](https://github.com/hassancs91/PyRun/releases)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/BjkmTn7XSd)
 
 A self-hosted Python script automation platform. Upload a script, schedule it, monitor it — nothing else to configure.
 
-**Docs:** [pyrunner.dev](https://pyrunner.dev) &nbsp;·&nbsp;
-[Getting started](https://learnwithhasan.com/pyrunner/docs/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=docs) &nbsp;·&nbsp;
-[Install it on a VPS with Coolify](https://learnwithhasan.com/guide/install-pyrunner-on-coolify/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=body)
+**Docs:** [pyrun.ai](https://pyrun.ai) &nbsp;·&nbsp;
+[Getting started](https://learnwithhasan.com/pyrunner/docs/?utm_source=github&utm_medium=readme&utm_campaign=PyRun&utm_content=docs) &nbsp;·&nbsp;
+[Install it on a VPS with Coolify](https://learnwithhasan.com/guide/install-pyrunner-on-coolify/?utm_source=github&utm_medium=readme&utm_campaign=PyRun&utm_content=body)
 
 ## Features
 
@@ -29,13 +29,13 @@ A self-hosted Python script automation platform. Upload a script, schedule it, m
 
 ```bash
 # Clone the repository
-git clone https://github.com/hassancs91/PyRunner.git
-cd PyRunner
+git clone https://github.com/hassancs91/PyRun.git
+cd PyRun
 
 # Copy environment template
 cp .env.example .env
 
-# Start PyRunner
+# Start PyRun
 docker compose up -d
 
 ```
@@ -46,9 +46,9 @@ Open `http://localhost:8000` in your browser.
 
 ```bash
 # Generate the two required keys first (copy the output somewhere safe):
-docker run --rm --entrypoint python hasanaboulhasan/pyrunner:latest \
+docker run --rm --entrypoint python hasanaboulhasan/pyrun:latest \
   -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-docker run --rm --entrypoint python hasanaboulhasan/pyrunner:latest \
+docker run --rm --entrypoint python hasanaboulhasan/pyrun:latest \
   -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
 docker run -d \
@@ -62,12 +62,12 @@ docker run -d \
   -e SECURE_SSL_REDIRECT=False \
   -e SESSION_COOKIE_SECURE=False \
   -e CSRF_COOKIE_SECURE=False \
-  hasanaboulhasan/pyrunner:latest
+  hasanaboulhasan/pyrun:latest
 ```
 
 The three `False` overrides are for plain-HTTP access (like `http://localhost:8000`).
 Without them, `DEBUG=False` redirects every request to HTTPS and marks cookies
-`Secure`, so a plain-HTTP deployment is unreachable. If you serve PyRunner behind
+`Secure`, so a plain-HTTP deployment is unreachable. If you serve PyRun behind
 an HTTPS reverse proxy, remove them to keep the secure defaults.
 
 ## Configuration
@@ -86,7 +86,7 @@ See [.env.example](.env.example) for all options.
 
 ## AI in your scripts
 
-PyRunner can run AI directly inside your Python scripts so your automations can
+PyRun can run AI directly inside your Python scripts so your automations can
 research, summarize, and reason. It works with **your own** account on any of
 several providers — profiles are saved (keys encrypted) so you can switch the
 active provider with one click:
@@ -119,7 +119,7 @@ active provider with one click:
    - Tick **Enable AI for scripts** and save the settings.
 2. **Install the SDK** into the Environment your script uses:
    Environments → *(your env)* → Packages → add `claude-agent-sdk`.
-   (The Claude Code CLI itself ships with the PyRunner Docker image.)
+   (The Claude Code CLI itself ships with the PyRun Docker image.)
 
 ### Use it
 
@@ -152,7 +152,7 @@ answer = ask_claude("Search the web for today's AI news", lean=True)
 
 Available tools: `WebSearch`, `WebFetch`, `Read`, `Glob`, `Grep`. File-writing
 and shell tools (`Write`, `Edit`, `Bash`) are **off by default** for safety —
-scripts run with full access to the PyRunner host, so only enable those if you
+scripts run with full access to the PyRun host, so only enable those if you
 fully trust the prompt.
 
 Scripts always use the **active provider**. Two provider-specific caveats:
@@ -192,12 +192,12 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 Boring building blocks are what keep an app alive in production. The book has 47 of them.
 
-**[Vibe Engineering Blocks](https://learnwithhasan.com/blocks/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer)** is my free 74-page book.
+**[Vibe Engineering Blocks](https://learnwithhasan.com/blocks/?utm_source=github&utm_medium=readme&utm_campaign=PyRun&utm_content=footer)** is my free 74-page book.
 47 building blocks for shipping real apps with AI. One block per page, each with the exact
 prompt to hand your AI.
 
-Built by **[Hasan Aboul Hasan](https://learnwithhasan.com/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer)**. I build real products with AI and
+Built by **[Hasan Aboul Hasan](https://learnwithhasan.com/?utm_source=github&utm_medium=readme&utm_campaign=PyRun&utm_content=footer)**. I build real products with AI and
 write down exactly how.
-[Guides](https://learnwithhasan.com/guides/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer) &nbsp;·&nbsp;
+[Guides](https://learnwithhasan.com/guides/?utm_source=github&utm_medium=readme&utm_campaign=PyRun&utm_content=footer) &nbsp;·&nbsp;
 [YouTube](https://www.youtube.com/@HasanAboulHasan) &nbsp;·&nbsp;
-[Community](https://learnwithhasan.com/community/?utm_source=github&utm_medium=readme&utm_campaign=PyRunner&utm_content=footer)
+[Community](https://learnwithhasan.com/community/?utm_source=github&utm_medium=readme&utm_campaign=PyRun&utm_content=footer)

@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a problem with PyRunner
+description: Report a problem with PyRun
 labels: ["bug"]
 body:
   - type: markdown
@@ -28,7 +28,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: PyRunner version
+      label: PyRun version
       description: From `pyrunner/version.py` or the footer/UI.
       placeholder: e.g. 1.13.0
     validations:

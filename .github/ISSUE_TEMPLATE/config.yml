@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Questions & Discussion
     url: https://discord.gg/BjkmTn7XSd
-    about: Ask questions, get help, and discuss PyRunner on Discord.
+    about: Ask questions, get help, and discuss PyRun on Discord.
   - name: Security Vulnerability
-    url: https://github.com/hassancs91/PyRunner/security/advisories/new
+    url: https://github.com/hassancs91/PyRun/security/advisories/new
     about: Please report security issues privately, not as a public issue.

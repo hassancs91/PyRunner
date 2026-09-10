@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Setup - PyRunner{% endblock %}
+{% block title %}Setup - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4 py-12">
@@ -11,7 +11,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
             </div>
-            <h1 class="text-3xl font-bold gradient-text mb-3">PyRunner Setup</h1>
+            <h1 class="text-3xl font-bold gradient-text mb-3">PyRun Setup</h1>
             <div class="mb-3">{% include "_beta_badge.html" %}</div>
             <p class="text-muted text-lg">First-time configuration</p>
         </div>
@@ -30,7 +30,7 @@
                         {% if redirect_to_admin_setup %}
                             System is ready. Now let's create your admin account.
                         {% else %}
-                            PyRunner is ready to use.
+                            PyRun is ready to use.
                         {% endif %}
                     </p>
 
@@ -138,7 +138,7 @@
 
             {% else %}
                 <!-- Initial State - Run Setup -->
-                <h2 class="text-xl font-semibold text-text mb-6 text-center">Welcome to PyRunner</h2>
+                <h2 class="text-xl font-semibold text-text mb-6 text-center">Welcome to PyRun</h2>
 
                 <div class="space-y-4 mb-6">
                     <div class="flex items-center space-x-3 p-4 bg-ink rounded-lg border border-line">

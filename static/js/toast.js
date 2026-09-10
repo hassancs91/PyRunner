@@ -1,5 +1,5 @@
 /**
- * PyRunner Toast Notification System
+ * PyRun Toast Notification System
  */
 const PyRunnerToast = {
     container: null,

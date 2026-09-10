@@ -11,7 +11,7 @@ from django.db import models
 
 class APIToken(models.Model):
     """
-    API token for accessing PyRunner data via the external REST API.
+    API token for accessing PyRun data via the external REST API.
 
     Scopes (least privilege, one scope per token):
     - ``datastore``  — a single datastore (the FK).

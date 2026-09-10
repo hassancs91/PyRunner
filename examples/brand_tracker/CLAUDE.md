@@ -1,7 +1,7 @@
 # Brand Tracker — plugin guide (for humans & AI agents)
 
 Context for anyone (or any AI) working **on** this plugin. It is a
-**self-provisioning** PyRunner plugin (SDK `core.plugins.api`): one form **Save**
+**self-provisioning** PyRun plugin (SDK `core.plugins.api`): one form **Save**
 creates and keeps in sync a managed Script, its secrets, an owned data store, and
 a weekly schedule. It is the reference for a **content-feed** plugin (and the
 first example that consumes the Claude AI integration).
@@ -18,8 +18,8 @@ The plugin spans **two separate processes that cannot import each other**:
 | `apps.py`, `urls.py`, `views.py`, `forms.py`, `templates/` | `worker_body.py` (the managed tracker script) |
 | `provisioning.py` — all SDK calls (provision + reads) | — |
 
-The web layer talks to PyRunner **only** through `core.plugins.api`. The worker
-is a standalone script PyRunner runs in an environment; it imports only stdlib +
+The web layer talks to PyRun **only** through `core.plugins.api`. The worker
+is a standalone script PyRun runs in an environment; it imports only stdlib +
 `requests` + `pyrunner_datastore` (injected) + optionally `pyrunner_ai` /
 `claude_agent_sdk` for Claude enrichment.
 
@@ -85,7 +85,7 @@ The version lives in **three places** — keep them in sync on every release:
 ## Develop · validate · package
 
 ```bash
-# Dev mode — live-edit without uploading (run inside a PyRunner checkout)
+# Dev mode — live-edit without uploading (run inside a PyRun checkout)
 export DEBUG=True
 export PYRUNNER_PLUGIN_DEV=/abs/path/to/examples/brand_tracker
 python manage.py runserver

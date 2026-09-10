@@ -3,7 +3,7 @@
  BRAND TRACKER  —  managed by the "Brand Tracker" plugin
 =============================================================================
 
- This is the tracking worker the plugin provisions as a PyRunner Script. You do
+ This is the tracking worker the plugin provisions as a PyRun Script. You do
  NOT edit or run it by hand — configure everything on the plugin page
  (/plugins/brand_tracker/) and it provisions this script, its secrets, a data
  store, and a weekly schedule for you.
@@ -24,8 +24,8 @@
    6. Optionally emails a report of the new mentions (Resend) — suppressed on the
       very first run so a fresh install never floods you.
 
- ALERTS for operational failures are handled by PyRunner itself: the managed
- Script has notify_on set, so PyRunner emails when a run fails. The optional
+ ALERTS for operational failures are handled by PyRun itself: the managed
+ Script has notify_on set, so PyRun emails when a run fails. The optional
  Resend email here is the *content* report (the mentions themselves).
 
  SECRETS (injected as clean env vars, selected-mode):
@@ -52,7 +52,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 
 # Emoji in log lines crash on a non-UTF-8 console (e.g. a Windows cp1252 shell).
-# PyRunner captures stdout as UTF-8, but make standalone runs robust too.
+# PyRun captures stdout as UTF-8, but make standalone runs robust too.
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -73,7 +73,7 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # The plugin's owner slug + owned data store. Derive the slug from the env var
-# PyRunner injects for owned-script runs (PYRUNNER_OWNER_PLUGIN) so the store
+# PyRun injects for owned-script runs (PYRUNNER_OWNER_PLUGIN) so the store
 # name is never hardcoded; fall back to the literal slug for local runs.
 OWNER = os.environ.get("PYRUNNER_OWNER_PLUGIN") or "brand_tracker"
 STATE_STORE = f"{OWNER}:state"
@@ -94,7 +94,7 @@ REDDIT_SEARCH_URL = "https://oauth.reddit.com/search"
 def load_plugin_config():
     """Read non-secret config from the owned data store (entry "config").
 
-    Falls back to empty defaults when not running under PyRunner (local testing)
+    Falls back to empty defaults when not running under PyRun (local testing)
     so this module imports cleanly without a data store.
     """
     defaults = {
@@ -116,7 +116,7 @@ def load_plugin_config():
         from pyrunner_datastore import DataStore
         cfg = DataStore(STATE_STORE).get("config", {}) or {}
     except Exception:
-        return defaults  # not under PyRunner / no store yet — import stays safe
+        return defaults  # not under PyRun / no store yet — import stays safe
     merged = {**defaults, **cfg}
     merged["keywords"] = list(merged.get("keywords") or [])
     merged["excluded_domains"] = list(merged.get("excluded_domains") or [])
@@ -628,7 +628,7 @@ def build_email_html(new_by_keyword):
         f'<p style="color:#94a3b8;margin:4px 0 0 0;font-size:13px;">{today} — {total} new mention(s)</p></td></tr>'
         + "".join(rows)
         + '<tr><td style="padding:24px 32px;text-align:center;color:#9ca3af;font-size:11px;">'
-        'Powered by PyRunner Brand Tracker</td></tr></table></td></tr></table></body></html>'
+        'Powered by PyRun Brand Tracker</td></tr></table></td></tr></table></body></html>'
     )
 
 
@@ -670,7 +670,7 @@ def main():
     try:
         from pyrunner_datastore import DataStore
     except Exception:
-        log("❌ pyrunner_datastore unavailable — must run under PyRunner.")
+        log("❌ pyrunner_datastore unavailable — must run under PyRun.")
         sys.exit(1)
 
     store = DataStore(STATE_STORE)

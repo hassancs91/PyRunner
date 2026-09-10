@@ -1,12 +1,12 @@
 """
-PyRunner Databases API for scripts.
+PyRun Databases API for scripts.
 
 Connect to a managed SQL database (a Postgres schema provisioned in the
-PyRunner UI and granted to this script). Unlike ``pyrunner_datastore`` — a
+PyRun UI and granted to this script). Unlike ``pyrunner_datastore`` — a
 simple key-value store — this hands you a real PostgreSQL connection: joins,
 indexes, transactions, and the whole Python DB ecosystem work as normal.
 
-How it works: this module asks PyRunner's internal API (loopback, signed
+How it works: this module asks PyRun's internal API (loopback, signed
 per-run token) for the database's scoped credentials, then connects DIRECTLY
 to the data server as the database's own role. That role owns exactly one
 schema, so your queries live in your database's namespace automatically
@@ -28,9 +28,9 @@ Usage:
     # Which databases has this script been granted?
     names = pyrunner_db.list_databases()
 
-Requirements: the PyRunner instance must have a data server attached
+Requirements: the PyRun instance must have a data server attached
 (PYRUNNER_DATA_DB_URL), the database must exist, and it must be granted to
-this script on its page in the PyRunner UI.
+this script on its page in the PyRun UI.
 """
 
 import json
@@ -42,7 +42,7 @@ from typing import Any, Dict, List, Tuple
 
 
 class PyRunnerDbError(RuntimeError):
-    """A database-credential operation failed against PyRunner's internal API.
+    """A database-credential operation failed against PyRun's internal API.
 
     Raised for server/auth/config failures (5xx, 401/403, 409 not-ready, 503
     not-configured, unreachable API). A missing or ungranted database stays a
@@ -59,8 +59,8 @@ def _api_base() -> Tuple[str, str]:
     token = os.environ.get("PYRUNNER_INTERNAL_TOKEN")
     if not url or not token:
         raise PyRunnerDbError(
-            "PyRunner database access is not configured (no PYRUNNER_INTERNAL_URL/"
-            "PYRUNNER_INTERNAL_TOKEN). This module must be run from PyRunner."
+            "PyRun database access is not configured (no PYRUNNER_INTERNAL_URL/"
+            "PYRUNNER_INTERNAL_TOKEN). This module must be run from PyRun."
         )
     return url.rstrip("/"), token
 
@@ -84,7 +84,7 @@ def _request(path: str) -> Tuple[int, Any]:
         return e.code, payload
     except urllib.error.URLError as e:
         raise PyRunnerDbError(
-            f"Could not reach PyRunner's internal API (GET {url}): {e.reason}"
+            f"Could not reach PyRun's internal API (GET {url}): {e.reason}"
         ) from e
 
 
@@ -100,7 +100,7 @@ def dsn(name: str) -> str:
     """Return the scoped PostgreSQL DSN for a granted database.
 
     Args:
-        name: The database's name in PyRunner.
+        name: The database's name in PyRun.
 
     Raises:
         ValueError: The database does not exist or is not granted to this script.

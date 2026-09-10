@@ -1,8 +1,8 @@
 """
-PyRunner Claude AI helper for scripts.
+PyRun Claude AI helper for scripts.
 
 Run AI directly inside your scripts using the provider you configured in
-PyRunner (Services -> AI Provider) -- your Claude subscription, an Anthropic
+PyRun (Services -> AI Provider) -- your Claude subscription, an Anthropic
 API key, or any Anthropic-compatible provider (Z.AI, OpenRouter, Ollama, a
 custom endpoint). The credential is injected into your script runs
 automatically, so you don't manage keys per script. Web search and web fetch
@@ -14,10 +14,10 @@ Under the hood this wraps the official `claude-agent-sdk` and exposes a simple
 
 Requirements
 ------------
-1. Configure and enable an AI provider in PyRunner: Services -> AI Provider.
+1. Configure and enable an AI provider in PyRun: Services -> AI Provider.
 2. Install the SDK into this script's Environment:
    Environments -> (your env) -> Packages -> install ``claude-agent-sdk``.
-   (The Claude Code CLI itself ships with the PyRunner Docker image.)
+   (The Claude Code CLI itself ships with the PyRun Docker image.)
 
 Usage
 -----
@@ -49,7 +49,7 @@ Usage
 
 Available tools you can pass to ``tools=``: "WebSearch", "WebFetch", "Read",
 "Glob", "Grep". File-writing and shell tools (Write, Edit, Bash) are NOT enabled
-by default for safety -- scripts run with full access to the PyRunner host, so
+by default for safety -- scripts run with full access to the PyRun host, so
 only enable those if you fully trust the prompt.
 """
 
@@ -126,7 +126,7 @@ def _import_sdk():
     except ImportError as exc:  # pragma: no cover - depends on env
         raise ClaudeSDKMissingError(
             "The 'claude-agent-sdk' package is not installed in this script's "
-            "Environment. Install it in PyRunner under "
+            "Environment. Install it in PyRun under "
             "Environments -> Packages (add 'claude-agent-sdk')."
         ) from exc
     return sdk
@@ -261,7 +261,7 @@ def _run_coro(coro):
     except RuntimeError:
         return asyncio.run(coro)
 
-    # We're inside an existing event loop (rare for PyRunner scripts): run the
+    # We're inside an existing event loop (rare for PyRun scripts): run the
     # coroutine in a dedicated thread with its own loop.
     box = {}
 
@@ -275,11 +275,11 @@ def _run_coro(coro):
 
 
 def _record_usage(result: "ClaudeResult", source: str = "script") -> None:
-    """Best-effort: record one usage row into the PyRunner DB.
+    """Best-effort: record one usage row into the PyRun DB.
 
     Attributed to the current run/script via env vars injected by the executor.
     On SQLite deployments it writes the DB file directly (same approach as the
-    DataStore helper); on Postgres (no local DB file) it posts to PyRunner's
+    DataStore helper); on Postgres (no local DB file) it posts to PyRun's
     internal loopback API. Never raises -- usage tracking must never break a
     user's script.
     """
@@ -354,7 +354,7 @@ def _record_usage_sqlite(db_path: str, payload: dict) -> None:
 
 
 def _record_usage_api(base_url: str, token: str, payload: dict) -> None:
-    """POST one usage row to PyRunner's internal loopback API. Best-effort."""
+    """POST one usage row to PyRun's internal loopback API. Best-effort."""
     try:
         import json as _json
         import urllib.request
@@ -378,7 +378,7 @@ def _record_usage_api(base_url: str, token: str, payload: dict) -> None:
 def _prepare(tools):
     if not _has_credentials():
         raise ClaudeNotConfiguredError(
-            "AI is not configured for this script. Enable it in PyRunner "
+            "AI is not configured for this script. Enable it in PyRun "
             "under Services -> AI Provider (the credential is injected "
             "automatically into your script runs)."
         )

@@ -37,7 +37,7 @@ def _database_not_found(name: str) -> JsonResponse:
                 "code": "DATABASE_NOT_FOUND",
                 "message": (
                     f"Database '{name}' does not exist or is not granted to "
-                    "this script. Grant it on the database's page in PyRunner."
+                    "this script. Grant it on the database's page in PyRun."
                 ),
             }
         },
@@ -90,7 +90,7 @@ def resolve_dsn(request: HttpRequest, name: str) -> JsonResponse:
                 "error": {
                     "code": "NOT_CONFIGURED",
                     "message": (
-                        "No data server is attached to this PyRunner instance "
+                        "No data server is attached to this PyRun instance "
                         "(PYRUNNER_DATA_DB_URL is not set)."
                     ),
                 }
@@ -122,7 +122,7 @@ def resolve_dsn(request: HttpRequest, name: str) -> JsonResponse:
                     "code": "DATABASE_NOT_READY",
                     "message": (
                         f"Database '{name}' is not ready (status: "
-                        f"{database.status}). Check its page in PyRunner."
+                        f"{database.status}). Check its page in PyRun."
                     ),
                 }
             },

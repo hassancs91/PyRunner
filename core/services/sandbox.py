@@ -1,7 +1,7 @@
 """
 Host sandbox capability probe (FOUNDATIONS Seam 2, sandbox Stage 2).
 
-PyRunner ships to many self-hosted environments, so the filesystem/network
+PyRun ships to many self-hosted environments, so the filesystem/network
 sandbox can't be a maintainer pre-build gate — its availability is *detected at
 runtime per instance*. This module is the single probe used by all three call
 sites that need it:

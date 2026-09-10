@@ -5,7 +5,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.1.0] - 2026-07-15
 
-External read-only API via PyRunner's plugin API seam (SDK 2.3, PyRunner ≥ 1.16).
+External read-only API via PyRun's plugin API seam (SDK 2.3, PyRun ≥ 1.16).
 
 ### Added
 - **External API** at `/api/v1/plugins/brand_tracker/…` (plugin-scoped API
@@ -25,7 +25,7 @@ External read-only API via PyRunner's plugin API seam (SDK 2.3, PyRunner ≥ 1.1
 
 ## [1.0.0] - 2026-06-28
 
-First release — a self-provisioning PyRunner plugin (SDK / `core.plugins.api`).
+First release — a self-provisioning PyRun plugin (SDK / `core.plugins.api`).
 
 ### Added
 - One-form setup that idempotently provisions a managed Script, owner-scoped
@@ -50,13 +50,13 @@ First release — a self-provisioning PyRunner plugin (SDK / `core.plugins.api`)
   (platform `pyrunner_ai`) / OpenRouter (BYO key). Only new mentions, batched
   ≤25/call with a 100/run ceiling, and degrades silently when unavailable.
 - **Optional email report** via Resend (the dashboard feed works with no email
-  setup); operational failure alerts via PyRunner's built-in notifications.
+  setup); operational failure alerts via PyRun's built-in notifications.
 - Test suite (`tests.py`) over the engine (dedup/exclusion/retention/enrichment)
   and the web/provisioning surface, plus README **Troubleshooting**.
 
 ### Notes
-- Requires PyRunner **1.13.0+** (plugin SDK API `2.1`: run-lifecycle surface).
-- Runs in a PyRunner environment that has `requests` (add `claude-agent-sdk` for
+- Requires PyRun **1.13.0+** (plugin SDK API `2.1`: run-lifecycle surface).
+- Runs in a PyRun environment that has `requests` (add `claude-agent-sdk` for
   Claude enrichment).
 - Tracks the indexed web + open communities; walled social (X/Instagram/TikTok/
   LinkedIn) is out of scope (the source layer is pluggable for a future paid

@@ -1,4 +1,4 @@
-# PyRunner plugins package.
+# PyRun plugins package.
 #
 # This file makes `plugins` an importable top-level package so installed
 # plugins resolve as `plugins.<slug>`. Plugin folders themselves are NOT

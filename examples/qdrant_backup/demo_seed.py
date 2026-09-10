@@ -10,7 +10,7 @@ HOW TO USE
   2. Scripts -> new script, paste this file, pick any environment, and Run it.
   3. Open the Qdrant Backup page — the dashboard now shows sample history.
 
-`pyrunner_datastore` is provided by PyRunner automatically — no install needed.
+`pyrunner_datastore` is provided by PyRun automatically — no install needed.
 This writes ONLY to the `runs` key, so it never clobbers your saved `config`.
 """
 

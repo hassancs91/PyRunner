@@ -1,7 +1,7 @@
 # Sandbox full-feature test override — LOCAL ONLY, reduces container isolation.
 #
 # Why: Docker's default seccomp profile blocks unprivileged user namespaces
-# (it gates unshare/clone-newuser on CAP_SYS_ADMIN), so PyRunner's script
+# (it gates unshare/clone-newuser on CAP_SYS_ADMIN), so PyRun's script
 # sandbox (bwrap/nsjail) can't create its namespaces and degrades to
 # rlimits-only. This override relaxes seccomp for the app container so userns
 # works and the FULL filesystem/network sandbox tier can be exercised and

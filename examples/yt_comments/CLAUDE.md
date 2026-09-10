@@ -1,7 +1,7 @@
 # YouTube Comments AI — plugin guide (for humans & AI agents)
 
 Context for anyone (or any AI) working **on** this plugin. It is a
-**self-provisioning** PyRunner plugin (SDK `core.plugins.api`): one form
+**self-provisioning** PyRun plugin (SDK `core.plugins.api`): one form
 **Save** creates and keeps in sync a managed Script, its secrets, a managed
 Postgres **Database** (the first DB-native example plugin), a state DataStore
 and a daily Schedule. It is the reference for a **database-backed** plugin and
@@ -26,7 +26,7 @@ cross-layer desyncs, not syntax errors.
 | `provisioning.py` — all SDK calls + YouTube channel resolution at Save | — |
 | `oauth.py` — Google consent flow, token exchange/refresh, immediate posting from the Reply Queue | (the worker has its own minimal copies — it can't import web modules) |
 
-The web layer talks to PyRunner **only** through `core.plugins.api`; the
+The web layer talks to PyRun **only** through `core.plugins.api`; the
 dashboard reads the plugin's own tables via `DatabaseAPI(OWNER).dsn(DB_KEY)`
 + psycopg (`provisioning.db_rows`). The worker is a standalone script that
 imports only stdlib + `requests` + injected helpers (`pyrunner_db`,

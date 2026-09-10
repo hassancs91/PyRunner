@@ -3,7 +3,7 @@ Discovery shim for the Brand Tracker plugin's tests.
 
 The real tests live with the plugin (``examples/brand_tracker/tests.py``) so they
 travel with it in the catalogue and serve as a reference for "how to test a
-PyRunner plugin". The plugin folder isn't on the import path during a normal test
+PyRun plugin". The plugin folder isn't on the import path during a normal test
 run, so here we splice ``examples/`` onto the ``plugins`` package ``__path__``
 (exactly as Dev Mode does in ``pyrunner/settings.py``) — making the plugin import
 as ``plugins.brand_tracker`` — then re-export its TestCase classes so

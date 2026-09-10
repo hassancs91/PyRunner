@@ -1,15 +1,15 @@
 """
-Sales Collector — a sample PyRunner script.
+Sales Collector — a sample PyRun script.
 
 Generates a handful of synthetic orders each run and appends them to the
 `sales_data` DataStore, which the Sales Dashboard plugin reads.
 
-Setup in PyRunner:
+Setup in PyRun:
   1. Data Stores -> create one named exactly  sales_data
   2. Scripts -> create a script named exactly  Sales Collector  and paste this code
   3. Run it (or let the dashboard's "Run collector now" button trigger it)
 
-`pyrunner_datastore` is provided by PyRunner automatically — no install needed.
+`pyrunner_datastore` is provided by PyRun automatically — no install needed.
 """
 
 import datetime

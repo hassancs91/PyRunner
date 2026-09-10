@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Services - PyRunner{% endblock %}
+{% block title %}Services - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -303,7 +303,7 @@ url = storage.url("avatars/abc.jpg")</code></pre>
 
                     {% if not claude_status.cli_available %}
                     <div class="mt-4 p-3 rounded-lg bg-warn/10 border border-warn/30 text-warn text-sm">
-                        The Claude Code CLI was not found on the server. It ships with the current PyRunner Docker image &mdash; rebuild/pull the latest image to enable AI.
+                        The Claude Code CLI was not found on the server. It ships with the current PyRun Docker image &mdash; rebuild/pull the latest image to enable AI.
                     </div>
                     {% endif %}
                 </div>

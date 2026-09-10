@@ -88,7 +88,7 @@ def admin_setup_view(request: HttpRequest) -> HttpResponse:
                 from core.models import User
                 user = User.objects.get(email=email)
                 login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-                messages.success(request, "Admin account created! Welcome to PyRunner.")
+                messages.success(request, "Admin account created! Welcome to PyRun.")
                 return redirect("cpanel:dashboard")
             else:
                 messages.error(request, message)

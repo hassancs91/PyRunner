@@ -1,5 +1,5 @@
 """
-Start the django-q cluster with PyRunner's DB-backed Workers settings applied.
+Start the django-q cluster with PyRun's DB-backed Workers settings applied.
 
 This wraps django-q2's ``qcluster`` command because the values saved on
 Settings → Workers cannot take effect any other way: Q_CLUSTER is computed at
@@ -20,7 +20,7 @@ from core.services.worker_config import apply_db_worker_settings
 
 class Command(QClusterCommand):
     help = (
-        "Starts a Django Q Cluster with PyRunner's DB-backed worker settings "
+        "Starts a Django Q Cluster with PyRun's DB-backed worker settings "
         "(Settings → Workers) applied."
     )
 

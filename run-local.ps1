@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Run the full PyRunner stack locally in Docker, exactly as it runs in production.
+    Run the full PyRun stack locally in Docker, exactly as it runs in production.
 
 .DESCRIPTION
     Builds the production image from the Dockerfile and runs it via
@@ -108,7 +108,7 @@ function Compose {
 
 # --- 2. Lifecycle short-circuits (down / fresh / logs) -----------------------
 if ($Down) {
-    Write-Step "Stopping PyRunner (keeping data volume)"
+    Write-Step "Stopping PyRun (keeping data volume)"
     Compose down
     Write-Ok "Stopped. Data volume 'pyrunner_data' preserved."
     return
@@ -180,7 +180,7 @@ $envVars['CSRF_COOKIE_SECURE'] = 'False'
 
 # Write back only if something changed, without a UTF-8 BOM (a BOM corrupts the
 # first key for Docker Compose's .env parser).
-$lines = @('# Maintained by run-local.ps1 - PyRunner production-parity local run (Docker).',
+$lines = @('# Maintained by run-local.ps1 - PyRun production-parity local run (Docker).',
     '# SECRET_KEY / ENCRYPTION_KEY are preserved across runs; keep them if you store secrets.')
 foreach ($k in $envVars.Keys) { $lines += "$k=$($envVars[$k])" }
 $content = ($lines -join "`n") + "`n"
@@ -209,7 +209,7 @@ $upArgs = @('up')
 if (-not $NoBuild -and -not $Rebuild) { $upArgs += '--build' }
 if ($Detached) { $upArgs += '-d' }
 
-Write-Step "Starting full PyRunner stack (gunicorn + django-q2 worker) -> $url"
+Write-Step "Starting full PyRun stack (gunicorn + django-q2 worker) -> $url"
 Write-Host "    image:   built from Dockerfile (production)"
 Write-Host "    web:     gunicorn pyrunner.wsgi (DEBUG=False, WhiteNoise static)"
 Write-Host "    worker:  django-q2 qcluster (auto-restart monitor)"
@@ -220,14 +220,14 @@ if ($Detached) {
     Compose @upArgs
     if ($LASTEXITCODE -ne 0) { throw "docker compose up failed (exit $LASTEXITCODE)." }
     Write-Host ""
-    Write-Ok "PyRunner is starting in the background at $url"
+    Write-Ok "PyRun is starting in the background at $url"
     Write-Warn2 "First start runs migrations + setup; give it a few seconds."
     Write-Host ""
     Write-Host "    Follow logs:  .\run-local.ps1 -Logs"   -ForegroundColor Yellow
     Write-Host "    Stop:         .\run-local.ps1 -Down"   -ForegroundColor Yellow
     Write-Host "    Fresh start:  .\run-local.ps1 -Fresh"  -ForegroundColor Yellow
 } else {
-    Write-Host "  PyRunner will be available at $url" -ForegroundColor Green
+    Write-Host "  PyRun will be available at $url" -ForegroundColor Green
     Write-Host "  Press Ctrl+C to stop the stack." -ForegroundColor Yellow
     Write-Host ""
     # Foreground: compose streams logs and handles Ctrl+C (graceful stop).

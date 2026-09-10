@@ -1,4 +1,4 @@
-# Qdrant Backup (PyRunner plugin)
+# Qdrant Backup (PyRun plugin)
 
 Schedule automatic backups of **every Qdrant collection** to **Cloudflare R2**
 (S3-compatible) — configured once in a form. Unlike the simpler
@@ -7,7 +7,7 @@ hand), this plugin is **self-provisioning**: one **Save** creates and keeps in
 sync a managed Script, its secrets, a data store, and a schedule for you, using
 the v2 plugin SDK (`core.plugins.api`).
 
-It is the first real, installable PyRunner plugin and a reference for the
+It is the first real, installable PyRun plugin and a reference for the
 Plugin Platform v2 (dev mode · SDK · ownership + scoped secrets · doctor).
 
 ## What it does
@@ -23,7 +23,7 @@ Plugin Platform v2 (dev mode · SDK · ownership + scoped secrets · doctor).
 - **Back up now** queues a tracked Run through the normal RunBackend.
 - **Dashboard** — a health banner + recent-run history + the latest run's
   per-collection sizes, read from the `runs` history the worker appends.
-- **Alerts** use PyRunner's built-in notifications (the managed script's
+- **Alerts** use PyRun's built-in notifications (the managed script's
   `notify_on` + `notify_email`), sent via the provider in **Settings →
   Notifications** — no bundled email integration, no Resend secret.
 
@@ -47,7 +47,7 @@ The dashboard can hand you the backed-up snapshots straight from R2:
 resolves the object key from the recorded run history — it never signs an
 arbitrary key. It then mints a **short-lived (5-minute) presigned R2 URL** and
 redirects you to it, so the file downloads **browser → R2 directly** and never
-streams through the PyRunner process (no memory/bandwidth cost, scales to large
+streams through the PyRun process (no memory/bandwidth cost, scales to large
 snapshots). Presigning is pure local signing — no extra credentials beyond the
 R2 secrets you already configured.
 
@@ -60,7 +60,7 @@ Notes:
 
 ## Security
 
-The plugin is designed so a superuser can run it without handing PyRunner more
+The plugin is designed so a superuser can run it without handing PyRun more
 trust than it needs:
 
 - **Superuser-only.** Every view is gated (`user_passes_test(is_superuser)`) —
@@ -134,7 +134,7 @@ matching `plugin.json` and the `apps.py` descriptor.
 | Backup status is **partial** | Some collections succeeded, some failed — open the run row to see the per-collection error; the run also exits non-zero so your `notify_on` alert fires. |
 | No **download** links on a run | Links only appear for runs created *after* the download feature shipped (older records don't carry object keys) — run a fresh backup. Downloads are superuser-only. |
 | Large uploads fail with `SSLV3_ALERT_BAD_RECORD_MAC` | A flaky/intercepting network path corrupting TLS records. The worker already retries each multipart part on a fresh connection; if it persists, the network path itself is the problem. |
-| Schedule never runs | Check the schedule mode/next-run in the header chip, and that PyRunner's scheduler isn't globally paused. |
+| Schedule never runs | Check the schedule mode/next-run in the header chip, and that PyRun's scheduler isn't globally paused. |
 | Dashboard is empty but you've saved | No backups have run yet — click **Back up now**, or seed sample history with [`demo_seed.py`](demo_seed.py). |
 
 ## Tests

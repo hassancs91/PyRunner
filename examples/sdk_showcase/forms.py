@@ -3,7 +3,7 @@ Setup form for the SDK Showcase plugin.
 
 Plain ``forms.Form`` (no model) — the plugin persists everything through the SDK,
 so there is nothing to ModelForm. Inputs reuse the console token classes so the
-page matches the rest of PyRunner.
+page matches the rest of PyRun.
 """
 
 from django import forms

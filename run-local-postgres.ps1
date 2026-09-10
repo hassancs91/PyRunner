@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Run the full PyRunner stack locally in Docker ON POSTGRES, as it runs in a
+    Run the full PyRun stack locally in Docker ON POSTGRES, as it runs in a
     Postgres production deployment.
 
 .DESCRIPTION
@@ -164,7 +164,7 @@ function Compose {
 
 # --- 2. Lifecycle short-circuits (down / fresh / logs) -----------------------
 if ($Down) {
-    Write-Step "Stopping PyRunner (keeping data + Postgres volumes)"
+    Write-Step "Stopping PyRun (keeping data + Postgres volumes)"
     Compose down
     Write-Ok "Stopped. Volumes 'pyrunner_data' and 'pyrunner_pgdata' preserved."
     return
@@ -270,7 +270,7 @@ $envVars['CSRF_COOKIE_SECURE'] = 'False'
 
 # Write back only if something changed, without a UTF-8 BOM (a BOM corrupts the
 # first key for Docker Compose's .env parser).
-$lines = @('# Maintained by run-local-postgres.ps1 - PyRunner Postgres-parity local run (Docker).',
+$lines = @('# Maintained by run-local-postgres.ps1 - PyRun Postgres-parity local run (Docker).',
     '# SECRET_KEY / ENCRYPTION_KEY / POSTGRES_PASSWORD are preserved across runs; keep them.')
 foreach ($k in $envVars.Keys) { $lines += "$k=$($envVars[$k])" }
 $content = ($lines -join "`n") + "`n"
@@ -306,14 +306,14 @@ if ($Sandbox) {
 }
 
 if ($Dev) {
-    Write-Step "Starting PyRunner stack on Postgres in PLUGIN DEV MODE -> $url"
+    Write-Step "Starting PyRun stack on Postgres in PLUGIN DEV MODE -> $url"
     Write-Host "    plugin:  $($env:DEV_PLUGIN_DIR)/$($env:DEV_PLUGIN)  (live reload -> $url/plugins/$($env:DEV_PLUGIN)/)"
     Write-Host "    web:     manage.py runserver (DEBUG=True, autoreload)"
     Write-Host "    worker:  django-q2 pyrunner_qcluster (respawn loop)"
     Write-Host "    db:      postgres:16-alpine - SAME data/volumes as the parity stack"
     Write-Warn2 "If '$($env:DEV_PLUGIN)' is installed AND ACTIVE here, deactivate it (Plugins page) or dev mode won't load."
 } else {
-    Write-Step "Starting full PyRunner stack on Postgres (gunicorn + django-q2 + db) -> $url"
+    Write-Step "Starting full PyRun stack on Postgres (gunicorn + django-q2 + db) -> $url"
     Write-Host "    image:   built from Dockerfile (production)"
     Write-Host "    web:     gunicorn pyrunner.wsgi (DEBUG=False, WhiteNoise static)"
     Write-Host "    worker:  django-q2 qcluster (auto-restart monitor)"
@@ -326,14 +326,14 @@ if ($Detached) {
     Compose @upArgs
     if ($LASTEXITCODE -ne 0) { throw "docker compose up failed (exit $LASTEXITCODE)." }
     Write-Host ""
-    Write-Ok "PyRunner (Postgres) is starting in the background at $url"
+    Write-Ok "PyRun (Postgres) is starting in the background at $url"
     Write-Warn2 "First start waits for Postgres, then runs migrations + setup; give it a few seconds."
     Write-Host ""
     Write-Host "    Follow logs:  .\run-local-postgres.ps1 -Logs"   -ForegroundColor Yellow
     Write-Host "    Stop:         .\run-local-postgres.ps1 -Down"   -ForegroundColor Yellow
     Write-Host "    Fresh start:  .\run-local-postgres.ps1 -Fresh"  -ForegroundColor Yellow
 } else {
-    Write-Host "  PyRunner (Postgres) will be available at $url" -ForegroundColor Green
+    Write-Host "  PyRun (Postgres) will be available at $url" -ForegroundColor Green
     Write-Host "  Press Ctrl+C to stop the stack." -ForegroundColor Yellow
     Write-Host ""
     # Foreground: compose streams logs and handles Ctrl+C (graceful stop).

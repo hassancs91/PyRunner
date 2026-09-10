@@ -13,8 +13,8 @@ Like every SDK plugin, this spans two processes that cannot import each other:
 | `apps.py`, `urls.py`, `views.py`, `forms.py`, `templates/` | `worker_body.py` (the managed demo script) |
 | `provisioning.py` — all SDK calls | |
 
-The web layer talks to PyRunner **only** through `core.plugins.api`. The worker
-imports only stdlib + `pyrunner_datastore` (PyRunner injects the last) — **no
+The web layer talks to PyRun **only** through `core.plugins.api`. The worker
+imports only stdlib + `pyrunner_datastore` (PyRun injects the last) — **no
 third-party packages**, on purpose, so the demo runs in any environment. Don't
 add `requests`/`boto3` here.
 

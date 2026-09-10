@@ -2,13 +2,13 @@
 Database provisioning service — the only code that talks to the data server
 with the provisioner credential (``PYRUNNER_DATA_DB_URL``).
 
-One PyRunner ``Database`` = one Postgres schema + one login role that owns it,
+One PyRun ``Database`` = one Postgres schema + one login role that owns it,
 on a data server that is deliberately SEPARATE from the core Django database.
 Everything here is built on that invariant:
 
 - The role is created ``NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`` with a
   connection limit and a statement timeout, and owns exactly its schema — so
-  granted scripts get full DDL+DML inside it and Postgres itself (not PyRunner
+  granted scripts get full DDL+DML inside it and Postgres itself (not PyRun
   code) blocks everything outside it.
 - Provisioning is idempotent: an existing role is reconciled (password/limits
   re-stamped) and ``CREATE SCHEMA IF NOT EXISTS`` re-runs are safe, so a

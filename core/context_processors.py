@@ -1,12 +1,12 @@
 """
-Context processors for PyRunner templates.
+Context processors for PyRun templates.
 """
 
 from pyrunner.version import __version__, IS_BETA
 
 
 def pyrunner_version(request):
-    """Add PyRunner version and update-availability info to template context."""
+    """Add PyRun version and update-availability info to template context."""
     context = {"pyrunner_version": __version__, "pyrunner_is_beta": IS_BETA}
 
     # Whether a newer release is available (computed by the daily update check).
@@ -33,7 +33,7 @@ def instance_meta(request):
         name = (GlobalSettings.get_settings().instance_name or "").strip()
     except Exception:
         name = ""
-    return {"instance_name": name or "PyRunner"}
+    return {"instance_name": name or "PyRun"}
 
 
 def plugin_nav(request):

@@ -1,4 +1,4 @@
-"""Custom middleware for PyRunner."""
+"""Custom middleware for PyRun."""
 
 from django.conf import settings
 

@@ -1,5 +1,5 @@
 """
-Script executor module for PyRunner.
+Script executor module for PyRun.
 
 This module handles the execution of Python scripts in isolated environments.
 It is designed to be called from django-q2 async tasks.
@@ -159,7 +159,7 @@ def _build_script_environment(
     # Start with system environment
     env = os.environ.copy()
 
-    # Hardening: drop PyRunner's own infra secrets so they never leak into a
+    # Hardening: drop PyRun's own infra secrets so they never leak into a
     # user's run (a user Secret of the same name still injects below).
     for _denied in settings.PYRUNNER_RUN_ENV_DENYLIST:
         env.pop(_denied, None)
@@ -518,7 +518,7 @@ def _kill_abandoned_process(backend, handle, run_id) -> None:
     The backend launches scripts in their own session, so a worker-level
     exception that interrupts ``wait()`` leaves the subprocess alive and
     detached — still writing to databases and holding resources — for a run
-    PyRunner is about to report dead. Never raises: every caller is already on
+    PyRun is about to report dead. Never raises: every caller is already on
     an error path.
     """
     if backend is None or handle is None:
@@ -792,7 +792,7 @@ def execute_run(run: Run, webhook_data: dict | None = None) -> None:
     except Exception as e:
         # Catch-all for unexpected errors. If the failure interrupted wait(),
         # the subprocess is still alive and would survive detached — kill it so
-        # a run PyRunner reports failed cannot keep executing (and writing) in
+        # a run PyRun reports failed cannot keep executing (and writing) in
         # the background.
         if not wait_completed:
             _kill_abandoned_process(backend, handle, run.id)
@@ -864,7 +864,7 @@ def run_in_environment(
     cwd: str | None = None,
     env: dict | None = None,
 ) -> tuple[int, str, str]:
-    """Run a helper in a PyRunner environment's venv as an isolated subprocess.
+    """Run a helper in a PyRun environment's venv as an isolated subprocess.
 
     This is the safe path for plugin *compute*: third-party packages run in the
     chosen environment's venv (a subprocess), never inside the Django process —

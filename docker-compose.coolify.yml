@@ -1,6 +1,6 @@
 services:
   pyrunner:
-    image: hasanaboulhasan/pyrunner:latest
+    image: hasanaboulhasan/pyrun:latest
     expose:
       - "8000"
     environment:

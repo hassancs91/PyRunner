@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Task {{ task.id|truncatechars:12 }} - PyRunner{% endblock %}
+{% block title %}Task {{ task.id|truncatechars:12 }} - {{ instance_name }}{% endblock %}
 
 {% block extra_head %}
 {% if task.linked_run and task.linked_run.status == 'running' %}

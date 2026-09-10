@@ -39,7 +39,7 @@ class NotificationService:
             name = (GlobalSettings.get_settings().instance_name or "").strip()
         except Exception:
             name = ""
-        return f"[{name or 'PyRunner'}] {text}"
+        return f"[{name or 'PyRun'}] {text}"
 
     @classmethod
     def _is_safe_webhook_url(cls, url: str) -> bool:
@@ -323,7 +323,7 @@ class NotificationService:
             url,
             json=payload,
             timeout=cls.WEBHOOK_TIMEOUT,
-            headers={"Content-Type": "application/json", "User-Agent": "PyRunner/1.0"},
+            headers={"Content-Type": "application/json", "User-Agent": "PyRun/1.0"},
         )
 
         logger.info(
@@ -381,7 +381,7 @@ class NotificationService:
         """Send a one-off email through the configured core email backend.
 
         This is the delegate behind ``pyrunner_notify.email()`` — Channels do not
-        re-implement email; they reuse PyRunner core's single email config. Falls
+        re-implement email; they reuse PyRun core's single email config. Falls
         back to ``default_notification_email`` when ``to`` is omitted.
         """
         from core.models import GlobalSettings
@@ -445,7 +445,7 @@ class NotificationService:
 
         subject = cls._subject("Test Email")
         text_content = (
-            "This is a test email from PyRunner.\n\n"
+            "This is a test email from PyRun.\n\n"
             "If you receive this, your email configuration is working correctly."
         )
         html_content = render_to_string(

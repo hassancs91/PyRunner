@@ -3,7 +3,7 @@ Schedule service tests.
 
 1) Global pause/resume vs the infrastructure schedules — regression for review
    4a.2: pause_all_schedules deleted EVERY q-schedule with the "pyrunner-" name
-   prefix, which silently included PyRunner's own infrastructure schedules
+   prefix, which silently included PyRun's own infrastructure schedules
    (worker heartbeat, update check, scheduled backup, auto-cleanup) — and
    resume recreated only script schedules. One pause/resume cycle killed
    worker-liveness reporting (dashboard "workers down" + inbound webhooks

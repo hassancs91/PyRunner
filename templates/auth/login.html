@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Sign In - PyRunner{% endblock %}
+{% block title %}Sign In - {{ instance_name }}{% endblock %}
 
 {% block header %}{% endblock %}
 {% block footer %}{% endblock %}
@@ -12,7 +12,7 @@
             <div class="w-16 h-16 bg-ok/10 rounded-2xl grid place-items-center mx-auto mb-6 glow-accent">
                 <svg class="w-8 h-8 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </div>
-            <h1 class="text-3xl font-bold gradient-text mb-3">PyRunner</h1>
+            <h1 class="text-3xl font-bold gradient-text mb-3">PyRun</h1>
             <div class="mb-6">{% include "_beta_badge.html" %}</div>
         </div>
 

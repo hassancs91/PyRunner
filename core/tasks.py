@@ -1,5 +1,5 @@
 """
-Async tasks for PyRunner using django-q2.
+Async tasks for PyRun using django-q2.
 
 This module contains task functions that are executed asynchronously
 by django-q2 workers.
@@ -360,7 +360,7 @@ def cleanup_old_runs_task() -> dict:
 
 def check_for_updates_task() -> dict:
     """
-    Check GitHub for a newer PyRunner release and store the result.
+    Check GitHub for a newer PyRun release and store the result.
     Called by django-q2 scheduler (daily) or manually.
 
     Returns:

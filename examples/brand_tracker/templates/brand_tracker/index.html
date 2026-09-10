@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Brand Tracker - PyRunner{% endblock %}
+{% block title %}Brand Tracker - PyRun{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -268,7 +268,7 @@
                         <!-- AI enrichment -->
                         <div>
                             <h3 class="eyebrow text-faint mb-3">AI enrichment</h3>
-                            <p class="text-xs text-faint mb-3">Optionally tag each mention with a source type and sentiment. Claude uses your PyRunner Claude AI integration (needs <span class="font-mono text-text">claude-agent-sdk</span> in the environment); OpenRouter uses your own key. Mentions are stored without tags if enrichment is unavailable.</p>
+                            <p class="text-xs text-faint mb-3">Optionally tag each mention with a source type and sentiment. Claude uses your PyRun Claude AI integration (needs <span class="font-mono text-text">claude-agent-sdk</span> in the environment); OpenRouter uses your own key. Mentions are stored without tags if enrichment is unavailable.</p>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {% include "brand_tracker/_field.html" with field=form.enrich_provider %}
                                 {% include "brand_tracker/_field.html" with field=form.enrich_model row_id="row-enrich-model" %}

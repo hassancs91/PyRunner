@@ -1,5 +1,5 @@
 """
-API views for PyRunner REST API.
+API views for PyRun REST API.
 """
 
 from .datastores import (

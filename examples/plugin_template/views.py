@@ -1,5 +1,5 @@
 """
-plugin_template — the smallest correct PyRunner plugin. Copy this folder, rename
+plugin_template — the smallest correct PyRun plugin. Copy this folder, rename
 the slug (see README), and build from here.
 
 A single superuser page that stores and reads one value through the SDK

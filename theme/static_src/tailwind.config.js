@@ -1,5 +1,5 @@
 /**
- * PyRunner — Tailwind config.
+ * PyRun — Tailwind config.
  *
  * Colors are driven by CSS custom properties (see src/styles.css) so the whole
  * UI is theme-aware (dark / light) without sprinkling `dark:` variants.

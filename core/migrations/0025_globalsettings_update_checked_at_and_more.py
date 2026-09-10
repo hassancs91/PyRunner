@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
             field=models.CharField(
                 blank=True,
                 default="",
-                help_text="Latest PyRunner version seen on GitHub (populated by the update check)",
+                help_text="Latest PyRun version seen on GitHub (populated by the update check)",
                 max_length=50,
             ),
         ),

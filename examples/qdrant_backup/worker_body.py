@@ -3,7 +3,7 @@
  QDRANT BACKUP TO CLOUDFLARE R2  —  managed by the "Qdrant Backup" plugin
 =============================================================================
 
- This is the backup worker the plugin provisions as a PyRunner Script. You do
+ This is the backup worker the plugin provisions as a PyRun Script. You do
  NOT edit or run it by hand — configure everything on the plugin page
  (/plugins/qdrant_backup/) and it provisions this script, its secrets, a data
  store, and a schedule for you.
@@ -16,8 +16,8 @@
    5. Records a compact run summary into the `qdrant_backup:state` data store,
       which the plugin dashboard reads.
 
- ALERTS are handled by PyRunner itself: the managed Script has notify_on set, so
- PyRunner emails through the provider configured in Settings -> Notifications.
+ ALERTS are handled by PyRun itself: the managed Script has notify_on set, so
+ PyRun emails through the provider configured in Settings -> Notifications.
  There is no bundled email integration here.
 
  SECRETS (the only sensitive values) come from the plugin's owner-scoped secrets,
@@ -44,7 +44,7 @@ import requests
 from botocore.config import Config
 
 # Emoji in log lines crash on a non-UTF-8 console (e.g. a Windows cp1252 shell).
-# PyRunner captures stdout as UTF-8, but make standalone runs robust too.
+# PyRun captures stdout as UTF-8, but make standalone runs robust too.
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -64,7 +64,7 @@ R2_ACCESS_KEY_ID = os.environ["R2_ACCESS_KEY_ID"]
 R2_SECRET_ACCESS_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
 
 # The plugin's owner slug + owned data store. Derive the slug from the env var
-# PyRunner injects for owned-script runs (PYRUNNER_OWNER_PLUGIN) so the store name
+# PyRun injects for owned-script runs (PYRUNNER_OWNER_PLUGIN) so the store name
 # is never hardcoded; fall back to the literal slug for local/standalone runs.
 OWNER = os.environ.get("PYRUNNER_OWNER_PLUGIN") or "qdrant_backup"
 STATE_STORE = f"{OWNER}:state"
@@ -102,9 +102,9 @@ def _s3_client():
 def load_plugin_config():
     """Read non-secret config (endpoints, retention, prefix) from the data store.
 
-    Raises if the store/config is missing while running under PyRunner — the
+    Raises if the store/config is missing while running under PyRun — the
     backup can't proceed without the Qdrant URL / R2 endpoint / bucket. Falls
-    back to empty defaults only when not running under PyRunner (local testing).
+    back to empty defaults only when not running under PyRun (local testing).
     """
     defaults = {
         "qdrant_url": "",
@@ -117,7 +117,7 @@ def load_plugin_config():
     try:
         from pyrunner_datastore import DataStore
     except Exception:
-        return defaults  # not under PyRunner
+        return defaults  # not under PyRun
     cfg = DataStore(STATE_STORE).get("config", {}) or {}
     merged = {**defaults, **cfg}
     merged["retention_days"] = int(merged.get("retention_days") or 30)
@@ -183,7 +183,7 @@ def record_run(status, results, total_time, deleted_old=0, error=None,
     try:
         from pyrunner_datastore import DataStore
     except Exception:
-        # Not running under PyRunner (e.g. local testing) — skip silently.
+        # Not running under PyRun (e.g. local testing) — skip silently.
         return
 
     try:

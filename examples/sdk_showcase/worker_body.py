@@ -22,17 +22,17 @@ import sys
 import time
 from datetime import datetime
 
-# Emoji/log lines crash on a non-UTF-8 console; PyRunner captures stdout as UTF-8
+# Emoji/log lines crash on a non-UTF-8 console; PyRun captures stdout as UTF-8
 # but make standalone runs robust too.
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
 
-# The injected secret (selected-mode grant) — present when run under PyRunner.
+# The injected secret (selected-mode grant) — present when run under PyRun.
 DEMO_TOKEN = os.environ.get("DEMO_TOKEN", "")
 
-# Derive the owner slug from the env var PyRunner injects for owned-script runs,
+# Derive the owner slug from the env var PyRun injects for owned-script runs,
 # so the data-store name is never hardcoded (fall back to the literal slug).
 OWNER = os.environ.get("PYRUNNER_OWNER_PLUGIN") or "sdk_showcase"
 STATE_STORE = f"{OWNER}:state"
@@ -45,7 +45,7 @@ def log(message):
 
 
 def _store():
-    """The owned data store handle, or None when not running under PyRunner."""
+    """The owned data store handle, or None when not running under PyRun."""
     try:
         from pyrunner_datastore import DataStore
 

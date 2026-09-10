@@ -240,7 +240,7 @@ def database_detail_view(request: HttpRequest, pk) -> HttpResponse:
 def database_edit_view(request: HttpRequest, pk) -> HttpResponse:
     """Edit a database's metadata (name/description).
 
-    Renaming only changes the PyRunner handle scripts use; the provisioned
+    Renaming only changes the PyRun handle scripts use; the provisioned
     schema/role names are stored verbatim and stay as they are.
     """
     _require_manage(request)
@@ -417,7 +417,7 @@ def database_delete_view(request: HttpRequest, pk) -> HttpResponse:
                 request,
                 f"Server cleanup failed, database kept: {e} — fix the data "
                 'server and retry, or tick "delete anyway" to remove only '
-                "PyRunner's record.",
+                "PyRun's record.",
             )
             return redirect("cpanel:database_detail", pk=database.pk)
         messages.warning(

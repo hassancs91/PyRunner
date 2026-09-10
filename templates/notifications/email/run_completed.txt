@@ -1,4 +1,4 @@
-PyRunner Script Notification
+PyRun Script Notification
 ============================
 
 Script: {{ script.name }}
@@ -15,4 +15,4 @@ Error Output:
 {% endif %}
 
 ---
-This notification was sent by PyRunner
+This notification was sent by PyRun

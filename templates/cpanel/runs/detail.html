@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Run {{ run.pk|truncatechars:8 }} - PyRunner{% endblock %}
+{% block title %}Run {{ run.pk|truncatechars:8 }} - {{ instance_name }}{% endblock %}
 
 {% block extra_head %}
 {% if run.status == 'pending' or run.status == 'running' %}

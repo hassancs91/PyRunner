@@ -1,7 +1,7 @@
 """
 Tests for the Qdrant Backup plugin.
 
-These run inside the PyRunner repo with the normal Django test runner — the
+These run inside the PyRun repo with the normal Django test runner — the
 plugin is developed in-tree, so ``core.plugins.api`` is importable and the SDK is
 exercised for real (no fakes). They are imported into the main suite by the thin
 shim ``core/test_qdrant_backup_plugin.py``, which splices ``examples/`` onto the

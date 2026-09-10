@@ -1,5 +1,5 @@
 """
-PyRunner plugin system — registry, the plugin contract, and the safe AppConfig.
+PyRun plugin system — registry, the plugin contract, and the safe AppConfig.
 
 This module is the public *contract* a plugin author codes against. It is kept
 deliberately light: importing it must never require the Django app registry to
@@ -83,7 +83,7 @@ def all_plugins() -> list:
 
 
 def run_in_environment(environment, **kwargs):
-    """Run plugin compute in a PyRunner environment's venv (isolated subprocess).
+    """Run plugin compute in a PyRun environment's venv (isolated subprocess).
 
     Thin re-export of ``core.executor.run_in_environment`` so plugin authors have
     a single import surface (``from core.plugins import run_in_environment``).

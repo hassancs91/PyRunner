@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the full PyRunner stack locally in Docker, exactly as it runs in
+# Run the full PyRun stack locally in Docker, exactly as it runs in
 # production. macOS/Linux counterpart of run-local.ps1.
 #
 # Builds the production image from the Dockerfile and runs it via
@@ -86,7 +86,7 @@ compose() { $COMPOSE -f "$COMPOSE_FILE" "$@"; }
 
 # --- 2. Lifecycle short-circuits (down / fresh / logs) -----------------------
 if [ "$DO_DOWN" -eq 1 ]; then
-    step "Stopping PyRunner (keeping data volume)"
+    step "Stopping PyRun (keeping data volume)"
     compose down
     ok "Stopped. Data volume 'pyrunner_data' preserved."
     exit 0
@@ -130,7 +130,7 @@ set_env_value() {
 
 if [ ! -f "$ENV_FILE" ]; then
     step "No .env found - generating one with fresh keys"
-    printf '%s\n' '# Maintained by run-local.sh - PyRunner production-parity local run (Docker).' \
+    printf '%s\n' '# Maintained by run-local.sh - PyRun production-parity local run (Docker).' \
                   '# SECRET_KEY / ENCRYPTION_KEY are preserved across runs; keep them if you store secrets.' \
         > "$ENV_FILE"
 fi
@@ -168,7 +168,7 @@ UP_ARGS="up"
 if [ "$NO_BUILD" -eq 0 ] && [ "$REBUILD" -eq 0 ]; then UP_ARGS="$UP_ARGS --build"; fi
 if [ "$DETACHED" -eq 1 ]; then UP_ARGS="$UP_ARGS -d"; fi
 
-step "Starting full PyRunner stack (gunicorn + django-q2 worker) -> $URL"
+step "Starting full PyRun stack (gunicorn + django-q2 worker) -> $URL"
 echo "    image:   built from Dockerfile (production)"
 echo "    web:     gunicorn pyrunner.wsgi (DEBUG=False, WhiteNoise static)"
 echo "    worker:  django-q2 qcluster (auto-restart monitor)"
@@ -178,14 +178,14 @@ echo
 if [ "$DETACHED" -eq 1 ]; then
     compose $UP_ARGS
     echo
-    ok "PyRunner is starting in the background at $URL"
+    ok "PyRun is starting in the background at $URL"
     warn "First start runs migrations + setup; give it a few seconds."
     echo
     printf "${YELLOW}    Follow logs:  ./run-local.sh --logs${NC}\n"
     printf "${YELLOW}    Stop:         ./run-local.sh --down${NC}\n"
     printf "${YELLOW}    Fresh start:  ./run-local.sh --fresh${NC}\n"
 else
-    printf "${GREEN}  PyRunner will be available at %s${NC}\n" "$URL"
+    printf "${GREEN}  PyRun will be available at %s${NC}\n" "$URL"
     printf "${YELLOW}  Press Ctrl+C to stop the stack.${NC}\n"
     echo
     # Foreground: compose streams logs and handles Ctrl+C (graceful stop).

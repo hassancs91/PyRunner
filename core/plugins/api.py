@@ -1,7 +1,7 @@
 """
-core.plugins.api — the stable, versioned SDK facade for PyRunner plugins (WS2).
+core.plugins.api — the stable, versioned SDK facade for PyRun plugins (WS2).
 
-A plugin orchestrates PyRunner primitives (scripts, secrets, datastores,
+A plugin orchestrates PyRun primitives (scripts, secrets, datastores,
 schedules, environments, runs) THROUGH this module instead of importing
 ``core.models`` / ``core.tasks`` / ``core.services`` directly. The facade:
 
@@ -82,7 +82,7 @@ def _resolve_environment(environment):
 
 class EnvironmentAPI:
     """Read-only view of the shared Environments. Plugins SELECT one; they never
-    build venvs or pip-install (that work belongs to PyRunner's environment UI)."""
+    build venvs or pip-install (that work belongs to PyRun's environment UI)."""
 
     def list(self):
         from core.models import Environment

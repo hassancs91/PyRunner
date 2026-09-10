@@ -1,5 +1,5 @@
 """
-Services for PyRunner.
+Services for PyRun.
 """
 
 from .schedule_service import ScheduleService

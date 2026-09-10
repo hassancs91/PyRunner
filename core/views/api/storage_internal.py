@@ -3,7 +3,7 @@ Internal object-storage API (loopback-only).
 
 The only way an in-run script can read or write objects: a sandboxed run has no
 DB / encryption key / S3 credentials, so ``pyrunner_storage`` POSTs here and
-PyRunner does the S3 call server-side. boto3 and the bucket credentials never
+PyRun does the S3 call server-side. boto3 and the bucket credentials never
 enter a script environment.
 
 Authenticated by the same signed per-run token the internal datastore and

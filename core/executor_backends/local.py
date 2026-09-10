@@ -78,7 +78,7 @@ def _make_rlimit_preexec(limits: dict):
 
 
 class LocalSubprocessBackend(RunBackend):
-    """Run the command as a local subprocess in the PyRunner container."""
+    """Run the command as a local subprocess in the PyRun container."""
 
     def start(self, spec: RunSpec) -> RunHandle:
         # Launch the script in its own process group/session so the web process

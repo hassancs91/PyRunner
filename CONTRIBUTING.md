@@ -1,6 +1,6 @@
-# Contributing to PyRunner
+# Contributing to PyRun
 
-Thanks for your interest in improving PyRunner! This is a self-hosted Python
+Thanks for your interest in improving PyRun! This is a self-hosted Python
 automation platform built with Django. Contributions of all sizes are welcome —
 bug reports, docs, and code.
 
@@ -17,8 +17,8 @@ You need Python 3.13+ and Node.js 20+ (the Tailwind build and the optional Claud
 AI integration use Node).
 
 ```bash
-git clone https://github.com/hassancs91/PyRunner.git
-cd PyRunner
+git clone https://github.com/hassancs91/PyRun.git
+cd PyRun
 python -m venv venv
 # Windows: venv\Scripts\activate   |   macOS/Linux: source venv/bin/activate
 pip install -r requirements.txt
@@ -65,7 +65,7 @@ project's [MIT License](LICENSE).
 
 ## Building plugins
 
-PyRunner has a first-class plugin system. If you want to build a plugin rather
+PyRun has a first-class plugin system. If you want to build a plugin rather
 than change the core, start with the plugin author guide at
 [docs/plugins.md](docs/plugins.md) and the worked examples under `examples/`.
 

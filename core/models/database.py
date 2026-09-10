@@ -1,7 +1,7 @@
 """
 Database models — managed Postgres schemas for scripts & plugins.
 
-A ``Database`` row is PyRunner's handle on one provisioned Postgres schema plus
+A ``Database`` row is PyRun's handle on one provisioned Postgres schema plus
 its dedicated login role on the data server (``PYRUNNER_DATA_DB_URL``). The row
 stores the derived ``schema_name``/``role_name`` (never re-derived — Postgres
 identifiers are capped at 63 chars and the derivation may truncate) and the

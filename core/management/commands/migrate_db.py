@@ -1,5 +1,5 @@
 """
-Migrate this PyRunner instance's data to a Postgres database (SQLite -> Postgres).
+Migrate this PyRun instance's data to a Postgres database (SQLite -> Postgres).
 
 A guided, maintenance-window operation. It exports the current DB (uncapped),
 creates the schema on the target, restores the data into it, and verifies row
@@ -110,7 +110,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Migration complete and verified."))
         self.stdout.write(
-            "Next: set DATABASE_URL to the target, then restart PyRunner so it "
+            "Next: set DATABASE_URL to the target, then restart PyRun so it "
             "runs on Postgres."
         )
 

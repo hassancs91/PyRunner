@@ -5,7 +5,7 @@ Plain ``forms.Form`` (no model) — the plugin persists everything through the S
 (owner-scoped Secrets + an owned DataStore). This module also owns the
 cross-process secret contract (``SECRET_FIELDS``) that both ``provisioning.py``
 (web side) and ``worker_body.py`` (script side) agree on by name. Inputs reuse the
-console's token classes so the page matches the rest of PyRunner.
+console's token classes so the page matches the rest of PyRun.
 """
 
 from django import forms
@@ -137,7 +137,7 @@ class BrandTrackerConfigForm(forms.Form):
     # ---- Environment ----
     environment = _select([], label="Environment")
 
-    # ---- Operational alerts (PyRunner's built-in notifications) ----
+    # ---- Operational alerts (PyRun's built-in notifications) ----
     notify_on = _select(
         [("failure", "On failure"), ("both", "On success & failure"), ("never", "Never")],
         label="Failure alerts", initial="failure",

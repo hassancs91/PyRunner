@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Settings - PyRunner{% endblock %}
+{% block title %}Settings - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -10,7 +10,7 @@
         <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto">
             <div class="mb-6">
                 <h1 class="text-[22px] font-semibold tracking-tight">Settings</h1>
-                <p class="text-sm text-muted mt-1">Configure this PyRunner instance — access, email, workers, retention, and backups.</p>
+                <p class="text-sm text-muted mt-1">Configure this PyRun instance — access, email, workers, retention, and backups.</p>
             </div>
 
             <!-- Tabs -->
@@ -558,7 +558,7 @@
                 <!-- Create Backup -->
                 <div class="bg-panel border border-line rounded-2xl p-6">
                     <h3 class="text-base font-semibold text-text mb-4">📦 Create backup</h3>
-                    <p class="text-sm text-muted mb-4">Export a complete backup of your PyRunner instance including scripts, secrets, settings, and execution history.</p>
+                    <p class="text-sm text-muted mb-4">Export a complete backup of your PyRun instance including scripts, secrets, settings, and execution history.</p>
                     <form method="post" action="{% url 'cpanel:backup_create' %}" id="backup-create-form">
                         {% csrf_token %}
                         <div class="space-y-4 mb-6">
@@ -590,7 +590,7 @@
                 <!-- Restore Backup -->
                 <div class="bg-panel border border-line rounded-2xl p-6">
                     <h3 class="text-base font-semibold text-text mb-4">📥 Restore backup</h3>
-                    <p class="text-sm text-muted mb-4">Upload a backup file to restore your PyRunner instance.</p>
+                    <p class="text-sm text-muted mb-4">Upload a backup file to restore your PyRun instance.</p>
                     <form id="backup-restore-form" enctype="multipart/form-data">
                         {% csrf_token %}
                         <div class="space-y-4 mb-6">
@@ -618,7 +618,7 @@
                 <!-- Scheduled S3 Backups -->
                 <div class="bg-panel border border-line rounded-2xl p-6 mt-5">
                     <h3 class="text-base font-semibold text-text mb-4">☁️ Scheduled S3 backups</h3>
-                    <p class="text-sm text-muted mb-4">Automatically backup your PyRunner instance to S3-compatible storage on a schedule.</p>
+                    <p class="text-sm text-muted mb-4">Automatically backup your PyRun instance to S3-compatible storage on a schedule.</p>
                     {% if not backup_schedule_status.s3_enabled or not backup_schedule_status.s3_configured %}
                     <div class="p-4 bg-warn/10 border border-warn/30 rounded-lg mb-4">
                         <p class="text-sm text-warn">⚠ <strong>S3 not configured:</strong> You must first configure and enable S3 storage in the <a href="{% url 'cpanel:services' %}" class="underline hover:text-text">Services</a> page.</p>
@@ -701,7 +701,7 @@
                     <!-- Primary column: access & tokens -->
                     <div class="lg:col-span-7 bg-panel border border-line rounded-2xl p-6">
                         <h3 class="text-base font-semibold text-text mb-1">API access</h3>
-                        <p class="text-sm text-muted mb-5">PyRunner exposes a read-only REST API for your datastores. Create a token to let external applications fetch entries.</p>
+                        <p class="text-sm text-muted mb-5">PyRun exposes a read-only REST API for your datastores. Create a token to let external applications fetch entries.</p>
                         <a href="{% url 'cpanel:api_token_list' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
                             Manage API tokens
@@ -907,7 +907,7 @@ function loadSystemInfo() {
             let html = `
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
-                        <p class="text-xs text-faint mb-1">PyRunner version</p>
+                        <p class="text-xs text-faint mb-1">PyRun version</p>
                         <p class="text-text font-mono">${escapeHtml(String(info.version))}</p>
                     </div>
                     <div class="p-4 bg-panel-hi/40 border border-line-soft rounded-lg">

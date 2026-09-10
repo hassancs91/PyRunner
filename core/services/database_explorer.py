@@ -79,7 +79,7 @@ class DatabaseExplorerService:
 
         ``read_only=True`` (the only mode the explorer uses) marks the session
         read-only BEFORE the first statement, so any write is rejected by
-        Postgres itself — not by PyRunner inspecting SQL. ``row_cap`` bounds
+        Postgres itself — not by PyRun inspecting SQL. ``row_cap`` bounds
         the result (``truncated`` reports whether more rows existed);
         ``timeout_ms`` bounds the runtime via ``set_config`` inside the
         session. Raises ``DatabaseExplorerError`` on any server-side failure.

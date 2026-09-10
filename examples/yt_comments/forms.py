@@ -13,7 +13,7 @@ module also owns two cross-process contracts shared by name with the standalone
     spam drives moderation later) so they are always re-added if removed.
 
 Inputs reuse the console's token classes so the page matches the rest of
-PyRunner.
+PyRun.
 """
 
 import re
@@ -304,7 +304,7 @@ class YtCommentsConfigForm(forms.Form):
     # ---- Environment ----
     environment = _select([], label="Environment")
 
-    # ---- Operational alerts (PyRunner's built-in notifications) ----
+    # ---- Operational alerts (PyRun's built-in notifications) ----
     notify_on = _select(
         [("failure", "On failure"), ("both", "On success & failure"), ("never", "Never")],
         label="Failure alerts", initial="failure",

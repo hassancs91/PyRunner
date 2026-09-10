@@ -1,4 +1,4 @@
-# PyRunner on Postgres.
+# PyRun on Postgres.
 #
 # Same app image as docker-compose.yml — the ONLY difference is a managed
 # Postgres service plus DATABASE_URL pointing at it. SQLite remains the
@@ -67,7 +67,7 @@ services:
       - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
 
-      # The engine switch: point PyRunner at the managed Postgres service.
+      # The engine switch: point PyRun at the managed Postgres service.
       - DATABASE_URL=postgres://${POSTGRES_USER:-pyrunner}:${POSTGRES_PASSWORD:-pyrunner}@db:5432/${POSTGRES_DB:-pyrunner}
 
       # Databases feature: same server, separate database + provisioner role

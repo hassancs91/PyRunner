@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-PyRunner is under active development. Security fixes are applied to the latest
+PyRun is under active development. Security fixes are applied to the latest
 release on the `main` branch. Please make sure you are running the most recent
 version before reporting an issue.
 
@@ -23,7 +23,7 @@ Please include:
 
 - A description of the vulnerability and its impact.
 - Steps to reproduce (proof-of-concept, affected endpoint/feature, config).
-- The PyRunner version (`pyrunner/version.py`) and your deployment mode
+- The PyRun version (`pyrunner/version.py`) and your deployment mode
   (SQLite/Postgres, Docker/bare, behind a proxy, etc.).
 
 ## What to expect
@@ -36,7 +36,7 @@ Please include:
 
 ## Scope notes
 
-PyRunner is **self-hosted software that runs arbitrary user-supplied Python
+PyRun is **self-hosted software that runs arbitrary user-supplied Python
 scripts by design**. Script execution having access to the host is an intended
 capability, not a vulnerability — isolation is opt-in via the sandbox and per-run
 resource limits (see the Isolation settings and `.env.example`). Reports about

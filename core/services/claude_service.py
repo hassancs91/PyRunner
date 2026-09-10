@@ -290,7 +290,7 @@ class ClaudeService:
             return (
                 False,
                 "The Claude Code CLI is not installed on this server. It ships "
-                "with the PyRunner Docker image -- make sure you are running the "
+                "with the PyRun Docker image -- make sure you are running the "
                 "current image.",
             )
 
@@ -535,7 +535,7 @@ class ClaudeService:
         if "cli" in low and ("not found" in low or "notfound" in low):
             return (
                 "Claude Code CLI not found on the server. Use the current "
-                "PyRunner Docker image, which bundles it."
+                "PyRun Docker image, which bundles it."
             )
         if "error_max_turns" in low:
             return (

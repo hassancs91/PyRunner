@@ -1,5 +1,5 @@
 """
-Core models for PyRunner.
+Core models for PyRun.
 
 This module exports all models for easy importing:
     from core.models import User, MagicToken, UserInvite, PasswordResetToken, Environment, Script, Run, ScriptSchedule, ScheduleHistory, GlobalSettings, PackageOperation, Secret, Tag, DataStore, DataStoreEntry, DataStoreAPIToken

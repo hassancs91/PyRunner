@@ -71,7 +71,7 @@ class Command(BaseCommand):
                 return
 
         raise CommandError(
-            f"No new worker appeared within {timeout}s. If PyRunner runs via "
+            f"No new worker appeared within {timeout}s. If PyRun runs via "
             "entrypoint.sh (Docker), check the container logs; otherwise "
             "nothing auto-restarts the worker — start it manually with "
             "`manage.py pyrunner_qcluster`."

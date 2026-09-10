@@ -1,5 +1,5 @@
 """
-Custom logging formatters for PyRunner.
+Custom logging formatters for PyRun.
 """
 import json
 import logging

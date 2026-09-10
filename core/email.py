@@ -32,11 +32,11 @@ def send_password_reset_email(request, user, reset_token) -> bool:
         print(reset_url)
         print("=" * 60 + "\n")
 
-    subject = "Reset Your PyRunner Password"
+    subject = "Reset Your PyRun Password"
 
     text_message = f"""Hi there!
 
-You requested a password reset for your PyRunner account.
+You requested a password reset for your PyRun account.
 
 Click the link below to reset your password:
 
@@ -49,7 +49,7 @@ This link will expire in 24 hours and can only be used once.
 If you didn't request this, you can safely ignore this email.
 
 ---
-PyRunner - Python Script Automation
+PyRun - Python Script Automation
 """
 
     html_message = f"""<!DOCTYPE html>
@@ -66,7 +66,7 @@ PyRunner - Python Script Automation
 <body>
     <div class="container">
         <h2>Reset Your Password</h2>
-        <p>You requested a password reset for your PyRunner account ({user.email}).</p>
+        <p>You requested a password reset for your PyRun account ({user.email}).</p>
         <p style="margin: 30px 0;">
             <a href="{reset_url}" class="button">Reset Password</a>
         </p>
@@ -79,7 +79,7 @@ PyRunner - Python Script Automation
         </p>
         <div class="footer">
             <p>If you didn't request this, you can safely ignore this email.</p>
-            <p><strong>PyRunner</strong> - Python Script Automation</p>
+            <p><strong>PyRun</strong> - Python Script Automation</p>
         </div>
     </div>
 </body>

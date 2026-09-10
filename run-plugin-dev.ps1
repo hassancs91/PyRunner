@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Run PyRunner in plugin DEV MODE locally (no Docker) as a full system:
+    Run PyRun in plugin DEV MODE locally (no Docker) as a full system:
     `runserver` with live reload + the django-q worker, in one command.
 
 .DESCRIPTION
@@ -79,7 +79,7 @@ $env:DEBUG = "True"
 $env:PYRUNNER_PLUGIN_DEV = $PluginFull
 $env:PORT = "$Port"
 
-Write-Step "PyRunner plugin DEV mode (full system: web + worker)"
+Write-Step "PyRun plugin DEV mode (full system: web + worker)"
 Write-Host "    plugin:  $PluginFull  (slug: $Slug)"
 Write-Host "    url:     http://127.0.0.1:$Port/plugins/$Slug/"
 Write-Host "    db:      data\db.sqlite3  (SQLite - NOT the Docker Postgres stack)"

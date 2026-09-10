@@ -1,7 +1,7 @@
 """
 Step 5 — per-run hardening (RunBackend Stage 2).
 
-PyRunner's own infra secrets are filtered out of a script's environment, while
+PyRun's own infra secrets are filtered out of a script's environment, while
 the user's Secrets still inject; and optional posix resource caps are wired
 through the RunSpec (off by default, so today's behavior is unchanged).
 """

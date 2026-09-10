@@ -1,6 +1,6 @@
 # Example Plugin
 
-A minimal, working PyRunner plugin you can install as-is to see the system end to
+A minimal, working PyRun plugin you can install as-is to see the system end to
 end. It adds a sidebar entry and a page that runs a snippet inside a chosen
 environment's venv via `run_in_environment` (an isolated subprocess — never the
 web process).
@@ -13,7 +13,7 @@ web process).
    zip -r example_plugin.zip example_plugin
    ```
    (On Windows: right-click the `example_plugin` folder → Send to → Compressed folder.)
-2. In PyRunner: **Plugins → Upload plugin**, choose the `.zip`.
+2. In PyRun: **Plugins → Upload plugin**, choose the `.zip`.
 3. Click **Activate** (this validates it in an isolated preflight), then **Restart now**.
 4. Open **Example Plugin** in the sidebar.
 

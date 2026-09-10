@@ -29,7 +29,7 @@ Stage 5 — publish-ready testimonials (grading + archived avatars):
 - New `authors` table + `comments.avatar_url` / `testimonial_grade` /
   `testimonial_note` (additive, auto-migrated); new run phases `grading` and
   `avatars`; new config key `avatar_archive` (default on).
-- Requires PyRunner 1.16.0 (`api: 2.5` — StorageAPI/`pyrunner_storage`).
+- Requires PyRun 1.16.0 (`api: 2.5` — StorageAPI/`pyrunner_storage`).
 
 ## 0.4.0 (unreleased)
 
@@ -92,7 +92,7 @@ Stage 2 — channel alerts (transport-agnostic):
 - Compact plain-text chat formatting (5 items + deep links, "…and N more"),
   one message per run per kind, seed-run suppression, degrade-to-log on send
   failure.
-- Requires PyRunner 1.16.0 (`api: 2.3`).
+- Requires PyRun 1.16.0 (`api: 2.3`).
 
 ## 0.1.0 (unreleased)
 

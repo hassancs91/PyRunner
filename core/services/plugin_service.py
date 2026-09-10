@@ -185,7 +185,7 @@ class PluginService:
 
     @staticmethod
     def min_version_problem(manifest, slug: str):
-        """A user-facing message when ``min_pyrunner`` exceeds this PyRunner, else None.
+        """A user-facing message when ``min_pyrunner`` exceeds this PyRun, else None.
 
         Numeric dotted compare on up to three components; an unparseable value is
         ignored rather than blocking (the doctor flags malformed metadata).
@@ -204,8 +204,8 @@ class PluginService:
         try:
             if key(required) > key(__version__):
                 return (
-                    f"Plugin '{slug}' needs PyRunner {required} or newer "
-                    f"(this instance is {__version__}). Upgrade PyRunner first."
+                    f"Plugin '{slug}' needs PyRun {required} or newer "
+                    f"(this instance is {__version__}). Upgrade PyRun first."
                 )
         except ValueError:
             return None

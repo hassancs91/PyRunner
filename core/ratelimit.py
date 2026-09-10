@@ -70,7 +70,7 @@ def client_ip(request) -> str:
     Default: ``REMOTE_ADDR`` (the direct peer). Behind a trusted reverse proxy the
     direct peer is the proxy, so every caller shares one IP and per-IP limits become
     instance-global. Set ``RATELIMIT_TRUSTED_PROXY_DEPTH=N`` (N = trusted proxy hops
-    in front of PyRunner) to take the client address from the RIGHT of
+    in front of PyRun) to take the client address from the RIGHT of
     ``X-Forwarded-For`` — the entry your outermost trusted proxy appended, which a
     caller cannot forge. Leftmost XFF entries ARE client-controlled and must never
     key a security control, so they are never read here.

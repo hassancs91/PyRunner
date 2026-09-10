@@ -1,4 +1,4 @@
-# Brand Tracker (PyRunner plugin)
+# Brand Tracker (PyRun plugin)
 
 Track mentions of your **brand or keywords** across the web and communities on a
 **weekly** schedule — configured once in a form. Like
@@ -25,7 +25,7 @@ plugin on the Plugin Platform v2.
 - **Run now** queues a tracked Run through the normal RunBackend.
 - **Dashboard** — a live **mention feed** (browse by keyword/date, filter by
   source), stat cards, a **Serper-credit** gauge, and run history.
-- **Operational alerts** use PyRunner's built-in notifications (the managed
+- **Operational alerts** use PyRun's built-in notifications (the managed
   script's `notify_on` + `notify_email`) — separate from the optional content
   email below.
 
@@ -58,7 +58,7 @@ Tag each mention with a **source type** (news/blog/forum/social/docs/other) and
 **sentiment** (positive/neutral/negative). Pick a provider in the form:
 
 - **Off** (default) — feed shows mentions without tags.
-- **Claude** — uses your PyRunner **Claude AI** integration (Services → Claude
+- **Claude** — uses your PyRun **Claude AI** integration (Services → Claude
   AI); needs `claude-agent-sdk` in the environment. No extra key.
 - **OpenRouter** — your own `OPENROUTER_API_KEY` + a model (e.g.
   `openai/gpt-4o-mini`); a single-shot HTTP call.
@@ -119,7 +119,7 @@ matching `plugin.json` and the `apps.py` descriptor.
 | Feed empty after the first run | The first run **seeds silently** (no email). New mentions appear from the second run on — or click **Run now** again later. |
 | Mentions have no sentiment tags | Enrichment is Off, or the provider is unavailable (Claude not enabled / `claude-agent-sdk` missing, or no OpenRouter key). It degrades safely. |
 | Run history shows a **cap** flag | The monthly Serper credit cap was reached; Serper searches paused for the month, free sources still ran. |
-| Schedule never runs | Check the next-run chip in the header and that PyRunner's scheduler isn't globally paused. |
+| Schedule never runs | Check the next-run chip in the header and that PyRun's scheduler isn't globally paused. |
 
 ## Tests
 

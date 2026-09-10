@@ -3,7 +3,7 @@ Config form for the Qdrant Backup plugin.
 
 Plain ``forms.Form`` (no model) — the plugin persists everything through the SDK
 (owner-scoped Secrets + an owned DataStore), so there is nothing to ModelForm.
-Inputs reuse the console's token classes so the page matches the rest of PyRunner.
+Inputs reuse the console's token classes so the page matches the rest of PyRun.
 """
 
 from django import forms
@@ -81,7 +81,7 @@ class QdrantBackupConfigForm(forms.Form):
     # ---- Environment (must have requests + boto3) ----
     environment = _select([], label="Environment")
 
-    # ---- Alerts (PyRunner's built-in notifications) ----
+    # ---- Alerts (PyRun's built-in notifications) ----
     notify_on = _select(
         [("failure", "On failure"), ("both", "On success and failure"), ("never", "Never")],
         label="Email me", initial="failure",

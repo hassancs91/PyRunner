@@ -4,7 +4,7 @@ Object-storage connections.
 One row per configured S3-compatible endpoint (Cloudflare R2, AWS S3, Backblaze
 B2, DigitalOcean Spaces, MinIO, or any custom S3-compatible provider). All rows
 persist their credentials (encrypted), so an instance can hold several buckets
-at once — historically PyRunner had exactly one, wired to backups.
+at once — historically PyRun had exactly one, wired to backups.
 
 Two roles, resolved independently:
 

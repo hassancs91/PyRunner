@@ -1,5 +1,5 @@
 """
-Service for creating and restoring PyRunner backups.
+Service for creating and restoring PyRun backups.
 """
 import gzip
 import hashlib
@@ -41,7 +41,7 @@ from pyrunner.version import __version__ as PYRUNNER_VERSION
 
 class BackupService:
     """
-    Service for creating and restoring PyRunner backups.
+    Service for creating and restoring PyRun backups.
     """
 
     # 1.2.0 — tenancy: a ``workspaces`` array + ``workspace_id`` on each scoped
@@ -126,7 +126,7 @@ class BackupService:
         created_by_user=None,
     ) -> dict:
         """
-        Create a complete backup of the PyRunner instance.
+        Create a complete backup of the PyRun instance.
 
         Args:
             include_runs: Include run history in backup
@@ -963,7 +963,7 @@ class BackupService:
     def _import_global_settings(cls, data: dict) -> None:
         """Import GlobalSettings."""
         settings_obj = GlobalSettings.get_settings()
-        settings_obj.instance_name = data.get("instance_name", "PyRunner")
+        settings_obj.instance_name = data.get("instance_name", "PyRun")
         settings_obj.timezone = data.get("timezone", "UTC")
         # date_format/time_format were removed (stored but never displayed);
         # old backups may still carry the keys — ignored harmlessly on restore.
@@ -1463,7 +1463,7 @@ class BackupService:
             return warnings
         if not DatabaseService.is_configured():
             warnings.append(
-                f"{len(existing)} existing database(s) removed from PyRunner "
+                f"{len(existing)} existing database(s) removed from PyRun "
                 "without server cleanup (no data server attached) — their "
                 "schemas/roles may remain on the old server."
             )

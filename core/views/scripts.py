@@ -88,7 +88,7 @@ SCRIPT_TEMPLATES = {
 AI Web Research example.
 
 Requires:
-  - AI enabled in PyRunner (Services -> AI Provider); web search needs an
+  - AI enabled in PyRun (Services -> AI Provider); web search needs an
     Anthropic provider (it is served by Anthropic's API)
   - 'claude-agent-sdk' installed in this script's Environment (Environments -> Packages)
 """

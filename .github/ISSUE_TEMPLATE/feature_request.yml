@@ -1,12 +1,12 @@
 name: Feature Request
-description: Suggest an idea or improvement for PyRunner
+description: Suggest an idea or improvement for PyRun
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
       label: What problem does this solve?
-      description: What are you trying to do that PyRunner makes hard or impossible today?
+      description: What are you trying to do that PyRun makes hard or impossible today?
     validations:
       required: true
   - type: textarea

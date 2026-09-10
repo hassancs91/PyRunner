@@ -1,5 +1,5 @@
 """
-Service for checking whether a newer PyRunner release is available on GitHub.
+Service for checking whether a newer PyRun release is available on GitHub.
 
 The actual network call runs in a django-q2 task (see core.tasks.check_for_updates_task)
 on a daily schedule, and the result is persisted on GlobalSettings. The request path
@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class UpdateService:
-    """Fetches and compares the latest PyRunner version published on GitHub."""
+    """Fetches and compares the latest PyRun version published on GitHub."""
 
-    GITHUB_TAGS_URL = "https://api.github.com/repos/hassancs91/PyRunner/tags"
+    GITHUB_TAGS_URL = "https://api.github.com/repos/hassancs91/PyRun/tags"
     REQUEST_TIMEOUT = 10  # seconds
 
     @staticmethod

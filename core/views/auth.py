@@ -151,7 +151,7 @@ def accept_invite_view(request: HttpRequest, token: str) -> HttpResponse:
             invite.mark_used(user)
 
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-            messages.success(request, f"Welcome to PyRunner, {user.email}!")
+            messages.success(request, f"Welcome to PyRun, {user.email}!")
             return redirect("cpanel:dashboard")
     else:
         form = SetPasswordForm()

@@ -1,6 +1,6 @@
 # Plugin Template — guide
 
-The smallest correct PyRunner plugin: one superuser page that reads/writes one
+The smallest correct PyRun plugin: one superuser page that reads/writes one
 value via `DataStoreAPI`. Copy it to start a new plugin.
 
 ## Contracts (the doctor enforces these)

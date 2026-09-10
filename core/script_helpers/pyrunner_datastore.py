@@ -1,22 +1,22 @@
 """
-PyRunner DataStore API for scripts.
+PyRun DataStore API for scripts.
 
 This module provides a simple key-value data store interface. Data stores must
-be created through the PyRunner web interface before they can be used in scripts.
+be created through the PyRun web interface before they can be used in scripts.
 
-The backend is chosen automatically from the environment PyRunner injects:
+The backend is chosen automatically from the environment PyRun injects:
 - ``PYRUNNER_DB_PATH`` set (SQLite deployments) -> read the DB file directly.
   This is the original, web-server-independent path, byte-for-byte unchanged.
 - otherwise ``PYRUNNER_INTERNAL_URL`` + ``PYRUNNER_INTERNAL_TOKEN`` (Postgres
   deployments, where there is no local DB file) -> a small loopback HTTP call to
-  PyRunner's internal API, authenticated by a signed per-run token.
+  PyRun's internal API, authenticated by a signed per-run token.
 
 Either way the surface below is identical, so scripts never change.
 
 Usage:
     from pyrunner_datastore import DataStore
 
-    # Open a data store (must exist in PyRunner UI)
+    # Open a data store (must exist in PyRun UI)
     store = DataStore("my_store")
 
     # Store values (any JSON-serializable type)
@@ -56,7 +56,7 @@ from typing import Any, Iterator, List, Optional, Tuple
 
 
 class DataStoreError(RuntimeError):
-    """A datastore operation failed against PyRunner's internal API.
+    """A datastore operation failed against PyRun's internal API.
 
     Raised for server/auth failures (5xx, 401/403, unreachable API) so a failed
     write or read is never silently swallowed — matching the SQLite backend,
@@ -196,7 +196,7 @@ class _SqliteBackend:
 
 
 class _ApiBackend:
-    """Loopback HTTP access to PyRunner's internal datastore API (stdlib only)."""
+    """Loopback HTTP access to PyRun's internal datastore API (stdlib only)."""
 
     def __init__(self, name: str, base_url: str, token: str):
         self.name = name
@@ -224,7 +224,7 @@ class _ApiBackend:
         except urllib.error.URLError as e:
             # Connection-level failure (API down, DNS, timeout): never silent.
             raise DataStoreError(
-                f"DataStore '{self.name}': could not reach PyRunner's internal "
+                f"DataStore '{self.name}': could not reach PyRun's internal "
                 f"API ({method} {url}): {e.reason}"
             ) from e
 
@@ -289,7 +289,7 @@ class _ApiBackend:
 
 
 def _make_backend(name: str):
-    """Pick the datastore backend from the environment PyRunner injected.
+    """Pick the datastore backend from the environment PyRun injected.
 
     SQLite (``PYRUNNER_DB_PATH``) takes precedence so the default deployment is
     unchanged and web-server-independent; the loopback API is used when there is
@@ -305,8 +305,8 @@ def _make_backend(name: str):
         return _ApiBackend(name, api_url, api_token)
 
     raise RuntimeError(
-        "PyRunner datastore is not configured (no PYRUNNER_DB_PATH or "
-        "PYRUNNER_INTERNAL_URL). This module must be run from PyRunner."
+        "PyRun datastore is not configured (no PYRUNNER_DB_PATH or "
+        "PYRUNNER_INTERNAL_URL). This module must be run from PyRun."
     )
 
 
@@ -320,17 +320,17 @@ class DataStore:
         Open a data store by name.
 
         Args:
-            name: The name of the data store (must exist in PyRunner)
+            name: The name of the data store (must exist in PyRun)
 
         Raises:
-            RuntimeError: If PyRunner did not inject a datastore configuration
+            RuntimeError: If PyRun did not inject a datastore configuration
             ValueError: If the data store does not exist
         """
         self.name = name
         self._backend = _make_backend(name)
         if not self._backend.store_exists():
             raise ValueError(
-                f"Data store '{name}' does not exist. Create it in the PyRunner UI first."
+                f"Data store '{name}' does not exist. Create it in the PyRun UI first."
             )
 
     def __getitem__(self, key: str) -> Any:

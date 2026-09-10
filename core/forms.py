@@ -1211,7 +1211,7 @@ class GeneralSettingsForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 "class": INPUT_CLASS,
-                "placeholder": "PyRunner",
+                "placeholder": "PyRun",
             }
         ),
         label="Instance Name",
@@ -1274,7 +1274,7 @@ class GeneralSettingsForm(forms.Form):
 
     def save(self, instance):
         """Save the general settings to the GlobalSettings instance."""
-        instance.instance_name = self.cleaned_data.get("instance_name") or "PyRunner"
+        instance.instance_name = self.cleaned_data.get("instance_name") or "PyRun"
         instance.timezone = self.cleaned_data.get("timezone") or "UTC"
         instance.admin_url_slug = self.cleaned_data.get("admin_url_slug") or "django-admin"
         instance.save(update_fields=[

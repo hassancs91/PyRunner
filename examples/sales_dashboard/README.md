@@ -1,6 +1,6 @@
 # Sales Dashboard (sample plugin + script)
 
-The canonical PyRunner plugin pattern: **a script produces data, a plugin
+The canonical PyRun plugin pattern: **a script produces data, a plugin
 visualizes it.** The script writes synthetic orders to a DataStore; the plugin
 reads that DataStore and renders KPIs, a per-product breakdown, and recent
 orders — plus a "Run collector now" button that triggers the script.
@@ -9,7 +9,7 @@ orders — plus a "Run collector now" button that triggers the script.
 
 ```
 Sales Collector (script, runs in an env venv)
-   └─ from pyrunner_datastore import DataStore   # PyRunner-provided
+   └─ from pyrunner_datastore import DataStore   # PyRun-provided
        └─ writes orders ──►  DataStore "sales_data"  (shared SQLite)
                                      ▲
 Sales Dashboard (plugin, runs in the web process)

@@ -1,6 +1,6 @@
-# SDK Showcase (PyRunner plugin)
+# SDK Showcase (PyRun plugin)
 
-A **live tour of the PyRunner plugin SDK** (`core.plugins.api`). One page, one
+A **live tour of the PyRun plugin SDK** (`core.plugins.api`). One page, one
 card per capability — each with a working action and the few lines of code
 behind it. It's the companion to the [qdrant_backup](../qdrant_backup/) plugin:
 where qdrant_backup shows *a real plugin end-to-end*, this shows *each SDK call

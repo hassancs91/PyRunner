@@ -31,7 +31,7 @@ class SystemInfoService:
 
     @classmethod
     def get_version(cls) -> str:
-        """Get PyRunner version."""
+        """Get PyRun version."""
         try:
             from pyrunner.version import __version__
 

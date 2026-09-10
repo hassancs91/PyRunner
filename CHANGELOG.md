@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PyRunner are documented in this file.
+All notable changes to PyRun are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 The authoritative version number lives in `pyrunner/version.py`. This changelog
@@ -28,6 +28,17 @@ begins tracking at the current release; earlier history is in the git log.
   date onto 28 February or 1 March. Available to plugins via
   `ScheduleAPI.sync(..., mode="yearly", month=, day=, time_str=, tz=)` and
   carried by backups (format 1.8.0). Contributed by @djpfs (#16).
+
+### Changed
+- **Rebranded to PyRun** — the product is now called PyRun and lives at
+  [pyrun.ai](https://pyrun.ai). Console, emails, setup and error pages, the
+  docs links, and the GitHub (`hassancs91/PyRun`) and Docker Hub
+  (`hasanaboulhasan/pyrun`) names all follow. Nothing you wrote changes:
+  the `pyrunner_*` script helpers, `PYRUNNER_*` environment variables,
+  `PyRunnerPlugin` SDK class, and data paths keep their names, so existing
+  scripts, plugins, and deployments keep working. Pull the new image name
+  when you next update. Page titles now use the instance name from
+  Settings → General instead of a hardcoded brand.
 
 ### Fixed
 - **Weekly and monthly schedules survive a backup/restore** — the export
@@ -64,7 +75,7 @@ begins tracking at the current release; earlier history is in the git log.
   failure, an existing folder no environment references is reclaimed, and the
   interpreter picker only lists Pythons that can actually bootstrap pip.
 - **A plugin's `min_pyrunner` is now enforced** — the manifest field was
-  documented but never checked, so a plugin built for a newer PyRunner
+  documented but never checked, so a plugin built for a newer PyRun
   uploaded and activated on an older one and failed later in confusing ways.
   Upload and activation now refuse it with the required version.
 - **A stray plugin folder no longer blocks uploads of that slug** — a folder
@@ -74,7 +85,7 @@ begins tracking at the current release; earlier history is in the git log.
   is now moved aside (never deleted) and the upload proceeds; a folder loaded
   in dev mode is left alone with a clear message.
 - **`pyrunner_db.connect()` tells the truth about `psycopg`** — the error
-  claimed the driver "ships with PyRunner's runtime"; it doesn't ship inside
+  claimed the driver "ships with PyRun's runtime"; it doesn't ship inside
   script environments. The message now points at Environments → Packages.
 - **Changing the Django admin URL slug says it needs a restart** — routes are
   built at startup, so the old slug stayed live and the new one 404'd until
@@ -101,7 +112,7 @@ begins tracking at the current release; earlier history is in the git log.
   each confined to its own `apps/<plugin>/` space, so one plugin can never read or
   delete another's files. Their scripts get the same thing via
   `import pyrunner_storage`, with no credentials and nothing to install: the bytes
-  travel over PyRunner's internal loopback API, so S3 keys never enter a script's
+  travel over PyRun's internal loopback API, so S3 keys never enter a script's
   environment. Deleting a plugin with *remove data* clears its files too.
 - **Libraries** — shared Python modules that scripts import, instead of the same
   helper copy-pasted into five scripts. Create a library under Libraries, add one
@@ -206,7 +217,7 @@ begins tracking at the current release; earlier history is in the git log.
   instead of starting), and the README quickstart now generates and passes both
   required keys. **If you deployed from the Docker Hub image without setting
   your own `SECRET_KEY`/`ENCRYPTION_KEY`, upgrade, generate fresh keys, and
-  rotate any secrets stored in PyRunner.**
+  rotate any secrets stored in PyRun.**
 
 ### Fixed
 - **`docker run ... <command>` now runs the command** — the entrypoint ignored
@@ -257,7 +268,7 @@ begins tracking at the current release; earlier history is in the git log.
   the dashboard.
 
 ### Changed
-- Dashboard system resources are now container-aware: when PyRunner runs in
+- Dashboard system resources are now container-aware: when PyRun runs in
   Docker, the primary CPU and Memory numbers are the container's own usage
   (read from cgroups v2/v1, matching `docker stats` semantics), with the full
   host/VPS shown as a smaller secondary line. Memory is reported against the

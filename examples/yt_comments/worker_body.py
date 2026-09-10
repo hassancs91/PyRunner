@@ -3,7 +3,7 @@
  YOUTUBE COMMENTS AI  —  managed by the "YouTube Comments AI" plugin
 =============================================================================
 
- This is the analyzer worker the plugin provisions as a PyRunner Script. You do
+ This is the analyzer worker the plugin provisions as a PyRun Script. You do
  NOT edit or run it by hand — configure everything on the plugin page
  (/plugins/yt_comments/) and it provisions this script, its secret, a managed
  database, a state data store and a daily schedule for you.
@@ -46,7 +46,7 @@
       heldForReview via comments.setModerationStatus. ALL of this is
       suppressed on the first (seed) run.
    5. Sends ONE batched urgent alert + ONE testimonial alert per run and an
-      optional digest — via PyRunner's instance email AND/OR a configured
+      optional digest — via PyRun's instance email AND/OR a configured
       messaging Channel (both through pyrunner_notify, each independently
       toggleable; the channel is addressed BY NAME so swapping Telegram for
       another provider needs no plugin change). All suppressed on the first
@@ -57,7 +57,7 @@
       Degrades section-by-section (no AI → no clusters; empty week → no
       email) and is suppressed on the seed run like every other email.
 
- ALERTS for operational failures are handled by PyRunner itself (notify_on).
+ ALERTS for operational failures are handled by PyRun itself (notify_on).
 
  SECRETS (injected as clean env vars, selected-mode):
    YT_API_KEY              (required — YouTube Data API v3, read-only reads)
@@ -111,7 +111,7 @@ YT_OAUTH_CLIENT_SECRET = os.environ.get("YT_OAUTH_CLIENT_SECRET", "")
 YT_OAUTH_REFRESH_TOKEN = os.environ.get("YT_OAUTH_REFRESH_TOKEN", "")
 
 # The plugin's owner slug + owned resources. Derive the slug from the env var
-# PyRunner injects for owned-script runs so names are never hardcoded.
+# PyRun injects for owned-script runs so names are never hardcoded.
 OWNER = os.environ.get("PYRUNNER_OWNER_PLUGIN") or "yt_comments"
 STATE_STORE = f"{OWNER}:state"
 DB_NAME = f"{OWNER}:data"
@@ -164,7 +164,7 @@ AVATAR_BACKFILL_CAP = 200    # legacy rows per run getting avatar_url backfilled
 def load_plugin_config():
     """Read non-secret config from the owned data store (entry "config").
 
-    Falls back to empty defaults when not running under PyRunner (local testing)
+    Falls back to empty defaults when not running under PyRun (local testing)
     so this module imports cleanly without a data store.
     """
     defaults = {
@@ -193,7 +193,7 @@ def load_plugin_config():
         from pyrunner_datastore import DataStore
         cfg = DataStore(STATE_STORE).get("config", {}) or {}
     except Exception:
-        return defaults  # not under PyRunner / no store yet — import stays safe
+        return defaults  # not under PyRun / no store yet — import stays safe
     merged = {**defaults, **cfg}
     merged["tags"] = dict(merged.get("tags") or {})
     merged["max_pages_per_run"] = int(merged.get("max_pages_per_run") or 30)
@@ -1288,7 +1288,7 @@ def sync_avatars(conn):
     try:
         import pyrunner_storage
     except Exception:
-        log("🖼️  Avatar archiving skipped — pyrunner_storage unavailable (needs PyRunner 1.16+).")
+        log("🖼️  Avatar archiving skipped — pyrunner_storage unavailable (needs PyRun 1.16+).")
         return 0
     try:
         # Cheap availability probe BEFORE downloading any image: no assets
@@ -1616,7 +1616,7 @@ def _email_shell(title, color, intro, body_html):
         f'<p style="color:#6b7280;font-size:13px;">{esc(intro)}</p>'
         f"{body_html}"
         '<p style="color:#9ca3af;font-size:11px;margin-top:24px;">'
-        "YouTube Comments AI · PyRunner</p></div>"
+        "YouTube Comments AI · PyRun</p></div>"
     )
 
 
@@ -1729,7 +1729,7 @@ def send_digest_email(stats_row, tag_counts, analyzed):
 # CHANNEL ALERTS (optional — a named messaging Channel via pyrunner_notify)
 # =============================================================================
 #
-# The channel is addressed by NAME; PyRunner resolves the transport (Telegram
+# The channel is addressed by NAME; PyRun resolves the transport (Telegram
 # today, anything Channels supports tomorrow), so the plugin never knows or
 # cares which provider is behind it. Chat messages are compact plain text —
 # no HTML, few items, deep links.
@@ -2110,12 +2110,12 @@ def main():
     try:
         from pyrunner_datastore import DataStore
     except Exception:
-        log("❌ pyrunner_datastore unavailable — must run under PyRunner.")
+        log("❌ pyrunner_datastore unavailable — must run under PyRun.")
         sys.exit(1)
     try:
         import pyrunner_db
     except Exception:
-        log("❌ pyrunner_db unavailable — must run under PyRunner.")
+        log("❌ pyrunner_db unavailable — must run under PyRun.")
         sys.exit(1)
 
     store = DataStore(STATE_STORE)

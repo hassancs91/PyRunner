@@ -490,7 +490,7 @@ def _get_q_cluster_config():
     from pyrunner.qconfig import compute_effective_q_config
 
     base = {
-        "name": "PyRunner",
+        "name": "PyRun",
         "workers": int(os.environ.get("Q_WORKERS", 2)),
         "timeout": 600 if os.name != "nt" else 0,
         "retry": 660,
@@ -520,7 +520,7 @@ if os.name == "nt":
     )
 
 
-# PyRunner Configuration
+# PyRun Configuration
 DATA_DIR = BASE_DIR / "data"
 ENVIRONMENTS_ROOT = DATA_DIR / "environments"
 SCRIPTS_WORKDIR = DATA_DIR / "workdir"
@@ -611,7 +611,7 @@ LOGGING = {
 # Per-IP rate limiters (webhook + inbound-channel) key on the client IP. Behind a
 # reverse proxy the direct peer is the proxy, so every caller shares one IP and the
 # per-IP limit becomes instance-global. Set this to the number of trusted proxy hops
-# in front of PyRunner (e.g. 1 for a single Coolify/Traefik edge) to derive the
+# in front of PyRun (e.g. 1 for a single Coolify/Traefik edge) to derive the
 # client IP from the RIGHT of X-Forwarded-For (the entry your trusted proxy appended,
 # which callers cannot forge). 0 (default) = use REMOTE_ADDR — correct with no proxy.
 RATELIMIT_TRUSTED_PROXY_DEPTH = int(os.environ.get("RATELIMIT_TRUSTED_PROXY_DEPTH", "0"))
@@ -716,7 +716,7 @@ PYRUNNER_DATA_DB_CONNECTION_LIMIT = int(
     os.environ.get("PYRUNNER_DATA_DB_CONNECTION_LIMIT", "10")
 )
 
-# Per-run env hardening: PyRunner's own infra secrets are never copied into a
+# Per-run env hardening: PyRun's own infra secrets are never copied into a
 # script's environment (scripts get their own values via the Secrets feature).
 # PYRUNNER_DATA_DB_URL is the data-server PROVISIONER credential — scripts get
 # per-database scoped credentials via the pyrunner_db helper, never this one.

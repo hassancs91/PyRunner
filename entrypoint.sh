@@ -9,7 +9,7 @@ if [ "$#" -gt 0 ]; then
 fi
 
 echo "=========================================="
-echo "  PyRunner - Starting up..."
+echo "  PyRun - Starting up..."
 echo "=========================================="
 
 # Validate required environment variables. Also reject the two literal values
@@ -55,7 +55,7 @@ PYRUNNER_DISABLE_PLUGINS=1 python manage.py setup
 PLUGINS_DIR="${PLUGINS_DIR:-/app/plugins}"
 mkdir -p "$PLUGINS_DIR"
 if [ ! -f "$PLUGINS_DIR/__init__.py" ]; then
-    echo "# PyRunner plugins package (auto-seeded). Do not delete." > "$PLUGINS_DIR/__init__.py"
+    echo "# PyRun plugins package (auto-seeded). Do not delete." > "$PLUGINS_DIR/__init__.py"
 fi
 
 # Plugin Dev Mode (Plugin Platform v2, WS1): when PYRUNNER_PLUGIN_DEV points at a
@@ -140,7 +140,7 @@ monitor_workers &
 echo "    - Starting web server on port ${PORT:-8000}..."
 echo ""
 echo "=========================================="
-echo "  PyRunner is ready!"
+echo "  PyRun is ready!"
 # PUBLIC_PORT is the host-side published port (set by compose from the host
 # PORT). PORT here is the container-internal bind (pinned 8000), so it would be
 # wrong to show whenever the host maps a different port. Fall back to it only

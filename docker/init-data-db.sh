@@ -21,7 +21,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     REVOKE CONNECT, TEMPORARY ON DATABASE ${POSTGRES_DB} FROM PUBLIC;
     -- The Databases monitor reads pg_stat_activity / pg_stat_statements query
     -- text of the per-database roles; without this, non-own query text shows
-    -- as <insufficient privilege>. (PyRunner still filters every monitor query
+    -- as <insufficient privilege>. (PyRun still filters every monitor query
     -- to the active workspace's roles.)
     GRANT pg_read_all_stats TO pyrunner_provisioner;
 EOSQL

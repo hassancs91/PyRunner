@@ -1,7 +1,7 @@
 """
 Tests for the Brand Tracker plugin.
 
-These run inside the PyRunner repo with the normal Django test runner — the
+These run inside the PyRun repo with the normal Django test runner — the
 plugin is developed in-tree, so ``core.plugins.api`` is importable and the SDK is
 exercised for real (no fakes). They are imported into the main suite by the thin
 shim ``core/test_brand_tracker_plugin.py``, which splices ``examples/`` onto the
@@ -182,7 +182,7 @@ class ConfigFormTests(SimpleTestCase):
 
     def _form(self, *, configured=frozenset(), **over):
         data = {
-            "keywords": "SimplerLLM\nPyRunner",
+            "keywords": "SimplerLLM\nPyRun",
             "excluded_domains": "",
             "num_results": "10",
             "news_enabled": "on",
@@ -283,7 +283,7 @@ class ProvisionTests(TestCase):
 
     def _data(self, **over):
         data = {
-            "keywords": "SimplerLLM\nPyRunner",
+            "keywords": "SimplerLLM\nPyRun",
             "excluded_domains": "learnwithhasan.com",
             "news_enabled": True,
             "hackernews_enabled": True,
@@ -328,7 +328,7 @@ class ProvisionTests(TestCase):
         self.assertEqual(self._counts(),
                          {"scripts": 1, "secrets": 1, "stores": 1, "grants": 1, "schedules": 1})
         cfg = prov.get_config()
-        self.assertEqual(cfg["keywords"], ["SimplerLLM", "PyRunner"])
+        self.assertEqual(cfg["keywords"], ["SimplerLLM", "PyRun"])
         self.assertEqual(cfg["excluded_domains"], ["learnwithhasan.com"])
         self.assertEqual(cfg["retention_days"], 90)
 
@@ -390,13 +390,13 @@ class ProvisionTests(TestCase):
 # --------------------------------------------------------------------------- #
 
 _MENTIONS = [
-    {"keyword": "PyRunner", "title": "Old post", "url": "https://a.example/1",
+    {"keyword": "PyRun", "title": "Old post", "url": "https://a.example/1",
      "snippet": "s1", "source": "web", "source_type": "blog",
      "sentiment": "neutral", "found_at": "2026-07-01T08:00:00"},
     {"keyword": "SimplerLLM", "title": "HN thread", "url": "https://b.example/2",
      "snippet": "s2", "source": "hackernews", "source_type": "forum",
      "sentiment": "positive", "found_at": "2026-07-10T08:00:00"},
-    {"keyword": "PyRunner", "title": "Fresh review", "url": "https://c.example/3",
+    {"keyword": "PyRun", "title": "Fresh review", "url": "https://c.example/3",
      "snippet": "s3", "source": "news", "source_type": "news",
      "sentiment": "positive", "found_at": "2026-07-14T08:00:00"},
 ]
@@ -405,7 +405,7 @@ _STATS = {
     "last_run": "2026-07-14T09:00:00",
     "window_total": 3,
     "total_all_time": 41,
-    "by_keyword": {"PyRunner": 2, "SimplerLLM": 1},
+    "by_keyword": {"PyRun": 2, "SimplerLLM": 1},
     "by_source": {"web": 1, "hackernews": 1, "news": 1},
 }
 
@@ -453,7 +453,7 @@ class ApiHandlerTests(TestCase):
     def test_mentions_filters(self):
         from . import api
 
-        by_kw = api.mentions(_api_request(self.ws, "mentions", {"keyword": "PyRunner"}))
+        by_kw = api.mentions(_api_request(self.ws, "mentions", {"keyword": "PyRun"}))
         self.assertEqual(by_kw["count"], 2)
         by_src = api.mentions(_api_request(self.ws, "mentions", {"source": "news"}))
         self.assertEqual(by_src["count"], 1)
@@ -501,7 +501,7 @@ class ApiHandlerTests(TestCase):
 
         body = api.stats(_api_request(self.ws, "stats"))
         self.assertEqual(body["total_all_time"], 41)
-        self.assertEqual(body["by_keyword"], {"PyRunner": 2, "SimplerLLM": 1})
+        self.assertEqual(body["by_keyword"], {"PyRun": 2, "SimplerLLM": 1})
         self.assertEqual(len(body["runs"]), 1)
 
 
@@ -544,7 +544,7 @@ class ApiDispatchTests(TestCase):
 
     def test_mentions_feed_over_http(self):
         resp = self._get(
-            "/api/v1/plugins/brand_tracker/mentions/?keyword=PyRunner&page_size=1"
+            "/api/v1/plugins/brand_tracker/mentions/?keyword=PyRun&page_size=1"
         )
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
@@ -652,7 +652,7 @@ class PublicReportPageTests(TestCase):
 
         store = DataStoreAPI(owner=prov.OWNER, workspace=self.ws).get(prov.STORE_KEY)
         store.set("mentions", [{
-            "keyword": "PyRunner", "title": '<script>alert(1)</script>',
+            "keyword": "PyRun", "title": '<script>alert(1)</script>',
             "url": "https://x.example/", "snippet": "", "source": "web",
             "source_type": "", "sentiment": "", "found_at": "2026-07-14T08:00:00",
         }])

@@ -3,7 +3,7 @@ General settings tests — the Settings → General card must DO what it says.
 
 Regression for review 8.1: instance_name, timezone, date_format and
 time_format were stored, validated, and backed up but consumed by nothing —
-the header hardcoded "PyRunner", emails hardcoded "[PyRunner]", and all
+the header hardcoded "PyRun", emails hardcoded "[PyRun]", and all
 datetimes rendered in UTC. Now instance_name drives the header/title/email
 subjects, timezone drives display (TimezoneMiddleware) and scheduled-backup
 times, and the two format fields are gone. Also covers review 6.3: the
@@ -79,7 +79,7 @@ class InstanceNameTests(TestCase):
         gs = GlobalSettings.get_settings()
         gs.instance_name = ""
         gs.save()
-        self.assertEqual(NotificationService._subject("Test Email"), "[PyRunner] Test Email")
+        self.assertEqual(NotificationService._subject("Test Email"), "[PyRun] Test Email")
 
 
 class TimezoneChoicesTests(TestCase):
