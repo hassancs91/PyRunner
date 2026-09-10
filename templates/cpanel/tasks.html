@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Tasks - PyRunner{% endblock %}
+{% block title %}Tasks - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -85,8 +85,8 @@
                     </thead>
                     <tbody class="divide-y divide-line-soft">
                         {% for task in running_tasks %}
-                        <tr class="hover:bg-panel-hi/50 transition-colors">
-                            <td class="px-6 py-3.5"><a href="{% url 'cpanel:task_detail' task_id=task.id %}" class="font-mono text-xs text-info hover:underline">{{ task.id|truncatechars:24 }}</a></td>
+                        <tr data-href="{% url 'cpanel:task_detail' task_id=task.id %}" tabindex="0" class="cursor-pointer hover:bg-panel-hi/50 focus:outline-none focus-visible:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5"><span class="font-mono text-xs text-info">{{ task.id|truncatechars:24 }}</span></td>
                             <td class="px-6 py-3.5 text-sm">{% if task.linked_run %}<a href="{% url 'cpanel:run_detail' pk=task.linked_run.pk %}" class="text-info hover:underline">{{ task.linked_run.script.name }}</a>{% else %}<span class="text-faint">—</span>{% endif %}</td>
                             <td class="px-6 py-3.5 text-xs text-faint">{{ task.started_at|timesince }} ago</td>
                             <td class="px-6 py-3.5 text-right font-mono tnum text-xs text-muted">{% if task.pid %}{{ task.pid }}{% else %}—{% endif %}</td>
@@ -127,8 +127,8 @@
                     </thead>
                     <tbody class="divide-y divide-line-soft" id="queued-tasks-body">
                         {% for task in queued_tasks %}
-                        <tr class="hover:bg-panel-hi/50 transition-colors">
-                            <td class="px-6 py-3.5"><a href="{% url 'cpanel:task_detail' task_id=task.id %}" class="font-mono text-xs text-info hover:underline">{{ task.id|truncatechars:24 }}</a></td>
+                        <tr data-href="{% url 'cpanel:task_detail' task_id=task.id %}" tabindex="0" class="cursor-pointer hover:bg-panel-hi/50 focus:outline-none focus-visible:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5"><span class="font-mono text-xs text-info">{{ task.id|truncatechars:24 }}</span></td>
                             <td class="px-6 py-3.5">
                                 <span class="text-xs px-2 py-0.5 rounded-md {% if task.type == 'script_run' %}bg-info/10 text-info{% else %}bg-panel-hi text-muted{% endif %}">{% if task.type == 'script_run' %}Script run{% else %}System{% endif %}</span>
                             </td>
@@ -168,8 +168,8 @@
                             </thead>
                             <tbody class="divide-y divide-line-soft">
                                 {% for task in completed_tasks %}
-                                <tr class="hover:bg-panel-hi/50 transition-colors">
-                                    <td class="px-6 py-3 max-w-[16rem]" title="{{ task.name }}"><a href="{% url 'cpanel:task_detail' task_id=task.id %}" class="font-mono text-xs text-info hover:underline truncate block">{{ task.name|truncatechars:30 }}</a></td>
+                                <tr data-href="{% url 'cpanel:task_detail' task_id=task.id %}" tabindex="0" class="cursor-pointer hover:bg-panel-hi/50 focus:outline-none focus-visible:bg-panel-hi/50 transition-colors">
+                                    <td class="px-6 py-3 max-w-[16rem]" title="{{ task.name }}"><span class="font-mono text-xs text-info truncate block">{{ task.name|truncatechars:30 }}</span></td>
                                     <td class="px-6 py-3">
                                         <span class="text-xs px-2 py-0.5 rounded-md {% if task.type == 'script_run' %}bg-info/10 text-info{% else %}bg-panel-hi text-muted{% endif %}">{% if task.type == 'script_run' %}Script run{% else %}System{% endif %}</span>
                                     </td>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Runs - PyRunner{% endblock %}
+{% block title %}Runs - {{ instance_name }}{% endblock %}
 
 {% block content %}
 <div class="flex">
@@ -57,9 +57,10 @@
                     </thead>
                     <tbody class="divide-y divide-line-soft">
                         {% for run in runs %}
-                        <tr class="group hover:bg-panel-hi/50 transition-colors">
+                        <tr data-href="{% url 'cpanel:run_detail' pk=run.pk %}" tabindex="0"
+                            class="group cursor-pointer hover:bg-panel-hi/50 focus:outline-none focus-visible:bg-panel-hi/50 transition-colors">
                             <td class="px-6 py-3.5">
-                                <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="text-[13.5px] font-medium text-text hover:text-ok transition-colors">{{ run.script.name }}</a>
+                                <span class="text-[13.5px] font-medium text-text group-hover:text-ok transition-colors">{{ run.script.name }}</span>
                             </td>
                             <td class="px-6 py-3.5">
                                 <div class="flex items-center gap-1.5">
@@ -77,14 +78,14 @@
                             <td class="px-6 py-3.5 text-sm text-muted truncate max-w-[12rem]">{% if run.triggered_by %}{{ run.triggered_by.email }}{% else %}<span class="text-faint">System</span>{% endif %}</td>
                             <td class="px-6 py-3.5 text-right text-xs text-faint whitespace-nowrap">{% if run.started_at %}{{ run.started_at|date:"M d, H:i" }}{% else %}{{ run.created_at|date:"M d, H:i" }}{% endif %}</td>
                             <td class="px-6 py-3.5 text-right">
-                                <a href="{% url 'cpanel:run_detail' pk=run.pk %}" class="inline-grid place-items-center w-7 h-7 rounded-md text-faint group-hover:text-text hover:bg-panel-hi transition-colors" title="View run">
+                                <span class="inline-grid place-items-center w-7 h-7 rounded-md text-faint group-hover:text-text transition-colors" aria-hidden="true">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                                </a>
+                                </span>
                             </td>
                         </tr>
                         {% if run.stderr %}
-                        {# Collapsed by default. `hidden` also keeps this row out of the
-                           tbody's divide-y selector, so collapsed rows add no rule. #}
+                        {% comment %}Collapsed by default. `hidden` also keeps this row out of the
+                           tbody's divide-y selector, so collapsed rows add no rule.{% endcomment %}
                         <tr id="run-err-{{ run.pk }}" hidden class="bg-fail/[0.04] !border-t-0">
                             <td colspan="6" class="px-6 pb-4">
                                 <div class="rounded-lg border border-fail/30 overflow-hidden">

@@ -364,13 +364,19 @@ class ExecutorEndToEndTests(_RunFixtureMixin, TestCase):
     def test_staging_dir_is_cleaned_up(self, _val):
         from django.conf import settings
 
+        # The workdir is shared with real runs on a dev machine; a stale
+        # staging dir from an earlier (Windows-locked) run must not fail this
+        # test, so only dirs created by THIS run count.
+        before = {
+            p for p in os.listdir(settings.SCRIPTS_WORKDIR) if p.startswith("libs-")
+        }
         run = self._run(self._script("print('ok')"))
         stamp_library_versions(run)
         execute_run(run)
-        leftovers = [
+        after = {
             p for p in os.listdir(settings.SCRIPTS_WORKDIR) if p.startswith("libs-")
-        ]
-        self.assertEqual(leftovers, [])
+        }
+        self.assertEqual(sorted(after - before), [])
 
     @_stub_python
     def test_library_cannot_shadow_a_pyrunner_helper(self, _val):

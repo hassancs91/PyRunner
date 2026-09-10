@@ -1,158 +1,401 @@
 {% extends "base.html" %}
 
-{% block title %}Py AI - PyRunner{% endblock %}
+{% block title %}Py AI - {{ instance_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Assistant answers are rendered from a small, escaped markdown subset (see renderMarkdown). */
+    .pyai-md { line-height: 1.6; word-break: break-word; }
+    .pyai-md > * + * { margin-top: .6em; }
+    .pyai-md p { margin: 0; }
+    .pyai-md h1, .pyai-md h2, .pyai-md h3 { font-weight: 600; font-size: 0.95em; margin-top: .9em; }
+    .pyai-md ul, .pyai-md ol { padding-left: 1.35em; margin: 0; }
+    .pyai-md ul { list-style: disc; }
+    .pyai-md ol { list-style: decimal; }
+    .pyai-md li + li { margin-top: .25em; }
+    .pyai-md a { color: rgb(var(--info)); text-decoration: underline; text-underline-offset: 2px; }
+    .pyai-md code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: .86em;
+        background: rgb(var(--ink));
+        border: 1px solid rgb(var(--line-soft));
+        border-radius: 5px;
+        padding: .1em .4em;
+    }
+    .pyai-md pre {
+        background: rgb(var(--ink));
+        border: 1px solid rgb(var(--line));
+        border-radius: 10px;
+        padding: .75rem .9rem;
+        overflow-x: auto;
+        font-size: .82rem;
+        line-height: 1.55;
+    }
+    .pyai-md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+    .pyai-md table { border-collapse: collapse; font-size: .9em; display: block; overflow-x: auto; max-width: 100%; }
+    .pyai-md th, .pyai-md td { border: 1px solid rgb(var(--line)); padding: .3em .6em; text-align: left; }
+    .pyai-md th { background: rgb(var(--panel-hi)); font-weight: 600; }
+    .pyai-md hr { border: 0; border-top: 1px solid rgb(var(--line)); }
+
+    /* Typing indicator */
+    .pyai-dots span {
+        display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 9999px;
+        background: rgb(var(--faint)); animation: pyai-bounce 1.2s infinite ease-in-out;
+    }
+    .pyai-dots span:nth-child(2) { animation-delay: .15s; }
+    .pyai-dots span:nth-child(3) { animation-delay: .3s; margin-right: 0; }
+    @keyframes pyai-bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: .45; }
+        40% { transform: translateY(-4px); opacity: 1; }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="flex">
     {% include "cpanel/_sidebar.html" %}
 
     <div class="flex-1 min-w-0">
-        <div class="px-5 lg:px-8 py-7 max-w-3xl mx-auto space-y-5">
+        {# Full-height chat column: viewport minus the 4rem sticky header. dvh tracks mobile browser chrome. #}
+        <div class="flex flex-col h-[calc(100vh-4rem)] supports-[height:100dvh]:h-[calc(100dvh-4rem)]">
 
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h1 class="text-[22px] font-semibold tracking-tight">Py AI</h1>
-                    <p class="text-sm text-muted mt-1">A read-only assistant that answers questions about this PyRunner instance.</p>
+            <!-- Top bar -->
+            <div class="flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-line bg-ink">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="w-9 h-9 rounded-xl bg-ok/15 grid place-items-center flex-shrink-0">
+                        <svg class="w-[18px] h-[18px] text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3zM5 19l.6 1.4L7 21l-1.4.6L5 23l-.6-1.4L3 21l1.4-.6L5 19zM19 15l.6 1.4L21 17l-1.4.6L19 19l-.6-1.4L17 17l1.4-.6L19 15z"/></svg>
+                    </span>
+                    <div class="min-w-0">
+                        <h1 class="text-[17px] font-semibold tracking-tight leading-tight">Py AI</h1>
+                        <p class="text-xs text-muted truncate hidden sm:block">Read-only assistant for this {{ instance_name }} instance</p>
+                    </div>
+                    {% if available %}
+                    <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-ok/10 text-ok text-[11px] font-medium px-2 py-0.5 leading-none"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                    {% elif not claude_configured %}
+                    <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-warn/10 text-warn text-[11px] font-medium px-2 py-0.5 leading-none"><span class="w-1.5 h-1.5 rounded-full bg-warn"></span>No provider</span>
+                    {% else %}
+                    <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-panel-hi text-muted text-[11px] font-medium px-2 py-0.5 leading-none"><span class="w-1.5 h-1.5 rounded-full bg-faint"></span>Off</span>
+                    {% endif %}
                 </div>
-                <button id="pyai-clear" type="button" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Clear chat</button>
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                    <button id="pyai-clear" type="button" title="Clear chat" aria-label="Clear chat"
+                            class="h-9 px-2.5 sm:px-3 inline-flex items-center gap-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors text-[13px]">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <span class="hidden sm:inline">Clear</span>
+                    </button>
+                    {% if is_superuser and settings_form %}
+                    <button id="pyai-settings-open" type="button" title="Py AI settings" aria-label="Py AI settings" aria-haspopup="dialog" aria-controls="pyai-settings-modal"
+                            class="w-9 h-9 grid place-items-center rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">
+                        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </button>
+                    {% endif %}
+                </div>
             </div>
 
-            {% if not claude_configured %}
-            <div class="rounded-2xl border border-warn/30 bg-warn/10 p-5 text-sm">
-                <p class="font-medium text-warn">No AI provider is configured</p>
-                <p class="text-muted mt-1">Py AI uses your active AI provider. Set it up under <a href="{% url 'cpanel:services' %}" class="text-info hover:underline">Services → AI Provider</a> first.</p>
-            </div>
-            {% elif not pyai_enabled %}
-            <div class="rounded-2xl border border-info/30 bg-info/10 p-5 text-sm">
-                <p class="font-medium text-info">Py AI is turned off</p>
-                <p class="text-muted mt-1">{% if is_superuser %}Enable it below to start chatting.{% else %}Ask an administrator to enable it.{% endif %}</p>
-            </div>
-            {% endif %}
+            <!-- Transcript -->
+            <div id="pyai-transcript" class="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+                <div id="pyai-messages" class="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6"></div>
 
-            <!-- Chat -->
-            <section class="rounded-2xl border border-line bg-panel flex flex-col" style="height: 60vh; min-height: 420px;">
-                <div id="pyai-transcript" class="flex-1 overflow-y-auto scrollbar-thin p-5 space-y-4">
-                    {% for turn in history %}
-                        {% if turn.role == 'user' %}
-                        <div class="flex justify-end"><div class="max-w-[80%] rounded-2xl rounded-br-sm bg-ok/15 text-text px-4 py-2.5 text-sm whitespace-pre-wrap">{{ turn.text }}</div></div>
-                        {% else %}
-                        <div class="flex justify-start"><div class="max-w-[80%] rounded-2xl rounded-bl-sm bg-panel-hi text-text px-4 py-2.5 text-sm whitespace-pre-wrap">{{ turn.text }}</div></div>
-                        {% endif %}
-                    {% empty %}
-                    <div class="h-full grid place-items-center text-center">
-                        <div>
-                            <p class="text-sm text-muted">Ask me about your instance.</p>
-                            <p class="text-xs text-faint mt-2">"How many scripts do I have?" · "Did anything fail recently?" · "What's in the results datastore?"</p>
+                <div id="pyai-empty" class="h-full grid place-items-center px-6 text-center">
+                    <div class="max-w-md">
+                        <div class="w-12 h-12 rounded-2xl bg-ok/10 grid place-items-center mx-auto mb-4">
+                            <svg class="w-6 h-6 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg>
+                        </div>
+                        <h2 class="text-base font-semibold">Ask about your instance</h2>
+                        <p class="text-sm text-muted mt-1.5">Py AI can look at scripts, runs, schedules, and datastores in this workspace. It never runs, edits, or deletes anything, and never sees your secrets.</p>
+                        <div class="mt-5 grid gap-2 sm:grid-cols-2 text-left">
+                            <button type="button" data-suggest="How many scripts do I have, and which ran most recently?" class="pyai-suggest rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13px] text-muted hover:text-text hover:border-faint transition-colors text-left">How many scripts do I have?</button>
+                            <button type="button" data-suggest="Did any runs fail in the last 24 hours? Summarize what went wrong." class="pyai-suggest rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13px] text-muted hover:text-text hover:border-faint transition-colors text-left">Did anything fail recently?</button>
+                            <button type="button" data-suggest="What schedules are active and when do they run next?" class="pyai-suggest rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13px] text-muted hover:text-text hover:border-faint transition-colors text-left">What's scheduled next?</button>
+                            <button type="button" data-suggest="List my datastores and describe what each one holds." class="pyai-suggest rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[13px] text-muted hover:text-text hover:border-faint transition-colors text-left">What's in my datastores?</button>
                         </div>
                     </div>
-                    {% endfor %}
                 </div>
-                <form id="pyai-form" class="border-t border-line-soft p-3 flex items-end gap-2">
-                    <textarea id="pyai-input" rows="1" placeholder="Ask Py AI…" {% if not available %}disabled{% endif %}
-                        class="flex-1 resize-none px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors"></textarea>
-                    <button type="submit" {% if not available %}disabled{% endif %}
-                        class="text-[13px] font-medium px-4 py-2.5 rounded-lg bg-ok text-ink hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">Send</button>
-                </form>
-            </section>
-
-            <p class="text-xs text-faint">Py AI can read scripts, runs, schedules, and datastores in this workspace. It can't run, edit, or delete anything, and never sees your secrets.</p>
-
-            {% if is_superuser and settings_form %}
-            <div class="rounded-2xl border border-line bg-panel p-6">
-                <h2 class="text-base font-semibold mb-1">Settings</h2>
-                <p class="text-sm text-muted mb-4">Instance-wide Py AI configuration.</p>
-                <form method="post" action="{% url 'cpanel:pyai_settings' %}" class="space-y-4">
-                    {% csrf_token %}
-                    <label class="flex items-center gap-2.5 cursor-pointer">
-                        {{ settings_form.pyai_enabled }}
-                        <span class="text-sm text-text">{{ settings_form.pyai_enabled.label }}</span>
-                    </label>
-                    <div>
-                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ settings_form.pyai_model.label }}</label>
-                        {{ settings_form.pyai_model }}
-                        <p class="mt-1.5 text-xs text-faint">{{ settings_form.pyai_model.help_text }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ settings_form.pyai_system_prompt.label }}</label>
-                        {{ settings_form.pyai_system_prompt }}
-                    </div>
-                    <div class="flex justify-end pt-2 border-t border-line-soft">
-                        <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
-                    </div>
-                </form>
             </div>
-            {% endif %}
 
+            <!-- Composer -->
+            <div class="border-t border-line bg-ink pb-[env(safe-area-inset-bottom)]">
+                <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-3 pb-3 space-y-2.5">
+                    {% if not claude_configured %}
+                    <div class="flex items-center justify-between gap-3 rounded-xl border border-warn/30 bg-warn/10 px-3.5 py-2 text-xs">
+                        <p class="text-warn"><span class="font-medium">No AI provider is configured.</span> <span class="text-muted">Py AI uses your active AI provider.</span></p>
+                        <a href="{% url 'cpanel:services' %}" class="flex-shrink-0 font-medium text-warn hover:underline">Set up &rarr;</a>
+                    </div>
+                    {% elif not pyai_enabled %}
+                    <div class="flex items-center justify-between gap-3 rounded-xl border border-info/30 bg-info/10 px-3.5 py-2 text-xs">
+                        <p class="text-info"><span class="font-medium">Py AI is turned off.</span> <span class="text-muted">{% if is_superuser %}Enable it in settings to start chatting.{% else %}Ask an administrator to enable it.{% endif %}</span></p>
+                        {% if is_superuser and settings_form %}
+                        <button type="button" id="pyai-settings-open-inline" class="flex-shrink-0 font-medium text-info hover:underline">Open settings &rarr;</button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <form id="pyai-form" class="relative">
+                        <textarea id="pyai-input" rows="1" placeholder="Ask Py AI…" {% if not available %}disabled{% endif %}
+                            class="block w-full resize-none pl-4 pr-14 py-3 bg-panel border border-line rounded-2xl text-text text-sm placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
+                        <button id="pyai-send" type="submit" {% if not available %}disabled{% endif %} title="Send" aria-label="Send"
+                            class="absolute right-2 bottom-2 w-9 h-9 grid place-items-center rounded-xl bg-ok text-ink hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6"/></svg>
+                        </button>
+                    </form>
+                    <p class="text-[11px] text-faint text-center hidden sm:block">Enter to send · Shift+Enter for a new line · Read-only: Py AI can't change anything</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+{% if is_superuser and settings_form %}
+<!-- Settings modal (superuser only; instance-global config) -->
+<div id="pyai-settings-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="pyai-settings-title">
+    <div class="absolute inset-0 bg-black/50" data-pyai-settings-close></div>
+    <div class="absolute inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
+        <div class="pointer-events-auto w-full sm:max-w-lg max-h-[92vh] overflow-y-auto scrollbar-thin bg-panel border border-line rounded-t-2xl sm:rounded-2xl shadow-2xl">
+            <div class="flex items-center justify-between px-5 sm:px-6 pt-5 pb-3">
+                <div>
+                    <h2 id="pyai-settings-title" class="text-base font-semibold">Py AI settings</h2>
+                    <p class="text-xs text-muted mt-0.5">Applies to the whole instance.</p>
+                </div>
+                <button type="button" data-pyai-settings-close aria-label="Close" class="w-8 h-8 grid place-items-center rounded-lg text-muted hover:text-text hover:bg-panel-hi transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form method="post" action="{% url 'cpanel:pyai_settings' %}" class="px-5 sm:px-6 pb-5 sm:pb-6 space-y-4">
+                {% csrf_token %}
+                <label class="flex items-center justify-between gap-3 rounded-xl border border-line px-3.5 py-3 cursor-pointer">
+                    <span>
+                        <span class="block text-sm text-text">{{ settings_form.pyai_enabled.label }}</span>
+                        <span class="block text-xs text-faint mt-0.5">{% if claude_configured %}Uses the active AI provider.{% else %}Configure an AI provider first.{% endif %}</span>
+                    </span>
+                    {{ settings_form.pyai_enabled }}
+                </label>
+                <div>
+                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ settings_form.pyai_model.label }}</label>
+                    {{ settings_form.pyai_model }}
+                    <p class="mt-1.5 text-xs text-faint">{{ settings_form.pyai_model.help_text }}</p>
+                </div>
+                <div>
+                    <label class="block text-[13px] font-medium text-text mb-1.5">{{ settings_form.pyai_system_prompt.label }}</label>
+                    {{ settings_form.pyai_system_prompt }}
+                    <p class="mt-1.5 text-xs text-faint">Appended to the built-in system prompt. Use it for house rules or context about this instance.</p>
+                </div>
+                <div class="flex gap-3 pt-2 border-t border-line-soft">
+                    <button type="button" data-pyai-settings-close class="flex-1 text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</button>
+                    <button type="submit" class="flex-1 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{{ history|json_script:"pyai-history" }}
 <script>
 (function () {
     const csrf = "{{ csrf_token }}";
     const sendUrl = "{% url 'cpanel:pyai_send' %}";
     const clearUrl = "{% url 'cpanel:pyai_clear' %}";
     const transcript = document.getElementById("pyai-transcript");
+    const messages = document.getElementById("pyai-messages");
+    const empty = document.getElementById("pyai-empty");
     const form = document.getElementById("pyai-form");
     const input = document.getElementById("pyai-input");
+    const sendBtn = document.getElementById("pyai-send");
 
+    /* ---------- markdown (small, escaped subset) ---------- */
+    function escapeHtml(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function inline(s) {
+        // s is already HTML-escaped.
+        s = s.replace(/`([^`\n]+)`/g, function (_, c) { return "<code>" + c + "</code>"; });
+        s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+        s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+        s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        return s;
+    }
+    function renderMarkdown(text) {
+        const out = [];
+        const parts = escapeHtml(text.replace(/\r\n/g, "\n")).split(/```/);
+        parts.forEach(function (part, i) {
+            if (i % 2 === 1) {
+                const body = part.replace(/^[a-zA-Z0-9_-]*\n/, "").replace(/\n$/, "");
+                out.push("<pre><code>" + body + "</code></pre>");
+                return;
+            }
+            part.split(/\n{2,}/).forEach(function (block) {
+                const lines = block.split("\n").filter(function (l) { return l.trim() !== ""; });
+                if (!lines.length) return;
+                if (lines.every(function (l) { return /^\s*[-*]\s+/.test(l); })) {
+                    out.push("<ul>" + lines.map(function (l) { return "<li>" + inline(l.replace(/^\s*[-*]\s+/, "")) + "</li>"; }).join("") + "</ul>");
+                } else if (lines.every(function (l) { return /^\s*\d+[.)]\s+/.test(l); })) {
+                    out.push("<ol>" + lines.map(function (l) { return "<li>" + inline(l.replace(/^\s*\d+[.)]\s+/, "")) + "</li>"; }).join("") + "</ol>");
+                } else if (lines.length >= 2 && /^\s*\|/.test(lines[0]) && /^\s*\|?\s*:?-{2,}/.test(lines[1])) {
+                    const cells = function (l) { return l.trim().replace(/^\||\|$/g, "").split("|").map(function (c) { return inline(c.trim()); }); };
+                    const head = cells(lines[0]);
+                    const rows = lines.slice(2).map(cells);
+                    out.push("<table><thead><tr>" + head.map(function (c) { return "<th>" + c + "</th>"; }).join("") + "</tr></thead><tbody>" +
+                        rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>");
+                } else if (lines.length === 1 && /^#{1,3}\s+/.test(lines[0])) {
+                    out.push("<h3>" + inline(lines[0].replace(/^#{1,3}\s+/, "")) + "</h3>");
+                } else if (lines.length === 1 && /^(-{3,}|\*{3,})$/.test(lines[0].trim())) {
+                    out.push("<hr>");
+                } else {
+                    out.push("<p>" + lines.map(inline).join("<br>") + "</p>");
+                }
+            });
+        });
+        return out.join("");
+    }
+
+    /* ---------- rendering ---------- */
     function scrollDown() { transcript.scrollTop = transcript.scrollHeight; }
+    function showMessages() { if (empty) empty.classList.add("hidden"); }
 
-    function bubble(role, text) {
+    function userBubble(text) {
         const wrap = document.createElement("div");
-        wrap.className = "flex " + (role === "user" ? "justify-end" : "justify-start");
+        wrap.className = "flex justify-end";
         const b = document.createElement("div");
-        b.className = "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap " +
-            (role === "user" ? "rounded-br-sm bg-ok/15 text-text" : "rounded-bl-sm bg-panel-hi text-text");
+        b.className = "max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-br-md bg-ok/15 text-text px-4 py-2.5 text-sm whitespace-pre-wrap";
         b.textContent = text;
         wrap.appendChild(b);
-        transcript.appendChild(wrap);
+        messages.appendChild(wrap);
+        showMessages();
         scrollDown();
-        return b;
     }
 
-    if (form) {
-        // Auto-grow the textarea.
-        input.addEventListener("input", function () {
-            input.style.height = "auto";
-            input.style.height = Math.min(input.scrollHeight, 160) + "px";
-        });
-        input.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
-        });
-
-        form.addEventListener("submit", function (e) {
-            e.preventDefault();
-            const message = input.value.trim();
-            if (!message) return;
-            // clear the empty-state placeholder on first message
-            if (transcript.querySelector(".grid")) transcript.innerHTML = "";
-            bubble("user", message);
-            input.value = ""; input.style.height = "auto";
-            input.disabled = true;
-            const thinking = bubble("assistant", "Py AI is thinking…");
-            thinking.classList.add("text-faint");
-
-            fetch(sendUrl, {
-                method: "POST",
-                headers: { "X-CSRFToken": csrf, "Content-Type": "application/json" },
-                body: JSON.stringify({ message: message }),
-            }).then(r => r.json().then(d => ({ ok: r.ok, d })))
-              .then(({ ok, d }) => {
-                  thinking.classList.remove("text-faint");
-                  if (!ok) { thinking.textContent = d.error || "Something went wrong."; thinking.classList.add("text-fail"); }
-                  else { thinking.textContent = d.text || "(no answer)"; }
-                  scrollDown();
-              })
-              .catch(err => { thinking.textContent = "Request failed: " + err; thinking.classList.add("text-fail"); })
-              .finally(() => { input.disabled = false; input.focus(); });
-        });
+    function assistantMessage() {
+        const wrap = document.createElement("div");
+        wrap.className = "flex gap-3";
+        wrap.innerHTML =
+            '<span class="w-7 h-7 mt-0.5 rounded-lg bg-ok/15 grid place-items-center flex-shrink-0" aria-hidden="true">' +
+            '<svg class="w-3.5 h-3.5 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg></span>' +
+            '<div class="min-w-0 flex-1 max-w-[92%] sm:max-w-[85%]">' +
+            '<div class="pyai-body rounded-2xl rounded-tl-md bg-panel border border-line px-4 py-3 text-sm text-text"></div>' +
+            '<p class="pyai-tools text-[11px] text-faint mt-1.5 pl-1 hidden"></p></div>';
+        messages.appendChild(wrap);
+        showMessages();
+        scrollDown();
+        return wrap;
     }
+
+    function setAssistant(node, text, opts) {
+        opts = opts || {};
+        const body = node.querySelector(".pyai-body");
+        body.classList.remove("text-fail", "border-fail/40", "bg-fail/[0.06]");
+        if (opts.error) {
+            body.classList.add("text-fail", "border-fail/40", "bg-fail/[0.06]");
+            body.textContent = text;
+        } else {
+            body.innerHTML = '<div class="pyai-md">' + renderMarkdown(text) + "</div>";
+        }
+        const tools = node.querySelector(".pyai-tools");
+        if (opts.tools && opts.tools.length) {
+            tools.textContent = "Checked: " + opts.tools.join(" · ");
+            tools.classList.remove("hidden");
+        } else {
+            tools.classList.add("hidden");
+        }
+        scrollDown();
+    }
+
+    function setThinking(node) {
+        node.querySelector(".pyai-body").innerHTML =
+            '<span class="pyai-dots inline-flex items-center h-5" aria-label="Py AI is thinking"><span></span><span></span><span></span></span>';
+    }
+
+    // Replay the session history through the same renderer as live answers.
+    try {
+        const history = JSON.parse(document.getElementById("pyai-history").textContent || "[]");
+        history.forEach(function (turn) {
+            if (turn.role === "user") userBubble(turn.text || "");
+            else setAssistant(assistantMessage(), turn.text || "");
+        });
+    } catch (e) { /* no history */ }
+
+    /* ---------- composer ---------- */
+    function autogrow() {
+        input.style.height = "auto";
+        input.style.height = Math.min(input.scrollHeight, 200) + "px";
+    }
+    function setBusy(busy) {
+        input.disabled = busy || input.hasAttribute("data-unavailable");
+        sendBtn.disabled = busy || sendBtn.hasAttribute("data-unavailable");
+    }
+    if (input.disabled) { input.setAttribute("data-unavailable", ""); sendBtn.setAttribute("data-unavailable", ""); }
+
+    input.addEventListener("input", autogrow);
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+    });
+
+    document.querySelectorAll(".pyai-suggest").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            if (input.hasAttribute("data-unavailable")) return;
+            input.value = btn.getAttribute("data-suggest") || btn.textContent.trim();
+            autogrow();
+            form.requestSubmit();
+        });
+    });
+
+    form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        const message = input.value.trim();
+        if (!message || input.disabled) return;
+        userBubble(message);
+        input.value = ""; autogrow();
+        setBusy(true);
+        const node = assistantMessage();
+        setThinking(node);
+
+        fetch(sendUrl, {
+            method: "POST",
+            headers: { "X-CSRFToken": csrf, "Content-Type": "application/json" },
+            body: JSON.stringify({ message: message }),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+              if (!res.ok) setAssistant(node, res.d.error || "Something went wrong.", { error: true });
+              else setAssistant(node, res.d.text || "(no answer)", { tools: res.d.tools_used });
+          })
+          .catch(function (err) { setAssistant(node, "Request failed: " + err, { error: true }); })
+          .finally(function () { setBusy(false); if (!input.disabled) input.focus(); });
+    });
 
     document.getElementById("pyai-clear").addEventListener("click", function () {
         fetch(clearUrl, { method: "POST", headers: { "X-CSRFToken": csrf } })
-            .then(() => { transcript.innerHTML = '<div class="h-full grid place-items-center text-center"><div><p class="text-sm text-muted">Chat cleared.</p></div></div>'; });
+            .then(function () {
+                messages.innerHTML = "";
+                if (empty) empty.classList.remove("hidden");
+                if (!input.disabled) input.focus();
+            });
     });
+
+    /* ---------- settings modal ---------- */
+    const modal = document.getElementById("pyai-settings-modal");
+    if (modal) {
+        let lastFocus = null;
+        function openSettings() {
+            lastFocus = document.activeElement;
+            modal.classList.remove("hidden");
+            document.body.classList.add("overflow-hidden");
+            const first = modal.querySelector("input, textarea, select, button[type=submit]");
+            if (first) first.focus();
+        }
+        function closeSettings() {
+            modal.classList.add("hidden");
+            document.body.classList.remove("overflow-hidden");
+            if (lastFocus && lastFocus.focus) lastFocus.focus();
+        }
+        ["pyai-settings-open", "pyai-settings-open-inline"].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener("click", openSettings);
+        });
+        modal.querySelectorAll("[data-pyai-settings-close]").forEach(function (el) { el.addEventListener("click", closeSettings); });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && !modal.classList.contains("hidden")) closeSettings();
+        });
+        if (window.location.hash === "#settings") openSettings();
+    }
 })();
 </script>
 {% endblock %}
