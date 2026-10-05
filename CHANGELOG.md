@@ -57,6 +57,11 @@ begins tracking at the current release; earlier history is in the git log.
   search stdout too (it's the big column, so it's opt-in). The search
   composes with the status tabs and the script picker, and switching those
   keeps your query.
+- **Duration chart on the script page** — the last 30 finished runs as a
+  bar chart under Statistics, coloured by outcome, with the average drawn
+  across them and the slowest run called out. A script that is slowly
+  getting slower is visible at a glance instead of buried in the runs
+  list. Each bar links to its run. Rendered server-side, no JavaScript.
 
 ### Changed
 - **Rebranded to PyRun** — the product is now called PyRun and lives at

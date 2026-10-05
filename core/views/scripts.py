@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from django.http import HttpRequest, HttpResponse, JsonResponse
 
 from core.models import Script, Run, ScriptSchedule, ScheduleHistory, Library, ScriptLibrary, Secret, SecretGrant, Tag
+from core.charts import DURATION_CHART_MAX_BARS, duration_chart
 from core.forms import ScriptForm, ScheduleForm
 from core.tasks import queue_script_run
 from core.services.schedule_service import ScheduleService
@@ -254,6 +255,15 @@ def script_detail_view(request: HttpRequest, pk) -> HttpResponse:
     )
     recent_runs = script.runs.select_related("triggered_by").order_by("-created_at")[:10]
 
+    # Duration chart: the last N finished runs, oldest → newest. Only the two
+    # timestamps are needed, so skip the output columns entirely.
+    chart_runs = list(
+        script.runs.filter(started_at__isnull=False, ended_at__isnull=False)
+        .only("id", "status", "started_at", "ended_at")
+        .order_by("-created_at")[:DURATION_CHART_MAX_BARS]
+    )
+    chart_runs.reverse()
+
     # Ensure schedule exists for this script
     schedule, _ = ScriptSchedule.objects.get_or_create(
         script=script,
@@ -264,6 +274,7 @@ def script_detail_view(request: HttpRequest, pk) -> HttpResponse:
         "script": script,
         "recent_runs": recent_runs,
         "schedule": schedule,
+        "duration_chart": duration_chart(chart_runs),
     })
 
 

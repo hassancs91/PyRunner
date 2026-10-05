@@ -163,7 +163,38 @@
                                 </div>
                                 <div class="text-xs text-faint mt-0.5">Success rate</div>
                             </div>
-                        </div>                    </section>
+                        </div>
+
+                        <!-- Duration chart: last N finished runs, oldest → newest, server-rendered -->
+                        <div class="mt-5 pt-4 border-t border-line-soft">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="eyebrow text-faint">Duration · last {{ duration_chart.count }} run{{ duration_chart.count|pluralize }}</span>
+                                {% if duration_chart.count %}
+                                <span class="eyebrow text-faint">avg <span class="font-mono tnum text-muted">{{ duration_chart.avg_label }}</span></span>
+                                {% endif %}
+                            </div>
+                            {% if duration_chart.count %}
+                            <svg viewBox="0 0 {{ duration_chart.width }} {{ duration_chart.height }}" preserveAspectRatio="none" class="w-full h-20 block" role="img" aria-label="Run durations, oldest to newest">
+                                <line x1="0" x2="{{ duration_chart.width }}" y1="{{ duration_chart.avg_y }}" y2="{{ duration_chart.avg_y }}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" class="text-faint" vector-effect="non-scaling-stroke" opacity="0.6"/>
+                                {% for b in duration_chart.bars %}
+                                <a href="{% url 'cpanel:run_detail' pk=b.pk %}">
+                                    <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="1" fill="currentColor"
+                                          class="{% if b.status == 'success' %}text-ok{% elif b.status == 'failed' or b.status == 'timeout' %}text-fail{% elif b.status == 'cancelled' %}text-faint{% else %}text-warn{% endif %} hover:opacity-70 transition-opacity">
+                                        <title>{{ b.label }}</title>
+                                    </rect>
+                                </a>
+                                {% endfor %}
+                            </svg>
+                            <div class="flex items-center justify-between mt-2 text-xs text-faint">
+                                <span>older</span>
+                                <span>slowest <a href="{% url 'cpanel:run_detail' pk=duration_chart.slowest_pk %}" class="font-mono tnum text-muted hover:text-text hover:underline">{{ duration_chart.max_label }}</a> · last <span class="font-mono tnum text-muted">{{ duration_chart.last_label }}</span></span>
+                                <span>now</span>
+                            </div>
+                            {% else %}
+                            <p class="text-sm text-muted">No finished runs yet — durations show up here after the first run completes.</p>
+                            {% endif %}
+                        </div>
+                    </section>
                 </div>
             </div>
 
