@@ -51,6 +51,12 @@ begins tracking at the current release; earlier history is in the git log.
   with no webhook token, and its schedule is cloned paused so a duplicate
   never fires before you've looked at it. Run history stays with the
   original. You land on the copy's edit page.
+- **Search runs by output** — the Runs page has a search box that matches
+  script names and error output (stderr), so "which run raised KeyError?"
+  is one query instead of opening runs one by one. Tick *Include output* to
+  search stdout too (it's the big column, so it's opt-in). The search
+  composes with the status tabs and the script picker, and switching those
+  keeps your query.
 
 ### Changed
 - **Rebranded to PyRun** — the product is now called PyRun and lives at

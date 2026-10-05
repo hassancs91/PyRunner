@@ -18,26 +18,44 @@
             <!-- Filters -->
             <div class="flex items-center flex-wrap gap-3 justify-between">
                 <div class="inline-flex items-center flex-wrap gap-1 p-1 rounded-lg border border-line bg-panel">
-                    <a href="{% url 'cpanel:run_list' %}{% if script_filter %}?script={{ script_filter }}{% endif %}"
+                    <a href="{% url 'cpanel:run_list' %}{% if querystring_without_status %}?{{ querystring_without_status }}{% endif %}"
                        class="px-3 py-1.5 text-sm rounded-md transition-colors {% if not status_filter %}bg-panel-hi text-text font-medium{% else %}text-muted hover:text-text{% endif %}">All</a>
                     {% for value, label in status_choices %}
-                    <a href="{% url 'cpanel:run_list' %}?status={{ value }}{% if script_filter %}&script={{ script_filter }}{% endif %}"
+                    <a href="{% url 'cpanel:run_list' %}?status={{ value }}{% if querystring_without_status %}&{{ querystring_without_status }}{% endif %}"
                        class="px-3 py-1.5 text-sm rounded-md transition-colors {% if status_filter == value %}{% if value == 'success' %}bg-ok/10 text-ok{% elif value == 'failed' or value == 'timeout' %}bg-fail/10 text-fail{% elif value == 'running' %}bg-warn/10 text-warn{% else %}bg-panel-hi text-text{% endif %} font-medium{% else %}text-muted hover:text-text{% endif %}">{{ label }}</a>
                     {% endfor %}
                 </div>
 
-                {% if scripts %}
-                <div class="flex items-center gap-2">
-                    <span class="eyebrow text-faint">Script</span>
-                    <select onchange="window.location.href='{% url 'cpanel:run_list' %}{% if status_filter %}?status={{ status_filter }}&{% else %}?{% endif %}script=' + this.value"
-                            class="px-3 py-1.5 text-sm bg-panel border border-line rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-ok/40 focus:border-ok/50 transition">
-                        <option value="">All scripts</option>
-                        {% for script in scripts %}
-                        <option value="{{ script.pk }}" {% if script_filter == script.pk|stringformat:"s" %}selected{% endif %}>{{ script.name }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="flex items-center flex-wrap gap-3">
+                    <!-- Text search: script name + error output; stdout on request -->
+                    <form method="get" action="{% url 'cpanel:run_list' %}" class="flex items-center flex-wrap gap-2">
+                        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+                        {% if script_filter %}<input type="hidden" name="script" value="{{ script_filter }}">{% endif %}
+                        <div class="relative">
+                            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+                            <input type="search" name="q" value="{{ search_query }}" maxlength="200" placeholder="Search name or error output"
+                                   class="w-56 pl-8 pr-3 py-1.5 text-sm bg-panel border border-line rounded-lg text-text placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/40 focus:border-ok/50 transition">
+                        </div>
+                        <label class="flex items-center gap-1.5 text-xs text-muted cursor-pointer select-none" title="Also search stdout. Slower on large histories.">
+                            <input type="checkbox" name="deep" value="1" {% if search_output %}checked{% endif %} class="w-3.5 h-3.5 rounded text-ok bg-ink border-line focus:ring-ok/40 focus:ring-2">
+                            Include output
+                        </label>
+                        <button type="submit" class="px-3 py-1.5 text-sm rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Search</button>
+                    </form>
+
+                    {% if scripts %}
+                    <div class="flex items-center gap-2">
+                        <span class="eyebrow text-faint">Script</span>
+                        <select onchange="window.location.href='{% url 'cpanel:run_list' %}?script=' + this.value + '{% if querystring_without_script %}&{{ querystring_without_script|escapejs }}{% endif %}'"
+                                class="px-3 py-1.5 text-sm bg-panel border border-line rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-ok/40 focus:border-ok/50 transition">
+                            <option value="">All scripts</option>
+                            {% for script in scripts %}
+                            <option value="{{ script.pk }}" {% if script_filter == script.pk|stringformat:"s" %}selected{% endif %}>{{ script.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
 
             <!-- Runs table -->
@@ -113,12 +131,12 @@
                     <svg class="w-7 h-7 text-ok" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 </div>
                 <h3 class="text-base font-semibold mb-1">
-                    {% if status_filter or script_filter %}No runs match these filters{% else %}No runs yet{% endif %}
+                    {% if search_query %}No runs match “{{ search_query }}”{% elif status_filter or script_filter %}No runs match these filters{% else %}No runs yet{% endif %}
                 </h3>
                 <p class="text-sm text-muted mb-6">
-                    {% if status_filter or script_filter %}Try a different status or script.{% else %}Run a script to see its execution history here.{% endif %}
+                    {% if search_query and not search_output %}Searched script names and error output. Tick “Include output” to search stdout too.{% elif status_filter or script_filter or search_query %}Try a different status or script.{% else %}Run a script to see its execution history here.{% endif %}
                 </p>
-                {% if status_filter or script_filter %}
+                {% if status_filter or script_filter or search_query %}
                 <a href="{% url 'cpanel:run_list' %}" class="text-sm text-info hover:underline">Clear filters</a>
                 {% else %}
                 <a href="{% url 'cpanel:script_list' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">View scripts</a>
