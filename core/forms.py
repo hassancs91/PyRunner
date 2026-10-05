@@ -266,6 +266,26 @@ class ScheduleForm(forms.ModelForm):
     MONTHDAY_CHOICES = [(i, str(i)) for i in range(1, 32)]
     MONTH_CHOICES = [(i, calendar.month_name[i]) for i in range(1, 13)]
 
+    # Declared explicitly so min/max come from the model's bounds rather than
+    # PositiveIntegerField's default min=0; the form field's min_value/max_value
+    # also render as the <input> min/max attributes.
+    interval_minutes = forms.IntegerField(
+        required=False,
+        min_value=ScriptSchedule.INTERVAL_MIN_MINUTES,
+        max_value=ScriptSchedule.INTERVAL_MAX_MINUTES,
+        label="Every N minutes",
+        help_text=(
+            f"Any whole number from {ScriptSchedule.INTERVAL_MIN_MINUTES} to "
+            f"{ScriptSchedule.INTERVAL_MAX_MINUTES} (about 22 days)."
+        ),
+        widget=forms.NumberInput(
+            attrs={"class": INPUT_CLASS, "step": 1, "placeholder": "e.g. 7"}
+        ),
+    )
+    # Quick-pick buttons rendered next to the interval input (template reads
+    # this off the form so the views don't need to pass it through).
+    interval_presets = ScriptSchedule.INTERVAL_PRESETS
+
     # Custom field for daily times (comma-separated input)
     daily_times_input = forms.CharField(
         required=False,
@@ -362,12 +382,10 @@ class ScheduleForm(forms.ModelForm):
                     "class": "sr-only peer",
                 }
             ),
-            "interval_minutes": forms.Select(attrs={"class": INPUT_CLASS}),
             "is_active": forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         }
         labels = {
             "run_mode": "Run Mode",
-            "interval_minutes": "Interval",
             "is_active": "Schedule Active",
         }
 
@@ -462,7 +480,11 @@ class ScheduleForm(forms.ModelForm):
         run_mode = cleaned_data.get("run_mode")
 
         if run_mode == ScriptSchedule.RunMode.INTERVAL:
-            if not cleaned_data.get("interval_minutes"):
+            # Range errors are already attached by the model field's validators;
+            # only the missing case needs a message here.
+            if "interval_minutes" not in self.errors and not cleaned_data.get(
+                "interval_minutes"
+            ):
                 self.add_error(
                     "interval_minutes", "Interval is required for interval mode."
                 )

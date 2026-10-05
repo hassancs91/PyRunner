@@ -1099,7 +1099,16 @@ class ScheduleAPI:
         if mode == ScriptSchedule.RunMode.INTERVAL:
             if not interval_minutes:
                 raise ValueError("interval mode requires interval_minutes")
-            sched.interval_minutes = int(interval_minutes)
+            # Same bounds as the form; django-q2 stores minutes in a small int,
+            # so an out-of-range value would otherwise fail later at sync time.
+            try:
+                minutes = int(interval_minutes)
+            except (TypeError, ValueError):
+                raise ValueError("interval_minutes must be a whole number of minutes")
+            lo, hi = ScriptSchedule.INTERVAL_MIN_MINUTES, ScriptSchedule.INTERVAL_MAX_MINUTES
+            if not lo <= minutes <= hi:
+                raise ValueError(f"interval_minutes must be between {lo} and {hi}")
+            sched.interval_minutes = minutes
         elif mode == ScriptSchedule.RunMode.DAILY:
             if not time_str:
                 raise ValueError("daily mode requires time_str (HH:MM)")

@@ -5,6 +5,7 @@ Schedule models for script execution scheduling.
 import uuid
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from .script import Script
@@ -26,15 +27,20 @@ class ScriptSchedule(models.Model):
         CRON = "cron", "Cron expression"
         YEARLY = "yearly", "Yearly"
 
-    class IntervalChoice(models.IntegerChoices):
-        FIVE_MINUTES = 5, "Every 5 minutes"
-        TEN_MINUTES = 10, "Every 10 minutes"
-        FIFTEEN_MINUTES = 15, "Every 15 minutes"
-        THIRTY_MINUTES = 30, "Every 30 minutes"
-        ONE_HOUR = 60, "Every hour"
-        TWO_HOURS = 120, "Every 2 hours"
-        SIX_HOURS = 360, "Every 6 hours"
-        TWELVE_HOURS = 720, "Every 12 hours"
+    # Interval bounds. The ceiling is django-q2's: ``Schedule.minutes`` is a
+    # PositiveSmallIntegerField, so anything above 32767 would fail at sync time
+    # rather than at save time. Quick-pick presets are a UI convenience only;
+    # any value in range is valid.
+    INTERVAL_MIN_MINUTES = 1
+    INTERVAL_MAX_MINUTES = 32767
+    INTERVAL_PRESETS = (
+        (5, "5 min"),
+        (15, "15 min"),
+        (30, "30 min"),
+        (60, "1 hour"),
+        (360, "6 hours"),
+        (1440, "24 hours"),
+    )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -70,7 +76,10 @@ class ScriptSchedule(models.Model):
     interval_minutes = models.PositiveIntegerField(
         null=True,
         blank=True,
-        choices=IntervalChoice.choices,
+        validators=[
+            MinValueValidator(INTERVAL_MIN_MINUTES),
+            MaxValueValidator(INTERVAL_MAX_MINUTES),
+        ],
         help_text="Interval in minutes (for interval mode)",
     )
 
@@ -183,17 +192,30 @@ class ScriptSchedule(models.Model):
 
     DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
+    @staticmethod
+    def describe_interval(minutes) -> str:
+        """Human-readable "Every …" label for an interval in minutes.
+
+        Whole hours and days read as such ("Every 2 hours", "Every day");
+        anything else stays in minutes ("Every 7 minutes", "Every 90 minutes").
+        """
+        if not minutes:
+            return "Every ? minutes"
+        if minutes % 1440 == 0:
+            days = minutes // 1440
+            return "Every day" if days == 1 else f"Every {days} days"
+        if minutes % 60 == 0:
+            hours = minutes // 60
+            return "Every hour" if hours == 1 else f"Every {hours} hours"
+        return "Every minute" if minutes == 1 else f"Every {minutes} minutes"
+
     @property
     def schedule_display(self) -> str:
         """Human-readable schedule description."""
         if self.run_mode == self.RunMode.MANUAL:
             return "Manual"
         elif self.run_mode == self.RunMode.INTERVAL:
-            # Find the display label from choices
-            for value, label in self.IntervalChoice.choices:
-                if value == self.interval_minutes:
-                    return label
-            return f"Every {self.interval_minutes} minutes"
+            return self.describe_interval(self.interval_minutes)
         elif self.run_mode == self.RunMode.DAILY:
             times = ", ".join(self.daily_times) if self.daily_times else "No times set"
             return f"Daily at {times} ({self.timezone})"

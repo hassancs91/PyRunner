@@ -21,6 +21,18 @@ function toggleScheduleOptions(mode) {
     if (mode === 'cron') updateCronPreview();
 }
 
+// Interval quick-picks: each button fills the number input with its preset.
+document.addEventListener('DOMContentLoaded', function () {
+    var input = document.getElementById('id_interval_minutes');
+    if (!input) return;
+    document.querySelectorAll('[data-interval-preset]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            input.value = btn.getAttribute('data-interval-preset');
+            input.focus();
+        });
+    });
+});
+
 // Live cron validation + "next runs" preview.
 (function () {
     var debounceTimer = null;

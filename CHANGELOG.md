@@ -37,6 +37,12 @@ begins tracking at the current release; earlier history is in the git log.
   `user unlock` and `user list` cover the rest; the last admin can't be
   demoted. In Docker:
   `docker exec -it pyrunner python manage.py user reset-password you@example.com`.
+- **Any interval, not just the preset list** — interval schedules take any
+  whole number of minutes from 1 to 32767 (about 22 days) instead of the
+  fixed 5/10/15/30/60/120/360/720 menu, so "every 7 minutes" or "every 90
+  minutes" is just typed in. Quick-pick buttons cover the common values.
+  The plugin SDK's `ScheduleAPI.sync(mode="interval", interval_minutes=…)`
+  now validates the same range instead of accepting anything.
 
 ### Changed
 - **Rebranded to PyRun** — the product is now called PyRun and lives at

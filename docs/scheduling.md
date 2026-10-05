@@ -7,7 +7,7 @@ are seven run modes:
 | Mode | What it does |
 |------|--------------|
 | **Manual** | No automatic runs — you trigger it yourself (or via webhook). |
-| **Interval** | Every N minutes, from a fixed list of intervals. |
+| **Interval** | Every N minutes, any whole number from 1 to 32767 (about 22 days). Quick-pick buttons cover the common values. |
 | **Daily** | One or more `HH:MM` times, every day. |
 | **Weekly** | One or more days of the week, at one or more `HH:MM` times. |
 | **Monthly** | One or more days of the month, at one or more `HH:MM` times. |

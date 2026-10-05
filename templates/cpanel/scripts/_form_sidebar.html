@@ -179,6 +179,14 @@
             <div id="interval-options" class="{% if schedule_form.instance.run_mode != 'interval' %}hidden{% endif %}">
                 <label for="id_interval_minutes" class="block text-[13px] font-medium text-text mb-1.5">{{ schedule_form.interval_minutes.label }}</label>
                 {{ schedule_form.interval_minutes }}
+                <!-- Quick picks fill the number input; any value in range is valid. -->
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                    {% for minutes, label in schedule_form.interval_presets %}
+                    <button type="button" data-interval-preset="{{ minutes }}"
+                            class="px-2.5 py-1 rounded-md border border-line text-xs text-faint hover:text-text hover:border-faint transition-colors">{{ label }}</button>
+                    {% endfor %}
+                </div>
+                <p class="mt-1.5 text-xs text-faint">{{ schedule_form.interval_minutes.help_text }}</p>
                 {% if schedule_form.interval_minutes.errors %}<p class="mt-1.5 text-xs text-fail">{{ schedule_form.interval_minutes.errors.0 }}</p>{% endif %}
             </div>
 
