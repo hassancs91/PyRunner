@@ -84,6 +84,29 @@ Copy `.env.example` to `.env` and configure:
 
 See [.env.example](.env.example) for all options.
 
+## Locked out? Manage accounts from the shell
+
+If you forget your password, get locked out after too many failed sign-ins, or
+have no admin who can sign in, fix it from the server. No email setup is needed.
+
+```bash
+# Set a new password (prompts for it), sign out old sessions, clear the lockout
+docker exec -it pyrunner python manage.py user reset-password you@example.com
+
+# No terminal? Print a random password instead of prompting
+docker exec pyrunner python manage.py user reset-password you@example.com --generate
+```
+
+| Command | What it does |
+|---------|--------------|
+| `user list` | Show every account, its role and last sign-in |
+| `user reset-password <email>` | Set a new password, sign out its sessions, clear its lockout |
+| `user create <email> [--admin]` | Create an account with a password, no invite needed |
+| `user promote <email>` / `user demote <email>` | Give or remove admin rights (the last admin can't be demoted) |
+| `user unlock <email>` | Clear a lockout without changing the password |
+
+Outside Docker, run the same commands as `python manage.py user ...`.
+
 ## AI in your scripts
 
 PyRun can run AI directly inside your Python scripts so your automations can

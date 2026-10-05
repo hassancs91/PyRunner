@@ -52,7 +52,11 @@ def login_view(request: HttpRequest) -> HttpResponse:
                 email = password_form.cleaned_data["email"].lower()
                 password = password_form.cleaned_data["password"]
 
-                user = authenticate(request, username=email, password=password)
+                # The keyword must be ``email`` (the USERNAME_FIELD): django-axes
+                # reads the account from that credential key. Passed as
+                # ``username`` it recorded every failure against no account, so
+                # the lockout never blocked a correct password.
+                user = authenticate(request, email=email, password=password)
                 if user is not None:
                     login(request, user)
                     messages.success(request, f"Welcome back, {user.email}!")

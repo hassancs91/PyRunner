@@ -110,3 +110,67 @@ class InviteOnlyRegistrationTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(User.objects.filter(email="guest@example.com").exists())
+
+
+@modify_settings(MIDDLEWARE={"remove": "core.middleware.SetupWizardMiddleware"})
+class LoginLockoutTests(TestCase):
+    """django-axes must lock the *account* that is being guessed.
+
+    Regression: the login view passed the email to authenticate() as
+    ``username``, but axes reads the account from the ``email`` credential (the
+    USERNAME_FIELD). Failures were recorded against no account while the
+    lockout check looked the email up, so after any number of wrong guesses the
+    correct password still signed in — the brute-force limit never applied.
+    """
+
+    EMAIL = "admin@example.com"
+    PASSWORD = "correct-horse-battery-staple-91"
+
+    def setUp(self):
+        User.objects.create_user(
+            username=self.EMAIL, email=self.EMAIL, password=self.PASSWORD
+        )
+
+    def _sign_in(self, password, email=EMAIL):
+        return self.client.post(
+            reverse("auth:login"),
+            {"action": "password", "email": email, "password": password},
+        )
+
+    def _fail_until_locked(self):
+        from django.conf import settings
+
+        for _ in range(settings.AXES_FAILURE_LIMIT):
+            self._sign_in("wrong-password")
+
+    def test_failures_are_recorded_against_the_email(self):
+        from axes.models import AccessAttempt
+
+        self._sign_in("wrong-password")
+
+        self.assertEqual(AccessAttempt.objects.get().username, self.EMAIL)
+
+    def test_correct_password_is_refused_while_locked_out(self):
+        self._fail_until_locked()
+
+        resp = self._sign_in(self.PASSWORD)
+
+        self.assertEqual(resp.status_code, 429)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_lockout_is_per_account_not_per_address(self):
+        other = "other@example.com"
+        User.objects.create_user(username=other, email=other, password=self.PASSWORD)
+        self._fail_until_locked()
+
+        self._sign_in(self.PASSWORD, email=other)
+
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_success_clears_earlier_failures(self):
+        from axes.models import AccessAttempt
+
+        self._sign_in("wrong-password")
+        self._sign_in(self.PASSWORD)
+
+        self.assertFalse(AccessAttempt.objects.exists())

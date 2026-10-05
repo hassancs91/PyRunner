@@ -28,6 +28,15 @@ begins tracking at the current release; earlier history is in the git log.
   date onto 28 February or 1 March. Available to plugins via
   `ScheduleAPI.sync(..., mode="yearly", month=, day=, time_str=, tz=)` and
   carried by backups (format 1.8.0). Contributed by @djpfs (#16).
+- **Account management from the command line** — `python manage.py user` is
+  the way back in when the console can't help: no email configured for reset
+  links, a login lockout, or no admin who can sign in.
+  `user reset-password <email>` sets a new password (prompted, or `--generate`
+  to print a random one), signs out that account's sessions and clears its
+  lockout. `user create <email> [--admin]`, `user promote`, `user demote`,
+  `user unlock` and `user list` cover the rest; the last admin can't be
+  demoted. In Docker:
+  `docker exec -it pyrunner python manage.py user reset-password you@example.com`.
 
 ### Changed
 - **Rebranded to PyRun** — the product is now called PyRun and lives at
@@ -96,6 +105,15 @@ begins tracking at the current release; earlier history is in the git log.
   had been brought up under another project name kept its month-old Postgres
   data and the "fresh" boot silently reused it. The launcher now removes the
   three named volumes explicitly and refuses to continue if any survive.
+
+### Security
+- **The login lockout now actually locks** — the limit of 5 failed sign-ins
+  (15-minute cool-off) recorded every failure against no account, so the
+  correct password still signed in after any number of wrong guesses and
+  password guessing was never stopped. Failures are now counted against the
+  email being tried, per address, and a locked account refuses even the
+  correct password until the cool-off passes. Locked yourself out? Run
+  `python manage.py user unlock <email>` on the server.
 
 ## [1.16.0] — July 29, 2026
 
