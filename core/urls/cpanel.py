@@ -12,6 +12,7 @@ from core.views.scripts import (
     script_toggle_view,
     script_archive_view,
     script_restore_view,
+    script_fork_view,
     script_delete_view,
     schedule_toggle_view,
     schedule_history_view,
@@ -216,6 +217,7 @@ urlpatterns = [
     # Script archive/restore/delete
     path("scripts/<uuid:pk>/archive/", script_archive_view, name="script_archive"),
     path("scripts/<uuid:pk>/restore/", script_restore_view, name="script_restore"),
+    path("scripts/<uuid:pk>/fork/", script_fork_view, name="script_fork"),
     path("scripts/<uuid:pk>/delete/", script_delete_view, name="script_delete"),
     # Webhooks
     path("scripts/<uuid:pk>/webhook/enable/", webhook_enable_view, name="webhook_enable"),

@@ -523,6 +523,27 @@ def webhook_regenerate_view(request: HttpRequest, pk) -> HttpResponse:
 
 @login_required
 @require_POST
+def script_fork_view(request: HttpRequest, pk) -> HttpResponse:
+    """Duplicate a script into the active workspace and open the copy for editing.
+
+    Plugin-owned scripts fork too — the copy is a plain user script, which is
+    the supported way to customize a plugin-provided script without editing
+    the plugin's own row out from under it.
+    """
+    from core.services.script_service import fork_script
+
+    source = get_object_or_404(Script, pk=pk, workspace=request.workspace)
+    fork = fork_script(source, user=request.user)
+    messages.success(
+        request,
+        f'Forked "{source.name}" as "{fork.name}". The copy has no webhook and '
+        "its schedule is paused — review it below, then enable what you need.",
+    )
+    return redirect("cpanel:script_edit", pk=fork.pk)
+
+
+@login_required
+@require_POST
 def script_archive_view(request: HttpRequest, pk) -> HttpResponse:
     """Archive a script (soft delete)."""
     from django.utils import timezone

@@ -72,6 +72,12 @@
                             {% csrf_token %}
                             <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">{% if script.is_enabled %}Disable{% else %}Enable{% endif %}</button>
                         </form>
+                        <form method="post" action="{% url 'cpanel:script_fork' pk=script.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="inline-grid place-items-center w-9 h-9 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors" title="Fork — duplicate this script (code, settings, tags, libraries; no webhook, schedule paused)">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V5a2 2 0 012-2h9a2 2 0 012 2v9a2 2 0 01-2 2h-2M5 9h9a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2z"/></svg>
+                            </button>
+                        </form>
                         <form method="post" action="{% url 'cpanel:script_archive' pk=script.pk %}" onsubmit="return confirm('Archive {{ script.name }}? The script will be hidden and its schedule paused.');">
                             {% csrf_token %}
                             <button type="submit" class="inline-grid place-items-center w-9 h-9 rounded-lg border border-line text-muted hover:text-fail hover:border-fail/50 transition-colors" title="Archive">
@@ -157,8 +163,7 @@
                                 </div>
                                 <div class="text-xs text-faint mt-0.5">Success rate</div>
                             </div>
-                        </div>
-                    </section>
+                        </div>                    </section>
                 </div>
             </div>
 

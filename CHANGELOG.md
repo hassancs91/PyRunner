@@ -43,6 +43,14 @@ begins tracking at the current release; earlier history is in the git log.
   minutes" is just typed in. Quick-pick buttons cover the common values.
   The plugin SDK's `ScheduleAPI.sync(mode="interval", interval_minutes=…)`
   now validates the same range instead of accepting anything.
+- **Fork a script** — a Fork button on the script page duplicates it into the
+  same workspace: code, description, environment, timeout, isolation and
+  notification settings, tags, notification channels, secret grants and
+  library attachments all come along. The copy is a plain user-owned script
+  (forking a plugin's script is the supported way to customize it), starts
+  with no webhook token, and its schedule is cloned paused so a duplicate
+  never fires before you've looked at it. Run history stays with the
+  original. You land on the copy's edit page.
 
 ### Changed
 - **Rebranded to PyRun** — the product is now called PyRun and lives at
