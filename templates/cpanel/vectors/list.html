@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Vectors - {{ instance_name }}{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-[1440px] mx-auto space-y-5">
+
+            <!-- Header -->
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h1 class="text-[22px] font-semibold tracking-tight">Vectors</h1>
+                    <p class="text-sm text-muted mt-1">Vector collections for semantic search — embed text once, find it by meaning from scripts, plugins and agents</p>
+                </div>
+                {% if available %}
+                <a href="{% url 'cpanel:vector_create' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    New collection
+                </a>
+                {% endif %}
+            </div>
+
+            {% if not available %}
+            <div class="rounded-2xl border border-warn/30 bg-warn/5 p-5 flex items-start gap-3">
+                <svg class="w-5 h-5 text-warn flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <div class="text-sm text-muted">
+                    <p class="font-medium text-text">No vector store is enabled</p>
+                    <p class="mt-1">Enable the built-in <span class="text-text">Local</span> connection (or add one) under {% if user.is_superuser %}<a href="{% url 'cpanel:services' %}" class="text-info hover:underline">Services → Vector stores</a>{% else %}Services → Vector stores (ask an administrator){% endif %}.</p>
+                </div>
+            </div>
+            {% elif providers_count == 0 %}
+            <div class="rounded-2xl border border-line bg-panel p-4 flex items-start gap-3">
+                <svg class="w-5 h-5 text-info flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p class="text-sm text-muted">No embedding provider is configured yet. Collections can still store vectors you compute yourself; to embed text and search by meaning, add one under {% if user.is_superuser %}<a href="{% url 'cpanel:services' %}" class="text-info hover:underline">Services → Embedding providers</a>{% else %}Services → Embedding providers (ask an administrator){% endif %}.</p>
+            </div>
+            {% endif %}
+
+            {% if collections %}
+            <section class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[900px]">
+                    <thead>
+                        <tr class="border-b border-line-soft text-left">
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Name</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Store</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Embeddings</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Status</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Points</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Dim</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Size</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal">Backup</th>
+                            <th class="px-6 py-3 eyebrow text-faint font-normal text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-line-soft">
+                        {% for col in collections %}
+                        <tr class="group hover:bg-panel-hi/50 transition-colors">
+                            <td class="px-6 py-3.5">
+                                <a href="{% url 'cpanel:vector_detail' pk=col.pk %}" class="font-mono text-sm text-info hover:underline">{{ col.name }}</a>
+                                {% include "cpanel/_owner_pill.html" with obj=col %}
+                                {% if col.description %}<p class="text-xs text-muted mt-0.5 max-w-xs truncate">{{ col.description }}</p>{% endif %}
+                            </td>
+                            <td class="px-6 py-3.5 text-sm text-muted whitespace-nowrap">{{ col.connection.name }}</td>
+                            <td class="px-6 py-3.5 text-sm whitespace-nowrap">
+                                {% if col.embedding_provider %}
+                                <span class="text-text">{{ col.embedding_provider.name }}</span>
+                                <span class="block text-xs font-mono text-faint">{{ col.embedding_model }}</span>
+                                {% else %}
+                                <span class="text-faint">Vectors only</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5">
+                                {% if col.status == "ready" %}
+                                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                                {% else %}
+                                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-fail/10 text-fail"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span>Error</span>
+                                {% endif %}
+                                {% if col.over_soft_limit %}
+                                <span class="ml-1 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-warn/10 text-warn align-middle" title="Above {{ soft_limit }} points the Local store slows down; consider a Qdrant connection.">Large</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ col.points_count }}</td>
+                            <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ col.dimension }}</td>
+                            <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ col.size_display }}</td>
+                            <td class="px-6 py-3.5 text-sm whitespace-nowrap">
+                                {% if col.include_in_backup %}<span class="text-ok">Included</span>{% else %}<span class="text-faint">Excluded</span>{% endif %}
+                            </td>
+                            <td class="px-6 py-3.5">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{% url 'cpanel:vector_detail' pk=col.pk %}" class="text-[13px] px-3 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">View</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </section>
+
+            <div class="rounded-2xl border border-line bg-panel p-5">
+                <h3 class="text-sm font-medium text-text mb-2">Using collections</h3>
+                <p class="text-sm text-muted">Each collection is a named set of points (a vector, a JSON payload and optionally the source text) with a pinned embedding model and dimension. The Local store keeps one SQLite file per collection on the data volume and searches it exactly — comfortable up to ~{{ soft_limit }} points. Scripts and plugins open collections by name through the <code class="font-mono text-info">pyrunner_vectors</code> helper and the plugin SDK (arriving in the next stage); the Brain and the RAG plugin build on the same seam.</p>
+            </div>
+            {% elif available %}
+            <section class="rounded-2xl border border-line bg-panel px-6 py-16 text-center">
+                <div class="w-14 h-14 rounded-full bg-info/10 grid place-items-center mx-auto mb-4">
+                    <svg class="w-7 h-7 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20l5-5m0 0l4 4 7-7m-11 3V9a2 2 0 012-2h3m6 0h.01M6 4h.01M18 4h.01M12 12h.01"/></svg>
+                </div>
+                <h3 class="text-base font-semibold mb-1">No collections yet</h3>
+                <p class="text-sm text-muted mb-6">Create a collection to give your scripts, plugins and agents semantic search over their own data.</p>
+                <a href="{% url 'cpanel:vector_create' %}" class="inline-flex items-center gap-2 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    Create collection
+                </a>
+            </section>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}

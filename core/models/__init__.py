@@ -26,6 +26,9 @@ from .ai_provider import AIProvider, PROVIDER_PRESETS
 from .storage_connection import StorageConnection, STORAGE_PRESETS
 from .plugin import Plugin
 from .channel import Channel, ChannelMember, ChannelMessage
+from .embedding_provider import EmbeddingProvider, EMBEDDING_PRESETS
+from .vector_connection import VectorConnection
+from .vector_collection import VectorCollection
 
 __all__ = [
     "User",
@@ -64,4 +67,8 @@ __all__ = [
     "Channel",
     "ChannelMember",
     "ChannelMessage",
+    "EmbeddingProvider",
+    "EMBEDDING_PRESETS",
+    "VectorConnection",
+    "VectorCollection",
 ]

@@ -2,6 +2,24 @@
 URL patterns for control panel.
 """
 from django.urls import path
+from core.views.services import (
+    embedding_provider_delete_view,
+    embedding_provider_save_view,
+    embedding_provider_test_view,
+    vector_connection_default_view,
+    vector_connection_delete_view,
+    vector_connection_save_view,
+    vector_connection_test_view,
+)
+from core.views.vectors import (
+    vector_backup_toggle_view,
+    vector_create_view,
+    vector_delete_view,
+    vector_detail_view,
+    vector_list_view,
+    vector_retry_view,
+    vector_search_view,
+)
 from core.views.dashboard import dashboard_view, system_resources_api
 from core.views.scripts import (
     script_list_view,
@@ -296,6 +314,15 @@ urlpatterns = [
     path("databases/<uuid:pk>/reveal/", database_reveal_view, name="database_reveal"),
     path("databases/<uuid:pk>/delete/", database_delete_view, name="database_delete"),
 
+    # Vectors (vector collections on the Local / Qdrant stores; Owner/Admin only)
+    path("vectors/", vector_list_view, name="vector_list"),
+    path("vectors/create/", vector_create_view, name="vector_create"),
+    path("vectors/<uuid:pk>/", vector_detail_view, name="vector_detail"),
+    path("vectors/<uuid:pk>/search/", vector_search_view, name="vector_search"),
+    path("vectors/<uuid:pk>/backup/", vector_backup_toggle_view, name="vector_backup_toggle"),
+    path("vectors/<uuid:pk>/retry/", vector_retry_view, name="vector_retry"),
+    path("vectors/<uuid:pk>/delete/", vector_delete_view, name="vector_delete"),
+
     # Libraries (shared multi-module code attached to scripts)
     path("libraries/", library_list_view, name="library_list"),
     path("libraries/create/", library_create_view, name="library_create"),
@@ -387,6 +414,13 @@ urlpatterns = [
     path("services/secret-providers/save/", secret_provider_save_view, name="secret_provider_save"),
     path("services/secret-providers/test/", secret_provider_test_view, name="secret_provider_test"),
     path("services/secret-providers/<uuid:provider_id>/delete/", secret_provider_delete_view, name="secret_provider_delete"),
+    path("services/embeddings/save/", embedding_provider_save_view, name="embedding_provider_save"),
+    path("services/embeddings/test/", embedding_provider_test_view, name="embedding_provider_test"),
+    path("services/embeddings/<uuid:provider_id>/delete/", embedding_provider_delete_view, name="embedding_provider_delete"),
+    path("services/vectors/save/", vector_connection_save_view, name="vector_connection_save"),
+    path("services/vectors/test/", vector_connection_test_view, name="vector_connection_test"),
+    path("services/vectors/<uuid:connection_id>/delete/", vector_connection_delete_view, name="vector_connection_delete"),
+    path("services/vectors/<uuid:connection_id>/default/", vector_connection_default_view, name="vector_connection_default"),
 
     # Plugins (superuser)
     path("plugins/", plugin_list_view, name="plugin_list"),

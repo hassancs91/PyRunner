@@ -562,6 +562,20 @@ else:
 LOGS_DIR = DATA_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
+# Vector seam: the Local backend keeps one SQLite file per collection here
+# (same data volume as everything else, so it persists across redeploys).
+# Single-container only — WAL on a shared/network volume is unsafe; a
+# multi-container deployment uses a Qdrant connection instead.
+VECTORS_DIR = DATA_DIR / "vectors"
+VECTORS_DIR.mkdir(exist_ok=True)
+# Per-process budget for the cached numpy matrices across collections (LRU).
+PYRUNNER_VECTOR_CACHE_MB = int(os.environ.get("PYRUNNER_VECTOR_CACHE_MB", "256"))
+# Backups are one gzipped JSON document; a Local collection's SQLite image is
+# carried inline (base64) only up to this size — larger collections are listed
+# but skipped with a warning, so a big index can't make the archive unloadable
+# through the web restore path (MAX_BACKUP_SIZE_MB) or the session store.
+PYRUNNER_VECTOR_BACKUP_MAX_MB = int(os.environ.get("PYRUNNER_VECTOR_BACKUP_MAX_MB", "50"))
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

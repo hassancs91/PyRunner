@@ -9,6 +9,21 @@ begins tracking at the current release; earlier history is in the git log.
 ## [Unreleased]
 
 ### Added
+- **Vectors: embedding providers, vector stores and collections** — the first
+  piece of the 2.0 train. Services gains two cards: *Embedding Providers*
+  (OpenAI, Voyage, Jina, Z.AI, a local Ollama, or any OpenAI-compatible
+  `/v1/embeddings` endpoint; Test records the vector dimension) and *Vector
+  Stores* (the built-in **Local** store — one SQLite file per collection on the
+  data volume, searched exactly with numpy — is seeded and set as the default;
+  Qdrant connections can be saved and tested, their collections follow in the
+  seam's next stage). A new **Vectors** page per workspace creates collections,
+  pins the provider's model and vector dimension to each one, runs real searches
+  with JSON payload filters, browses points and deletes with a typed
+  confirmation. Backup format 1.9.0 carries providers and connections (upserted
+  by name, credentials encrypted as stored) and Local collections with their
+  points inline, up to `PYRUNNER_VECTOR_BACKUP_MAX_MB` (default 50) each.
+  Removing a plugin cleans up the collections it owns. Scripts and plugins get
+  the `pyrunner_vectors` helper and the SDK's `VectorAPI` in the next stage.
 - **Cron expression schedules** — a sixth run mode that takes a standard
   5-field cron expression (`0 9 * * 1-5` for weekday mornings, `*/15 9-17 * * *`
   for every quarter hour during business hours), for anything the guided

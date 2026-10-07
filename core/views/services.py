@@ -21,20 +21,29 @@ from django.db.models import ProtectedError
 
 from core.models import (
     AIProvider,
+    EMBEDDING_PRESETS,
+    EmbeddingProvider,
     GlobalSettings,
     ClaudeUsage,
     PROVIDER_PRESETS,
     STORAGE_PRESETS,
     SecretProvider,
     StorageConnection,
+    VectorCollection,
+    VectorConnection,
 )
 from core.forms import (
     AISettingsForm,
     AIProviderForm,
     AssetsStorageForm,
+    EmbeddingProviderForm,
     SecretProviderForm,
     StorageConnectionForm,
+    VectorConnectionForm,
 )
+from core.services import VectorError, VectorService
+from core.vectors.local_store import SOFT_LIMIT_POINTS
+from core.vectors.service import IMPLEMENTED_BACKENDS, vectors_dir_display
 from core.services.s3_service import S3Service
 from core.services.claude_service import ClaudeService
 from core.services.encryption_service import EncryptionService
@@ -160,6 +169,7 @@ def services_view(request: HttpRequest) -> HttpResponse:
             "secret_provider_form": SecretProviderForm(),
             "secret_providers_json": secret_providers_data,
             "secret_backends_json": secret_backends_data,
+            **_vector_cards_context(),
         },
     )
 
@@ -787,3 +797,357 @@ def claude_usage_view(request: HttpRequest) -> HttpResponse:
             "claude_status": ClaudeService.get_status(),
         },
     )
+
+
+# =============================================================================
+# Vector seam (Stage 1): embedding providers + vector store connections
+# =============================================================================
+
+
+def _vector_cards_context() -> dict:
+    """Context for the two Services cards (plain-dict mirrors for the JS, no secrets)."""
+    provider_counts = {
+        row["embedding_provider"]: row["n"]
+        for row in VectorCollection.objects.filter(embedding_provider__isnull=False)
+        .values("embedding_provider")
+        .annotate(n=Count("id"))
+    }
+    connection_counts = {
+        row["connection"]: row["n"]
+        for row in VectorCollection.objects.values("connection").annotate(n=Count("id"))
+    }
+
+    providers = list(EmbeddingProvider.objects.all())
+    for p in providers:
+        p.collection_count = provider_counts.get(p.id, 0)
+    providers_data = [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "provider_type": p.provider_type,
+            "base_url": p.base_url,
+            "model": p.model,
+            "max_batch": p.max_batch,
+            "dimension": p.dimension,
+            "enabled": p.enabled,
+            "has_credential": bool(p.credential_encrypted),
+            "collection_count": p.collection_count,
+        }
+        for p in providers
+    ]
+    presets_data = {str(key): value for key, value in EMBEDDING_PRESETS.items()}
+
+    connections = list(VectorConnection.objects.all())
+    for c in connections:
+        c.collection_count = connection_counts.get(c.id, 0)
+        c.implemented = c.provider_type in {str(t) for t in IMPLEMENTED_BACKENDS}
+    connections_data = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "provider_type": c.provider_type,
+            "url": c.url,
+            "collection_prefix": c.collection_prefix,
+            "enabled": c.enabled,
+            "is_default": c.is_default,
+            "has_credentials": bool(c.credentials_encrypted),
+            "collection_count": c.collection_count,
+        }
+        for c in connections
+    ]
+    return {
+        "embedding_providers": providers,
+        "embedding_provider_form": EmbeddingProviderForm(),
+        "embedding_providers_json": providers_data,
+        "embedding_presets_json": presets_data,
+        "vector_connections": connections,
+        "vector_connection_form": VectorConnectionForm(),
+        "vector_connections_json": connections_data,
+        "vectors_dir": vectors_dir_display(),
+        "vector_soft_limit": SOFT_LIMIT_POINTS,
+    }
+
+
+def _report_form_errors(request, form) -> None:
+    for field, errors in form.errors.items():
+        label = "" if field == "__all__" else f"{field}: "
+        for error in errors:
+            messages.error(request, f"{label}{error}")
+
+
+def _json_body(request):
+    """Parsed JSON body or ``(None, response)`` on a syntax error."""
+    if not request.body:
+        return {}, None
+    try:
+        return json.loads(request.body), None
+    except json.JSONDecodeError:
+        return None, JsonResponse(
+            {"success": False, "error": "Invalid JSON in request body"}, status=400
+        )
+
+
+@login_required
+@superuser_required
+@require_POST
+def embedding_provider_save_view(request: HttpRequest) -> HttpResponse:
+    """Create or update an EmbeddingProvider (hidden provider_id = edit)."""
+    instance = None
+    provider_id = request.POST.get("provider_id")
+    if provider_id:
+        try:
+            instance = EmbeddingProvider.objects.filter(pk=provider_id).first()
+        except (ValidationError, ValueError):
+            instance = None
+        if instance is None:
+            messages.error(request, "Embedding provider not found.")
+            return redirect("cpanel:services")
+
+    form = EmbeddingProviderForm(request.POST, instance=instance)
+    if form.is_valid():
+        provider = form.save()
+        if provider.dimension is None:
+            messages.success(
+                request,
+                f"Embedding provider '{provider.name}' saved — run Test to record its "
+                "vector dimension before creating collections with it.",
+            )
+        else:
+            messages.success(request, f"Embedding provider '{provider.name}' saved.")
+    else:
+        _report_form_errors(request, form)
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def embedding_provider_delete_view(request: HttpRequest, provider_id) -> HttpResponse:
+    provider = EmbeddingProvider.objects.filter(pk=provider_id).first()
+    if provider is None:
+        messages.error(request, "Embedding provider not found.")
+        return redirect("cpanel:services")
+    name = provider.name
+    try:
+        provider.delete()
+    except ProtectedError:
+        count = VectorCollection.objects.filter(embedding_provider=provider).count()
+        messages.error(
+            request,
+            f"'{name}' is used by {count} collection(s). Delete those collections first, "
+            "or disable the provider instead.",
+        )
+        return redirect("cpanel:services")
+    messages.success(request, f"Embedding provider '{name}' deleted.")
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def embedding_provider_test_view(request: HttpRequest) -> JsonResponse:
+    """Embed the test sentence and report the vector dimension.
+
+    Body: ``{"provider_id"}`` tests a saved row (and records its dimension), or
+    ``{"provider_type", "base_url", "model", "credential", "max_batch", "provider_id"?}``
+    tests unsaved form values (a blank credential falls back to the edited row's).
+    """
+    from core.netguard import is_safe_endpoint_url
+
+    try:
+        data, error = _json_body(request)
+        if error:
+            return error
+
+        saved = None
+        provider_id = data.get("provider_id")
+        if provider_id:
+            try:
+                saved = EmbeddingProvider.objects.filter(pk=provider_id).first()
+            except (ValidationError, ValueError):
+                saved = None
+            if saved is None:
+                return JsonResponse({"success": False, "error": "Provider not found."})
+
+        typed = {k: data.get(k) for k in ("provider_type", "base_url", "model", "max_batch")}
+        if saved is not None and not any(typed.values()) and not data.get("credential"):
+            target = saved
+        else:
+            ptype = typed["provider_type"] or (saved.provider_type if saved else "")
+            if ptype not in EMBEDDING_PRESETS:
+                return JsonResponse({"success": False, "error": "Pick a provider type first."})
+            preset = EMBEDDING_PRESETS[ptype]
+            base_url = (typed["base_url"] or "").strip().rstrip("/") or preset["base_url"]
+            if not base_url:
+                return JsonResponse({"success": False, "error": "An endpoint base URL is required."})
+            is_safe, why = is_safe_endpoint_url(base_url)
+            if not is_safe:
+                return JsonResponse({"success": False, "error": why})
+            model = (typed["model"] or "").strip() or preset["default_model"]
+            if not model:
+                return JsonResponse({"success": False, "error": "A model id is required."})
+            try:
+                max_batch = int(typed["max_batch"] or preset["max_batch"])
+            except (TypeError, ValueError):
+                max_batch = preset["max_batch"]
+            target = EmbeddingProvider(
+                provider_type=ptype,
+                name=(saved.name if saved else "test"),
+                base_url=base_url,
+                model=model,
+                max_batch=max(1, max_batch),
+            )
+            credential = data.get("credential") or ""
+            if credential:
+                target.set_credential(credential)
+            elif saved is not None:
+                target.credential_encrypted = saved.credential_encrypted
+            if preset["credential_required"] and not target.credential_encrypted:
+                return JsonResponse({"success": False, "error": "An API key is required for this provider."})
+
+        try:
+            result = VectorService.test_provider(target)
+        except VectorError as e:
+            return JsonResponse({"success": False, "error": str(e)})
+
+        saved_row = not target._state.adding
+        suffix = (
+            " Recorded on the provider."
+            if saved_row
+            else " Save the provider, then Test again to record it."
+        )
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Embedded the test sentence: {result.dimension} dimensions, "
+                f"{result.tokens} token(s).{suffix}",
+                "dimension": result.dimension,
+            }
+        )
+    except Exception as e:
+        logger.exception("Embedding provider test failed")
+        return JsonResponse({"success": False, "error": str(e)})
+
+
+@login_required
+@superuser_required
+@require_POST
+def vector_connection_save_view(request: HttpRequest) -> HttpResponse:
+    """Create or update a VectorConnection (hidden connection_id = edit)."""
+    instance = None
+    connection_id = request.POST.get("connection_id")
+    if connection_id:
+        try:
+            instance = VectorConnection.objects.filter(pk=connection_id).first()
+        except (ValidationError, ValueError):
+            instance = None
+        if instance is None:
+            messages.error(request, "Vector connection not found.")
+            return redirect("cpanel:services")
+
+    form = VectorConnectionForm(request.POST, instance=instance)
+    if form.is_valid():
+        connection = form.save()
+        if not connection.is_default and not VectorConnection.objects.filter(is_default=True).exists():
+            connection.is_default = True
+            connection.save()
+        messages.success(request, f"Vector connection '{connection.name}' saved.")
+    else:
+        _report_form_errors(request, form)
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def vector_connection_delete_view(request: HttpRequest, connection_id) -> HttpResponse:
+    connection = VectorConnection.objects.filter(pk=connection_id).first()
+    if connection is None:
+        messages.error(request, "Vector connection not found.")
+        return redirect("cpanel:services")
+    name, was_default = connection.name, connection.is_default
+    try:
+        connection.delete()
+    except ProtectedError:
+        count = VectorCollection.objects.filter(connection=connection).count()
+        messages.error(
+            request,
+            f"'{name}' holds {count} collection(s). Delete those collections first, "
+            "or disable the connection instead.",
+        )
+        return redirect("cpanel:services")
+    if was_default:
+        messages.warning(
+            request,
+            f"Connection '{name}' deleted. No default vector store is set now — mark "
+            "another connection as default so new collections have a home.",
+        )
+    else:
+        messages.success(request, f"Vector connection '{name}' deleted.")
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def vector_connection_default_view(request: HttpRequest, connection_id) -> HttpResponse:
+    connection = VectorConnection.objects.filter(pk=connection_id).first()
+    if connection is None:
+        messages.error(request, "Vector connection not found.")
+        return redirect("cpanel:services")
+    connection.is_default = True
+    connection.save()  # clears the flag on every other row
+    messages.success(request, f"New collections now use '{connection.name}' by default.")
+    return redirect("cpanel:services")
+
+
+@login_required
+@superuser_required
+@require_POST
+def vector_connection_test_view(request: HttpRequest) -> JsonResponse:
+    """Probe a connection: ``{"connection_id"}`` or ``{"provider_type", "url", "api_key"}``."""
+    try:
+        data, error = _json_body(request)
+        if error:
+            return error
+        saved = None
+        connection_id = data.get("connection_id")
+        if connection_id:
+            try:
+                saved = VectorConnection.objects.filter(pk=connection_id).first()
+            except (ValidationError, ValueError):
+                saved = None
+            if saved is None:
+                return JsonResponse({"success": False, "error": "Connection not found."})
+
+        if saved is not None and not data.get("url") and not data.get("api_key"):
+            probe = saved
+        else:
+            ptype = data.get("provider_type") or (saved.provider_type if saved else "")
+            if ptype not in VectorConnection.ProviderType.values:
+                return JsonResponse({"success": False, "error": "Pick a backend first."})
+            probe = VectorConnection(
+                provider_type=ptype,
+                name=(saved.name if saved else "test"),
+                config={"url": (data.get("url") or "").strip().rstrip("/")},
+            )
+            api_key = data.get("api_key") or ""
+            if api_key:
+                probe.set_credentials({"api_key": api_key})
+            elif saved is not None:
+                probe.credentials_encrypted = saved.credentials_encrypted
+
+        ok, message = VectorService.test_connection(probe)
+        if ok and saved is not None:
+            saved.last_tested_at = timezone.now()
+            saved.save(update_fields=["last_tested_at"])
+        return JsonResponse(
+            {
+                "success": ok,
+                "message": message if ok else None,
+                "error": message if not ok else None,
+            }
+        )
+    except Exception as e:
+        logger.exception("Vector connection test failed")
+        return JsonResponse({"success": False, "error": str(e)})

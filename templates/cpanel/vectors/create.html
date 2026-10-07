@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Create Collection - Vectors - {{ instance_name }}{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-2xl mx-auto space-y-5">
+
+            <!-- Header -->
+            <div>
+                <nav class="flex items-center gap-1.5 eyebrow text-faint mb-3">
+                    <a href="{% url 'cpanel:vector_list' %}" class="hover:text-text transition-colors">Vectors</a>
+                    <span>/</span>
+                    <span class="text-muted">Create</span>
+                </nav>
+                <h1 class="text-[22px] font-semibold tracking-tight">Create collection</h1>
+                <p class="text-sm text-muted mt-1">A named vector collection in this workspace, pinned to one embedding model and dimension</p>
+            </div>
+
+            <form method="post" class="rounded-2xl border border-line bg-panel p-6 space-y-5">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="rounded-lg border border-fail/30 bg-fail/5 p-3 text-sm text-fail">{{ form.non_field_errors.0 }}</div>
+                {% endif %}
+
+                <div>
+                    <label for="id_name" class="block text-[13px] font-medium text-text mb-1.5">{{ form.name.label }}</label>
+                    {{ form.name }}
+                    {% if form.name.help_text %}<p class="mt-1.5 text-xs text-faint">{{ form.name.help_text }}</p>{% endif %}
+                    {% if form.name.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.name.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_description" class="block text-[13px] font-medium text-text mb-1.5">{{ form.description.label }}</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.description.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label for="id_connection" class="block text-[13px] font-medium text-text mb-1.5">{{ form.connection.label }}</label>
+                        {{ form.connection }}
+                        {% if form.connection.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.connection.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_metric" class="block text-[13px] font-medium text-text mb-1.5">{{ form.metric.label }}</label>
+                        {{ form.metric }}
+                        <p class="mt-1.5 text-xs text-faint">Cosine suits every text-embedding model.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_embedding_provider" class="block text-[13px] font-medium text-text mb-1.5">{{ form.embedding_provider.label }}</label>
+                    {{ form.embedding_provider }}
+                    <p class="mt-1.5 text-xs text-faint">{{ form.embedding_provider.help_text }}{% if providers_count == 0 %} No provider is configured yet — add one under Services → Embedding providers, or create a vectors-only collection.{% endif %}</p>
+                    {% if form.embedding_provider.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.embedding_provider.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div id="dimension-wrap">
+                    <label for="id_dimension" class="block text-[13px] font-medium text-text mb-1.5">{{ form.dimension.label }}</label>
+                    {{ form.dimension }}
+                    <p class="mt-1.5 text-xs text-faint">{{ form.dimension.help_text }}</p>
+                    {% if form.dimension.errors %}<p class="mt-1.5 text-xs text-fail">{{ form.dimension.errors.0 }}</p>{% endif %}
+                </div>
+
+                <label class="flex items-center gap-2 cursor-pointer">{{ form.include_in_backup }}<span class="text-sm text-muted">{{ form.include_in_backup.label }}</span></label>
+
+                <div class="rounded-lg border border-line-soft bg-panel-hi/40 p-4 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-info flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div class="text-sm text-muted">
+                        <p class="font-medium text-text">How it works</p>
+                        <ul class="mt-2 space-y-1 list-disc list-inside text-xs">
+                            <li>The provider's model and vector size are pinned to the collection when it is created</li>
+                            <li>Changing the model later means a new collection and re-embedding — never a silent change of space</li>
+                            <li>On the Local store the collection is one SQLite file on the data volume, searched exactly</li>
+                            <li>Scripts and plugins open it by name through <code class="font-mono text-info">pyrunner_vectors</code> / the SDK (next stage)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-4 border-t border-line-soft">
+                    <a href="{% url 'cpanel:vector_list' %}" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Cancel</a>
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Create collection</button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<script>
+// The dimension input only matters for a vectors-only collection.
+(function () {
+    const provider = document.getElementById('id_embedding_provider');
+    const wrap = document.getElementById('dimension-wrap');
+    if (!provider || !wrap) return;
+    function sync() { wrap.classList.toggle('hidden', !!provider.value); }
+    provider.addEventListener('change', sync);
+    sync();
+})();
+</script>
+{% endblock %}

@@ -601,6 +601,292 @@ print(answer)</code></pre>
             {{ secret_providers_json|json_script:"secret-providers-data" }}
             {{ secret_backends_json|json_script:"secret-backends-data" }}
 
+            <!-- Embedding Providers Service Card -->
+            <div class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="p-6 border-b border-line-soft">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-12 h-12 rounded-lg bg-accent/10 grid place-items-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20l5-5m0 0l4 4 7-7m-11 3V9a2 2 0 012-2h3m6 0h.01M6 4h.01M18 4h.01M12 12h.01"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-lg font-semibold text-text">Embedding Providers</h2>
+                                <p class="text-sm text-muted">Turn text into vectors for semantic search &mdash; OpenAI, Voyage, Jina, Z.AI, a local Ollama, or any OpenAI-compatible endpoint</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            {% if embedding_providers %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>{{ embedding_providers|length }} configured</span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-panel-hi text-faint"><span class="w-1.5 h-1.5 rounded-full bg-faint"></span>Not configured</span>
+                            {% endif %}
+                            <button type="button" onclick="toggleEmbeddingConfig()" class="p-2 text-muted hover:text-text transition-colors">
+                                <svg id="embedding-chevron" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="embedding-config" class="hidden">
+                    <div class="p-6 space-y-6">
+                        <div>
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <p class="text-[13px] font-medium text-text">Saved providers</p>
+                                <button type="button" onclick="embNewProvider()" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">+ Add provider</button>
+                            </div>
+
+                            {% if embedding_providers %}
+                            <div class="border border-line-soft rounded-lg overflow-hidden">
+                                <div class="overflow-x-auto">
+                                <table class="w-full text-sm min-w-[760px]">
+                                    <thead>
+                                        <tr class="text-left bg-panel-hi/40">
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Name</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Type</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Model</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2 text-right">Dimension</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2 text-right">Collections</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Last tested</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for p in embedding_providers %}
+                                        <tr class="border-t border-line-soft">
+                                            <td class="px-4 py-2.5 text-text font-medium whitespace-nowrap">
+                                                {{ p.name }}
+                                                {% if not p.enabled %}<span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-panel-hi text-faint align-middle">Disabled</span>{% endif %}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">{{ p.get_provider_type_display }}</td>
+                                            <td class="px-4 py-2.5 font-mono text-xs text-muted">{{ p.model }}</td>
+                                            <td class="px-4 py-2.5 text-right font-mono tnum text-muted">{% if p.dimension %}{{ p.dimension }}{% else %}<span class="text-warn" title="Run Test to record the dimension">untested</span>{% endif %}</td>
+                                            <td class="px-4 py-2.5 text-right font-mono tnum text-muted">{{ p.collection_count }}</td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">{% if p.last_tested_at %}{{ p.last_tested_at|timesince }} ago{% else %}&mdash;{% endif %}</td>
+                                            <td class="px-4 py-2.5">
+                                                <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                                    <button type="button" onclick="embTestRow('{{ p.id }}', this)" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test</button>
+                                                    <button type="button" onclick="embEditProvider('{{ p.id }}')" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Edit</button>
+                                                    <form method="post" action="{% url 'cpanel:embedding_provider_delete' provider_id=p.id %}" class="inline" onsubmit="return confirm('Delete embedding provider \'{{ p.name|escapejs }}\'? Collections that use it must be deleted first.');">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-fail/80 hover:text-fail hover:border-fail/50 transition-colors">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="border border-dashed border-line rounded-lg p-5 text-center text-sm text-muted">
+                                No embedding providers yet. Add one to let collections embed text and search by meaning.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Add / edit provider form -->
+                        <div id="emb-form-wrap" class="hidden border border-line-soft rounded-lg p-5 bg-panel-hi/30">
+                            <p id="emb-form-title" class="text-[13px] font-medium text-text mb-4">Add provider</p>
+                            <form method="post" action="{% url 'cpanel:embedding_provider_save' %}" id="emb-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="provider_id" id="emb-provider-id" value="">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ embedding_provider_form.provider_type.label }}</label>
+                                        {{ embedding_provider_form.provider_type }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ embedding_provider_form.name.label }}</label>
+                                        {{ embedding_provider_form.name }}
+                                    </div>
+                                    <div class="md:col-span-2" id="emb-field-base-url">
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ embedding_provider_form.base_url.label }}</label>
+                                        {{ embedding_provider_form.base_url }}
+                                        <p class="mt-1.5 text-xs text-faint">{{ embedding_provider_form.base_url.help_text }}</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5" id="emb-credential-label">{{ embedding_provider_form.credential.label }}</label>
+                                        {{ embedding_provider_form.credential }}
+                                        <p class="mt-1.5 text-xs text-faint" id="emb-credential-help"></p>
+                                        <p class="mt-1.5 text-xs text-ok hidden" id="emb-credential-saved">A key is saved &mdash; leave blank to keep it.</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ embedding_provider_form.model.label }}</label>
+                                        {{ embedding_provider_form.model }}
+                                        <p class="mt-1.5 text-xs text-faint">{{ embedding_provider_form.model.help_text }}</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ embedding_provider_form.max_batch.label }}</label>
+                                        {{ embedding_provider_form.max_batch }}
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ embedding_provider_form.enabled }}<span class="text-sm text-muted">{{ embedding_provider_form.enabled.label }}</span></label>
+                                </div>
+                                <p id="emb-notes" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs"></p>
+                                <p id="emb-docs" class="hidden mb-5 text-xs text-faint"></p>
+                                <div class="flex items-center gap-2.5">
+                                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save provider</button>
+                                    <button type="button" onclick="embTestForm(this)" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test</button>
+                                    <button type="button" onclick="document.getElementById('emb-form-wrap').classList.add('hidden')" class="text-[13px] px-3.5 py-2 rounded-lg text-muted hover:text-text transition-colors">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="p-4 bg-panel-hi/40 border border-line-soft rounded-lg text-sm text-muted">
+                            <p class="text-text font-medium mb-2">How collections use a provider</p>
+                            <p>A collection pins the provider's <span class="text-text">model</span> and the <span class="text-text">dimension</span> recorded by Test when it is created. Changing the model later resets the dimension and means a new collection &mdash; the vector space never changes under existing points. Usage (tokens, calls) is counted on the provider and on each collection.</p>
+                        </div>
+                    </div>
+                    <div id="emb-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
+                </div>
+            </div>
+
+            {{ embedding_providers_json|json_script:"embedding-providers-data" }}
+            {{ embedding_presets_json|json_script:"embedding-presets-data" }}
+
+            <!-- Vector Stores Service Card -->
+            <div class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="p-6 border-b border-line-soft">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-12 h-12 rounded-lg bg-info/10 grid place-items-center flex-shrink-0">
+                                <svg class="w-6 h-6 text-info" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-lg font-semibold text-text">Vector Stores</h2>
+                                <p class="text-sm text-muted">Where vector collections live &mdash; the built-in Local store (SQLite + numpy on the data volume) or a Qdrant server</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            {% if vector_connections %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>{{ vector_connections|length }} connection{{ vector_connections|length|pluralize }}</span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-panel-hi text-faint"><span class="w-1.5 h-1.5 rounded-full bg-faint"></span>Not configured</span>
+                            {% endif %}
+                            <button type="button" onclick="toggleVectorConfig()" class="p-2 text-muted hover:text-text transition-colors">
+                                <svg id="vector-chevron" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="vector-config" class="hidden">
+                    <div class="p-6 space-y-6">
+                        <div>
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <p class="text-[13px] font-medium text-text">Connections</p>
+                                <button type="button" onclick="vecNewConnection()" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">+ Add connection</button>
+                            </div>
+
+                            {% if vector_connections %}
+                            <div class="border border-line-soft rounded-lg overflow-hidden">
+                                <div class="overflow-x-auto">
+                                <table class="w-full text-sm min-w-[720px]">
+                                    <thead>
+                                        <tr class="text-left bg-panel-hi/40">
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Name</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Backend</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Target</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2 text-right">Collections</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2">Last tested</th>
+                                            <th class="eyebrow text-faint font-normal px-4 py-2 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for c in vector_connections %}
+                                        <tr class="border-t border-line-soft">
+                                            <td class="px-4 py-2.5 text-text font-medium whitespace-nowrap">
+                                                {{ c.name }}
+                                                {% if c.is_default %}<span class="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-md bg-ok/10 text-ok align-middle"><span class="w-1 h-1 rounded-full bg-ok"></span>Default</span>{% endif %}
+                                                {% if not c.enabled %}<span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-panel-hi text-faint align-middle">Disabled</span>{% endif %}
+                                                {% if not c.implemented %}<span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-warn/10 text-warn align-middle" title="Collections on this backend arrive with the seam's next stage.">Stage 2</span>{% endif %}
+                                            </td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">{{ c.get_provider_type_display }}</td>
+                                            <td class="px-4 py-2.5 font-mono text-xs text-muted">{% if c.is_local %}{{ vectors_dir }}{% else %}{{ c.url|default:"—" }}{% endif %}</td>
+                                            <td class="px-4 py-2.5 text-right font-mono tnum text-muted">{{ c.collection_count }}</td>
+                                            <td class="px-4 py-2.5 text-muted whitespace-nowrap">{% if c.last_tested_at %}{{ c.last_tested_at|timesince }} ago{% else %}&mdash;{% endif %}</td>
+                                            <td class="px-4 py-2.5">
+                                                <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                                    {% if not c.is_default %}
+                                                    <form method="post" action="{% url 'cpanel:vector_connection_default' connection_id=c.id %}" class="inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Make default</button>
+                                                    </form>
+                                                    {% endif %}
+                                                    <button type="button" onclick="vecTestRow('{{ c.id }}', this)" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test</button>
+                                                    <button type="button" onclick="vecEditConnection('{{ c.id }}')" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Edit</button>
+                                                    <form method="post" action="{% url 'cpanel:vector_connection_delete' connection_id=c.id %}" class="inline" onsubmit="return confirm('Delete vector connection \'{{ c.name|escapejs }}\'? Collections on it must be deleted first.');">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-fail/80 hover:text-fail hover:border-fail/50 transition-colors">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="border border-dashed border-line rounded-lg p-5 text-center text-sm text-muted">
+                                No connections. Add the Local store (no settings needed) or a Qdrant server.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Add / edit connection form -->
+                        <div id="vec-form-wrap" class="hidden border border-line-soft rounded-lg p-5 bg-panel-hi/30">
+                            <p id="vec-form-title" class="text-[13px] font-medium text-text mb-4">Add connection</p>
+                            <form method="post" action="{% url 'cpanel:vector_connection_save' %}" id="vec-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="connection_id" id="vec-connection-id" value="">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ vector_connection_form.provider_type.label }}</label>
+                                        {{ vector_connection_form.provider_type }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ vector_connection_form.name.label }}</label>
+                                        {{ vector_connection_form.name }}
+                                    </div>
+                                    <div class="md:col-span-2 vec-qdrant-only">
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ vector_connection_form.url.label }}</label>
+                                        {{ vector_connection_form.url }}
+                                        <p class="mt-1.5 text-xs text-faint">{{ vector_connection_form.url.help_text }}</p>
+                                    </div>
+                                    <div class="vec-qdrant-only">
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ vector_connection_form.api_key.label }}</label>
+                                        {{ vector_connection_form.api_key }}
+                                        <p class="mt-1.5 text-xs text-ok hidden" id="vec-credentials-saved">A key is saved &mdash; leave blank to keep it.</p>
+                                    </div>
+                                    <div class="vec-qdrant-only">
+                                        <label class="block text-[13px] font-medium text-text mb-1.5">{{ vector_connection_form.collection_prefix.label }}</label>
+                                        {{ vector_connection_form.collection_prefix }}
+                                        <p class="mt-1.5 text-xs text-faint">{{ vector_connection_form.collection_prefix.help_text }}</p>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ vector_connection_form.enabled }}<span class="text-sm text-muted">{{ vector_connection_form.enabled.label }}</span></label>
+                                    <label class="flex items-center gap-2 cursor-pointer">{{ vector_connection_form.is_default }}<span class="text-sm text-muted">{{ vector_connection_form.is_default.label }}</span></label>
+                                </div>
+                                <p id="vec-local-note" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs">The Local store needs no settings: one SQLite file per collection under {{ vectors_dir }}, searched exactly with numpy. Comfortable to ~{{ vector_soft_limit }} points per collection; single-container deployments only.</p>
+                                <p id="vec-qdrant-note" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs">Collections on Qdrant arrive with the seam's next stage; you can already save and test the connection. A Qdrant container on the same Docker network needs PYRUNNER_ALLOW_PRIVATE_NETWORK=true.</p>
+                                <div class="flex items-center gap-2.5">
+                                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save connection</button>
+                                    <button type="button" onclick="vecTestForm(this)" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test</button>
+                                    <button type="button" onclick="document.getElementById('vec-form-wrap').classList.add('hidden')" class="text-[13px] px-3.5 py-2 rounded-lg text-muted hover:text-text transition-colors">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div id="vec-test-result" class="hidden mx-6 mb-6 p-4 rounded-lg"></div>
+                </div>
+            </div>
+
+            {{ vector_connections_json|json_script:"vector-connections-data" }}
+
             <!-- Future services placeholder -->
             <div class="rounded-2xl border border-dashed border-line bg-panel/50 p-8 text-center">
                 <div class="w-12 h-12 rounded-lg bg-panel-hi grid place-items-center mx-auto mb-4">
@@ -1037,6 +1323,207 @@ function spTestForm() {
 }
 
 // Auto-expand if form has errors or if not configured
+// ---- Embedding Providers card ----
+const EMB_PROVIDERS = JSON.parse(document.getElementById('embedding-providers-data').textContent);
+const EMB_PRESETS = JSON.parse(document.getElementById('embedding-presets-data').textContent);
+
+function toggleEmbeddingConfig() {
+    document.getElementById('embedding-config').classList.toggle('hidden');
+    document.getElementById('embedding-chevron').classList.toggle('rotate-180');
+}
+
+function embFormField(name) {
+    return document.querySelector('#emb-form [name="' + name + '"]');
+}
+
+function embShowResult(data) {
+    const div = document.getElementById('emb-test-result');
+    div.classList.remove('hidden');
+    if (data.success) {
+        div.className = 'mx-6 mb-6 p-4 rounded-lg bg-ok/10 border border-ok/30 text-ok';
+        div.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
+    } else {
+        div.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
+        div.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
+    }
+}
+
+function embPostTest(payload, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    document.getElementById('emb-test-result').classList.add('hidden');
+    fetch('{% url "cpanel:embedding_provider_test" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(r => r.json())
+    .then(embShowResult)
+    .catch(err => embShowResult({success: false, error: err.message}))
+    .finally(() => { btn.disabled = false; btn.textContent = original; });
+}
+
+// Test a saved row: the server uses its stored key and records the dimension.
+function embTestRow(id, btn) {
+    embPostTest({provider_id: id}, btn);
+}
+
+// Test what's typed in the form before saving (blank key falls back to the edited row's).
+function embTestForm(btn) {
+    embPostTest({
+        provider_id: document.getElementById('emb-provider-id').value,
+        provider_type: embFormField('provider_type').value,
+        base_url: embFormField('base_url').value,
+        model: embFormField('model').value,
+        credential: embFormField('credential').value,
+        max_batch: embFormField('max_batch').value,
+    }, btn);
+}
+
+function embApplyTypeHints(prefill) {
+    const ptype = embFormField('provider_type').value;
+    const preset = EMB_PRESETS[ptype] || {};
+    const baseUrl = embFormField('base_url');
+    const model = embFormField('model');
+    const batch = embFormField('max_batch');
+    const typeLabel = embFormField('provider_type').selectedOptions[0]?.text || ptype;
+
+    baseUrl.placeholder = preset.base_url || 'https://…';
+    baseUrl.readOnly = preset.base_url_editable === false;
+    baseUrl.classList.toggle('opacity-60', preset.base_url_editable === false);
+    model.placeholder = preset.model_placeholder || '';
+    batch.placeholder = preset.max_batch ? String(preset.max_batch) : '';
+    if (prefill) {
+        baseUrl.value = preset.base_url || '';
+        model.value = preset.default_model || '';
+        batch.value = '';
+    }
+    document.getElementById('emb-credential-label').textContent = preset.credential_label || 'API key';
+    document.getElementById('emb-credential-help').textContent = preset.credential_help || '';
+
+    const notes = document.getElementById('emb-notes');
+    if (preset.notes) { notes.textContent = preset.notes; notes.classList.remove('hidden'); }
+    else { notes.classList.add('hidden'); }
+    const docs = document.getElementById('emb-docs');
+    if (preset.docs_url) {
+        docs.innerHTML = 'Reference: <a href="' + escapeHtml(preset.docs_url) + '" target="_blank" rel="noopener" class="text-info hover:underline">' + escapeHtml(typeLabel) + ' docs</a>';
+        docs.classList.remove('hidden');
+    } else { docs.classList.add('hidden'); }
+}
+
+function embNewProvider() {
+    document.getElementById('emb-form-title').textContent = 'Add provider';
+    document.getElementById('emb-provider-id').value = '';
+    document.getElementById('emb-form').reset();
+    document.getElementById('emb-credential-saved').classList.add('hidden');
+    document.getElementById('emb-form-wrap').classList.remove('hidden');
+    embApplyTypeHints(true);
+}
+
+function embEditProvider(id) {
+    const p = EMB_PROVIDERS.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('emb-form-title').textContent = 'Edit provider';
+    document.getElementById('emb-provider-id').value = p.id;
+    embFormField('provider_type').value = p.provider_type;
+    embFormField('name').value = p.name;
+    embFormField('base_url').value = p.base_url;
+    embFormField('model').value = p.model;
+    embFormField('max_batch').value = p.max_batch;
+    embFormField('enabled').checked = p.enabled;
+    embFormField('credential').value = '';  // blank keeps the stored key
+    document.getElementById('emb-credential-saved').classList.toggle('hidden', !p.has_credential);
+    embApplyTypeHints(false);
+    document.getElementById('emb-form-wrap').classList.remove('hidden');
+}
+
+// ---- Vector Stores card ----
+const VEC_CONNECTIONS = JSON.parse(document.getElementById('vector-connections-data').textContent);
+
+function toggleVectorConfig() {
+    document.getElementById('vector-config').classList.toggle('hidden');
+    document.getElementById('vector-chevron').classList.toggle('rotate-180');
+}
+
+function vecFormField(name) {
+    return document.querySelector('#vec-form [name="' + name + '"]');
+}
+
+function vecShowResult(data) {
+    const div = document.getElementById('vec-test-result');
+    div.classList.remove('hidden');
+    if (data.success) {
+        div.className = 'mx-6 mb-6 p-4 rounded-lg bg-ok/10 border border-ok/30 text-ok';
+        div.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' + escapeHtml(data.message) + '</span></div>';
+    } else {
+        div.className = 'mx-6 mb-6 p-4 rounded-lg bg-fail/10 border border-fail/30 text-fail';
+        div.innerHTML = '<div class="flex items-center"><svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span>' + escapeHtml(data.error) + '</span></div>';
+    }
+}
+
+function vecPostTest(payload, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    document.getElementById('vec-test-result').classList.add('hidden');
+    fetch('{% url "cpanel:vector_connection_test" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(r => r.json())
+    .then(vecShowResult)
+    .catch(err => vecShowResult({success: false, error: err.message}))
+    .finally(() => { btn.disabled = false; btn.textContent = original; });
+}
+
+function vecTestRow(id, btn) {
+    vecPostTest({connection_id: id}, btn);
+}
+
+function vecTestForm(btn) {
+    vecPostTest({
+        connection_id: document.getElementById('vec-connection-id').value,
+        provider_type: vecFormField('provider_type').value,
+        url: vecFormField('url').value,
+        api_key: vecFormField('api_key').value,
+    }, btn);
+}
+
+function vecApplyType() {
+    const isQdrant = vecFormField('provider_type').value === 'qdrant';
+    document.querySelectorAll('#vec-form .vec-qdrant-only').forEach(el => el.classList.toggle('hidden', !isQdrant));
+    document.getElementById('vec-local-note').classList.toggle('hidden', isQdrant);
+    document.getElementById('vec-qdrant-note').classList.toggle('hidden', !isQdrant);
+}
+
+function vecNewConnection() {
+    document.getElementById('vec-form-title').textContent = 'Add connection';
+    document.getElementById('vec-connection-id').value = '';
+    document.getElementById('vec-form').reset();
+    document.getElementById('vec-credentials-saved').classList.add('hidden');
+    document.getElementById('vec-form-wrap').classList.remove('hidden');
+    vecApplyType();
+}
+
+function vecEditConnection(id) {
+    const c = VEC_CONNECTIONS.find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('vec-form-title').textContent = 'Edit connection';
+    document.getElementById('vec-connection-id').value = c.id;
+    vecFormField('provider_type').value = c.provider_type;
+    vecFormField('name').value = c.name;
+    vecFormField('url').value = c.url || '';
+    vecFormField('collection_prefix').value = c.collection_prefix || '';
+    vecFormField('enabled').checked = c.enabled;
+    vecFormField('is_default').checked = c.is_default;
+    vecFormField('api_key').value = '';  // blank keeps the stored key
+    document.getElementById('vec-credentials-saved').classList.toggle('hidden', !c.has_credentials);
+    vecApplyType();
+    document.getElementById('vec-form-wrap').classList.remove('hidden');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     {% if not s3_status.configured %}
     toggleS3Config();
@@ -1062,6 +1549,21 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleClaudeConfig();
     aiNewProvider();
     {% endif %}
+
+    const embType = embFormField('provider_type');
+    if (embType) {
+        embType.addEventListener('change', function () { embApplyTypeHints(true); });
+    }
+    {% if not embedding_providers %}
+    // First run: open the card and the add-provider form.
+    toggleEmbeddingConfig();
+    embNewProvider();
+    {% endif %}
+
+    const vecType = vecFormField('provider_type');
+    if (vecType) {
+        vecType.addEventListener('change', vecApplyType);
+    }
 
     const spType = spFormField('provider_type');
     if (spType) {

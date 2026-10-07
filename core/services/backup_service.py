@@ -1,6 +1,7 @@
 """
 Service for creating and restoring PyRun backups.
 """
+import base64
 import gzip
 import hashlib
 import io
@@ -18,6 +19,7 @@ from core.models import (
     DatabaseGrant,
     DataStore,
     DataStoreEntry,
+    EmbeddingProvider,
     Environment,
     GlobalSettings,
     Library,
@@ -30,6 +32,8 @@ from core.models import (
     SecretProvider,
     Tag,
     User,
+    VectorCollection,
+    VectorConnection,
     Workspace,
     WorkspaceMembership,
 )
@@ -108,7 +112,20 @@ class BackupService:
     # (``yearly_month``/``yearly_day``/``yearly_time``) on each schedule row.
     # Backward compatible: a pre-1.8.0 backup omits them and restore defaults
     # them ("" / None); only rows in those run modes ever use them.
-    BACKUP_VERSION = "1.8.0"
+    #
+    # 1.9.0 — Vector seam: ``embedding_providers`` and ``vector_connections``
+    # arrays (instance-global profiles, credentials VERBATIM, upserted by name on
+    # restore exactly like secret providers — these ARE carried, unlike the AI
+    # provider rows, because collections relink to them by name) and a
+    # ``vector_collections`` array: row metadata joined to its connection/provider
+    # BY NAME, plus — for Local collections with ``include_in_backup`` — the
+    # SQLite image base64-inline (``file_b64``) up to PYRUNNER_VECTOR_BACKUP_MAX_MB;
+    # larger ones carry ``file_skipped_reason`` and restore empty with a warning.
+    # Qdrant contents are never carried (the store is the operator's). Backward
+    # compatible: a pre-1.9.0 backup has none of the three keys → no-op; the
+    # seeded Local connection stays. Brain's sections join under this same
+    # version (nothing ships in between).
+    BACKUP_VERSION = "1.9.0"
     MAX_BACKUP_SIZE_MB = 100
 
     # Backup format constants
@@ -177,6 +194,9 @@ class BackupService:
             backup_data["datastores"] = []
 
         backup_data["databases"] = cls._export_databases()
+        backup_data["embedding_providers"] = cls._export_embedding_providers()
+        backup_data["vector_connections"] = cls._export_vector_connections()
+        backup_data["vector_collections"] = cls._export_vector_collections()
 
         return backup_data
 
@@ -393,6 +413,124 @@ class BackupService:
                 "created_at": cls._serialize_datetime(item.created_at),
             })
         return history
+
+    @classmethod
+    def _export_embedding_providers(cls) -> List[dict]:
+        """Vector seam (1.9.0): embedding-provider profiles, credential VERBATIM.
+
+        Same stance as secret providers: instance-global config that the backup
+        carries so collections relink to their provider by NAME on restore; the
+        ciphertext decrypts on any target restoring with the same ENCRYPTION_KEY.
+        """
+        rows = []
+        for p in EmbeddingProvider.objects.all().order_by("created_at"):
+            rows.append({
+                "id": str(p.id),
+                "provider_type": p.provider_type,
+                "name": p.name,
+                "base_url": p.base_url,
+                "credential_encrypted": p.credential_encrypted,
+                "model": p.model,
+                "dimension": p.dimension,
+                "max_batch": p.max_batch,
+                "enabled": p.enabled,
+                "last_tested_at": cls._serialize_datetime(p.last_tested_at),
+                "tokens_embedded": p.tokens_embedded,
+                "embed_calls": p.embed_calls,
+                "created_at": cls._serialize_datetime(p.created_at),
+                "updated_at": cls._serialize_datetime(p.updated_at),
+            })
+        return rows
+
+    @classmethod
+    def _export_vector_connections(cls) -> List[dict]:
+        """Vector seam (1.9.0): vector-store connections, credentials VERBATIM."""
+        rows = []
+        for c in VectorConnection.objects.all().order_by("created_at"):
+            rows.append({
+                "id": str(c.id),
+                "provider_type": c.provider_type,
+                "name": c.name,
+                "config": c.config,
+                "credentials_encrypted": c.credentials_encrypted,
+                "enabled": c.enabled,
+                "is_default": c.is_default,
+                "last_tested_at": cls._serialize_datetime(c.last_tested_at),
+                "created_at": cls._serialize_datetime(c.created_at),
+                "updated_at": cls._serialize_datetime(c.updated_at),
+            })
+        return rows
+
+    @classmethod
+    def _export_vector_collections(cls) -> List[dict]:
+        """Vector seam (1.9.0): collection rows + the Local store image, inline.
+
+        A backup is one gzipped JSON document (no zip, no sidecar files), so a
+        Local collection's SQLite image rides along base64-encoded — but only up
+        to ``PYRUNNER_VECTOR_BACKUP_MAX_MB``: a bigger index is listed with
+        ``file_skipped_reason`` and restored empty (re-embed), so one large
+        collection can never make the archive unloadable through the web
+        restore path. ``include_in_backup`` is the per-collection opt-out;
+        Qdrant contents are the operator's and are never carried (row only).
+        """
+        from core.vectors.local_store import LocalStore
+
+        cap_mb = int(getattr(settings, "PYRUNNER_VECTOR_BACKUP_MAX_MB", 50))
+        cap = cap_mb * 1024 * 1024
+        rows = []
+        for col in (
+            VectorCollection.objects.select_related("connection", "embedding_provider")
+            .order_by("created_at")
+        ):
+            row = {
+                "id": str(col.id),
+                "workspace_id": str(col.workspace_id) if col.workspace_id else None,
+                "name": col.name,
+                "description": col.description,
+                "owner_plugin": col.owner_plugin,
+                "owner_key": col.owner_key,
+                "connection_name": col.connection.name,
+                "embedding_provider_name": (
+                    col.embedding_provider.name if col.embedding_provider_id else None
+                ),
+                "embedding_model": col.embedding_model,
+                "dimension": col.dimension,
+                "metric": col.metric,
+                "backend_ref": col.backend_ref,
+                "points_count": col.points_count,
+                "tokens_embedded": col.tokens_embedded,
+                "embed_calls": col.embed_calls,
+                "include_in_backup": col.include_in_backup,
+                "created_at": cls._serialize_datetime(col.created_at),
+                "updated_at": cls._serialize_datetime(col.updated_at),
+                "file_b64": None,
+                "file_bytes": 0,
+                "file_skipped_reason": "",
+            }
+            path = col.file_path
+            if not col.include_in_backup:
+                reason = "excluded"
+            elif path is None:
+                reason = "backend"
+            elif not path.exists():
+                reason = "missing"
+            else:
+                try:
+                    image = LocalStore(path, col.dimension, col.metric).export_bytes()
+                    row["file_bytes"] = len(image)
+                    if len(image) > cap:
+                        reason = (
+                            f"too_large ({len(image) // (1024 * 1024)} MB > "
+                            f"PYRUNNER_VECTOR_BACKUP_MAX_MB={cap_mb})"
+                        )
+                    else:
+                        row["file_b64"] = base64.b64encode(image).decode("ascii")
+                        reason = ""
+                except Exception as e:
+                    reason = f"error: {e}"
+            row["file_skipped_reason"] = reason
+            rows.append(row)
+        return rows
 
     @classmethod
     def _export_secret_providers(cls) -> List[dict]:
@@ -820,6 +958,7 @@ class BackupService:
             "package_operations": len(backup_data.get("package_operations", [])),
             "datastores": len(datastores),
             "datastore_entries": sum(len(ds.get("entries", [])) for ds in datastores),
+            "vector_collections": len(backup_data.get("vector_collections", [])),
         }
 
         return {
@@ -884,6 +1023,10 @@ class BackupService:
             # rows go, or the schemas would be orphaned server-side.
             warnings.extend(cls._cleanup_existing_databases())
             Database.objects.all().delete()
+            # Vector collections are full-replace too; their Local store files go
+            # with the rows (connections/providers are upserted, never deleted).
+            warnings.extend(cls._cleanup_existing_vector_collections())
+            VectorCollection.objects.all().delete()
             # Note: We don't delete User objects to preserve authentication
             # GlobalSettings is singleton, so we update rather than delete
 
@@ -936,6 +1079,16 @@ class BackupService:
                 current_user, ws_map, default_ws,
             )
             warnings.extend(db_warnings)
+            embedding_providers_restored = cls._import_embedding_providers(
+                backup_data.get("embedding_providers", [])
+            )
+            vector_connections_restored = cls._import_vector_connections(
+                backup_data.get("vector_connections", [])
+            )
+            vector_collections_restored, vector_warnings = cls._import_vector_collections(
+                backup_data.get("vector_collections", []), current_user, ws_map, default_ws
+            )
+            warnings.extend(vector_warnings)
 
             # Regenerate django-q2 schedules
             schedules_created = cls._regenerate_all_schedules()
@@ -952,6 +1105,9 @@ class BackupService:
                 "datastore_entries": DataStoreEntry.objects.count(),
                 "databases": databases_restored,
                 "libraries": libraries_restored,
+                "embedding_providers": embedding_providers_restored,
+                "vector_connections": vector_connections_restored,
+                "vector_collections": vector_collections_restored,
             }
 
             return {"success": True, "counts": counts, "errors": [], "warnings": warnings}
@@ -1110,6 +1266,180 @@ class BackupService:
                 },
             )
         return len(providers_data)
+
+    @classmethod
+    def _import_embedding_providers(cls, rows: List[dict]) -> int:
+        """Upsert embedding providers by NAME (never delete — instance config)."""
+        for p in rows:
+            EmbeddingProvider.objects.update_or_create(
+                name=p["name"],
+                defaults={
+                    "provider_type": p["provider_type"],
+                    "base_url": p.get("base_url", ""),
+                    "credential_encrypted": p.get("credential_encrypted", ""),
+                    "model": p.get("model", ""),
+                    "dimension": p.get("dimension"),
+                    "max_batch": p.get("max_batch") or 64,
+                    "enabled": bool(p.get("enabled", True)),
+                    "last_tested_at": cls._deserialize_datetime(p.get("last_tested_at")),
+                    "tokens_embedded": p.get("tokens_embedded") or 0,
+                    "embed_calls": p.get("embed_calls") or 0,
+                },
+            )
+        return len(rows)
+
+    @classmethod
+    def _import_vector_connections(cls, rows: List[dict]) -> int:
+        """Upsert vector connections by NAME (never delete). The backup's default wins."""
+        for c in rows:
+            VectorConnection.objects.update_or_create(
+                name=c["name"],
+                defaults={
+                    "provider_type": c["provider_type"],
+                    "config": c.get("config") or {},
+                    "credentials_encrypted": c.get("credentials_encrypted", ""),
+                    "enabled": bool(c.get("enabled", True)),
+                    "is_default": bool(c.get("is_default", False)),
+                    "last_tested_at": cls._deserialize_datetime(c.get("last_tested_at")),
+                },
+            )
+        return len(rows)
+
+    @classmethod
+    def _cleanup_existing_vector_collections(cls) -> List[str]:
+        """Remove the Local store files of every existing collection (full replace).
+
+        Best effort: a file that cannot be removed becomes a warning, never an
+        aborted restore. Like the databases' deprovision, this runs inside the
+        restore transaction but touches disk, so a later failure rolls back the
+        rows and not the files — the Retry button on a collection recreates an
+        empty store.
+        """
+        from core.vectors.local_store import LocalStore
+
+        warnings: List[str] = []
+        for col in VectorCollection.objects.all():
+            path = col.file_path
+            if path is None:
+                continue
+            try:
+                LocalStore(path, col.dimension, col.metric).delete_files()
+            except Exception as e:  # pragma: no cover — OS-level failure only
+                warnings.append(f"Vector collection '{col.name}': could not remove its store: {e}")
+        return warnings
+
+    @classmethod
+    def _import_vector_collections(
+        cls, rows: List[dict], current_user, ws_map: dict, default_ws
+    ) -> Tuple[int, List[str]]:
+        """Recreate collections (UUID preserved) and rewrite their Local images.
+
+        Connections and providers are joined BY NAME. A missing connection falls
+        back to the default one (warning); a missing provider restores the
+        collection as vectors-only (warning). A collection whose image was not
+        carried (excluded / too large / backend) comes back empty with a warning
+        naming the reason, so the operator knows to re-embed.
+        """
+        from core.vectors.local_store import LocalStore, LocalStoreError
+        from core.vectors.service import VectorService
+
+        warnings: List[str] = []
+        restored = 0
+        connections = {c.name: c for c in VectorConnection.objects.all()}
+        providers = {p.name: p for p in EmbeddingProvider.objects.all()}
+        fallback = VectorService.default_connection()
+
+        for data in rows:
+            name = data.get("name") or ""
+            connection = connections.get(data.get("connection_name"))
+            if connection is None:
+                if fallback is None:
+                    warnings.append(
+                        f"Vector collection '{name}' skipped: connection "
+                        f"'{data.get('connection_name')}' not found and no default is enabled."
+                    )
+                    continue
+                warnings.append(
+                    f"Vector collection '{name}': connection '{data.get('connection_name')}' "
+                    f"not found, using '{fallback.name}'."
+                )
+                connection = fallback
+
+            provider = None
+            provider_name = data.get("embedding_provider_name")
+            if provider_name:
+                provider = providers.get(provider_name)
+                if provider is None:
+                    warnings.append(
+                        f"Vector collection '{name}': embedding provider '{provider_name}' "
+                        "not found; restored as vectors-only."
+                    )
+
+            workspace = cls._resolve_workspace(data.get("workspace_id"), ws_map, default_ws)
+            collection = VectorCollection(
+                workspace=workspace,
+                name=name,
+                description=data.get("description") or "",
+                owner_plugin=data.get("owner_plugin"),
+                owner_key=data.get("owner_key"),
+                connection=connection,
+                embedding_provider=provider,
+                embedding_model=data.get("embedding_model") or (provider.model if provider else ""),
+                dimension=int(data["dimension"]),
+                metric=data.get("metric") or VectorCollection.Metric.COSINE,
+                backend_ref="",
+                points_count=int(data.get("points_count") or 0),
+                tokens_embedded=int(data.get("tokens_embedded") or 0),
+                embed_calls=int(data.get("embed_calls") or 0),
+                include_in_backup=bool(data.get("include_in_backup", True)),
+                created_by=current_user,
+            )
+            if data.get("id"):
+                collection.id = data["id"]
+            if connection.is_local:
+                collection.backend_ref = VectorCollection.local_backend_ref(collection.id)
+            else:
+                collection.backend_ref = data.get("backend_ref") or ""
+            collection.save()
+            restored += 1
+
+            if not connection.is_local:
+                if collection.points_count:
+                    warnings.append(
+                        f"Vector collection '{name}': its points live on the external store "
+                        "and were not carried by the backup."
+                    )
+                continue
+
+            path = collection.file_path
+            image_b64 = data.get("file_b64")
+            try:
+                if image_b64:
+                    store = LocalStore.import_bytes(path, base64.b64decode(image_b64))
+                    if store.dim != collection.dimension or store.metric != collection.metric:
+                        raise LocalStoreError(
+                            f"image is dim={store.dim}/{store.metric}, row is "
+                            f"dim={collection.dimension}/{collection.metric}"
+                        )
+                    collection.points_count = store.count()
+                else:
+                    if path.exists():
+                        LocalStore(path, collection.dimension, collection.metric).delete_files()
+                    LocalStore.create(path, collection.dimension, collection.metric)
+                    if collection.points_count:
+                        warnings.append(
+                            f"Vector collection '{name}': its points were not in the backup "
+                            f"({data.get('file_skipped_reason') or 'no file'}); restored empty — "
+                            "re-embed its content."
+                        )
+                    collection.points_count = 0
+                collection.save(update_fields=["points_count"])
+            except Exception as e:
+                collection.status = VectorCollection.STATUS_ERROR
+                collection.last_error = f"restore: {e}"
+                collection.save(update_fields=["status", "last_error"])
+                warnings.append(f"Vector collection '{name}': store could not be restored: {e}")
+        return restored, warnings
 
     @classmethod
     def _import_secrets(cls, secrets_data: List[dict], user_map: dict, current_user, ws_map: dict, default_ws) -> List[str]:

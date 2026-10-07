@@ -433,7 +433,7 @@ class PluginService:
         page. The delete dialog names them in prose instead, so the promise is
         still kept — just not as a number.
         """
-        from core.models import DataStore, Library, Script, Secret
+        from core.models import DataStore, Library, Script, Secret, VectorCollection
 
         counts = {}
         for model, label in (
@@ -441,6 +441,7 @@ class PluginService:
             (Secret, "secrets"),
             (DataStore, "datastores"),
             (Library, "libraries"),
+            (VectorCollection, "vector_collections"),
         ):
             try:
                 model._meta.get_field("owner_plugin")
@@ -494,6 +495,22 @@ class PluginService:
                 logger.warning(
                     "Owned-%s cleanup skipped for plugin %r: %s", label, slug, exc
                 )
+
+        # Vector collections: the row AND its Local store file — the service owns
+        # both, so they go through it rather than a bare queryset delete.
+        try:
+            from core.models import VectorCollection
+            from core.vectors.service import VectorService
+
+            owned = list(VectorCollection.objects.filter(owner_plugin=slug))
+            for collection in owned:
+                VectorService.delete_collection(collection)
+            if owned:
+                counts["vector_collections"] = len(owned)
+        except Exception as exc:
+            logger.warning(
+                "Owned-vector_collections cleanup skipped for plugin %r: %s", slug, exc
+            )
 
         # Stored objects under apps/<slug>/. Best-effort and last: these live in a
         # remote bucket, so a network failure must not block the local removal the

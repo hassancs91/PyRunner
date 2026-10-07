@@ -3287,3 +3287,387 @@ class LibraryForm(forms.ModelForm):
                 "A library with this import name already exists in this workspace."
             )
         return key
+
+
+# =============================================================================
+# Vector seam (Stage 1): embedding providers, vector connections, collections
+# =============================================================================
+
+
+class EmbeddingProviderForm(forms.Form):
+    """Create/edit one EmbeddingProvider profile (API key stored encrypted).
+
+    Twin of ``AIProviderForm``. Changing the model or the endpoint resets the
+    recorded ``dimension`` so the row must be re-Tested before a collection can
+    pin it — a stale dimension would silently mis-size every new collection.
+    """
+
+    from core.models import EmbeddingProvider as _EP
+
+    provider_type = forms.ChoiceField(
+        choices=_EP.ProviderType.choices,
+        initial=_EP.ProviderType.OPENAI,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Provider",
+    )
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. OpenAI small"}),
+        label="Name",
+    )
+    base_url = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "https://…"}),
+        label="Endpoint base URL",
+        help_text="Prefilled per provider; the embeddings path is appended automatically.",
+    )
+    credential = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="API key",
+    )
+    model = forms.CharField(
+        required=False,
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "prefilled per provider"}),
+        label="Model",
+        help_text="Collections pin this model when created; a different model later means a new collection.",
+    )
+    max_batch = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=2048,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "placeholder": "preset default"}),
+        label="Texts per request",
+    )
+    enabled = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Enabled",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance = instance
+        if instance:
+            self.fields["provider_type"].initial = instance.provider_type
+            self.fields["name"].initial = instance.name
+            self.fields["base_url"].initial = instance.base_url
+            self.fields["model"].initial = instance.model
+            self.fields["max_batch"].initial = instance.max_batch
+            self.fields["enabled"].initial = instance.enabled
+
+    def clean_name(self):
+        from core.models import EmbeddingProvider
+
+        name = self.cleaned_data["name"].strip()
+        qs = EmbeddingProvider.objects.filter(name__iexact=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("An embedding provider with this name already exists.")
+        return name
+
+    def clean(self):
+        from core.models import EMBEDDING_PRESETS
+        from core.netguard import is_safe_endpoint_url
+
+        cleaned = super().clean()
+        ptype = cleaned.get("provider_type")
+        if not ptype:
+            return cleaned
+        preset = EMBEDDING_PRESETS.get(ptype, {})
+
+        base_url = (cleaned.get("base_url") or "").strip().rstrip("/")
+        if not base_url:
+            base_url = preset.get("base_url", "")
+        if not base_url:
+            self.add_error("base_url", "An endpoint base URL is required for this provider.")
+        elif not base_url.startswith(("http://", "https://")):
+            self.add_error("base_url", "Must start with http:// or https://")
+        else:
+            # The server posts your texts to this URL — same SSRF stance as every
+            # other user-supplied endpoint (PYRUNNER_ALLOW_PRIVATE_NETWORK opens
+            # localhost / compose siblings such as Ollama).
+            is_safe, why = is_safe_endpoint_url(base_url)
+            if not is_safe:
+                self.add_error("base_url", why)
+        cleaned["base_url"] = base_url
+
+        model = (cleaned.get("model") or "").strip() or preset.get("default_model", "")
+        if not model:
+            self.add_error("model", "A model id is required for this provider.")
+        cleaned["model"] = model
+
+        if not cleaned.get("max_batch"):
+            cleaned["max_batch"] = preset.get("max_batch", 64)
+
+        has_saved = bool(self.instance and self.instance.credential_encrypted)
+        if preset.get("credential_required") and not cleaned.get("credential") and not has_saved:
+            self.add_error("credential", "An API key is required for this provider.")
+        return cleaned
+
+    def save(self):
+        from core.models import EmbeddingProvider
+
+        provider = self.instance or EmbeddingProvider()
+        space_changed = bool(
+            self.instance
+            and (
+                self.instance.model != self.cleaned_data["model"]
+                or self.instance.base_url != self.cleaned_data["base_url"]
+                or self.instance.provider_type != self.cleaned_data["provider_type"]
+            )
+        )
+        provider.provider_type = self.cleaned_data["provider_type"]
+        provider.name = self.cleaned_data["name"]
+        provider.base_url = self.cleaned_data["base_url"]
+        provider.model = self.cleaned_data["model"]
+        provider.max_batch = self.cleaned_data["max_batch"]
+        provider.enabled = bool(self.cleaned_data.get("enabled"))
+        credential = self.cleaned_data.get("credential")
+        if credential:
+            provider.set_credential(credential)
+        if space_changed:
+            # A different model/endpoint may produce differently sized vectors.
+            provider.dimension = None
+            provider.last_tested_at = None
+        provider.save()
+        return provider
+
+
+class VectorConnectionForm(forms.Form):
+    """Create/edit one VectorConnection (Local needs nothing; Qdrant a URL + key)."""
+
+    from core.models import VectorConnection as _VC
+
+    PREFIX_PATTERN = re.compile(r"^[a-z0-9_-]{0,40}$")
+
+    provider_type = forms.ChoiceField(
+        choices=_VC.ProviderType.choices,
+        initial=_VC.ProviderType.LOCAL,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Backend",
+    )
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Qdrant (compose)"}),
+        label="Name",
+    )
+    url = forms.CharField(
+        required=False,
+        max_length=500,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "http://qdrant:6333"}),
+        label="Qdrant URL",
+        help_text="REST endpoint of the Qdrant server. A compose sibling or localhost needs PYRUNNER_ALLOW_PRIVATE_NETWORK=true.",
+    )
+    collection_prefix = forms.CharField(
+        required=False,
+        max_length=40,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "optional"}),
+        label="Collection prefix",
+        help_text="Prepended to physical collection names on a shared Qdrant (lowercase, digits, '_' and '-').",
+    )
+    api_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Leave blank to keep current",
+                "autocomplete": "new-password",
+            }
+        ),
+        label="API key",
+    )
+    enabled = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Enabled",
+    )
+    is_default = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Default for new collections",
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance = instance
+        if instance:
+            self.fields["provider_type"].initial = instance.provider_type
+            self.fields["name"].initial = instance.name
+            self.fields["url"].initial = instance.url
+            self.fields["collection_prefix"].initial = instance.collection_prefix
+            self.fields["enabled"].initial = instance.enabled
+            self.fields["is_default"].initial = instance.is_default
+
+    def clean_name(self):
+        from core.models import VectorConnection
+
+        name = self.cleaned_data["name"].strip()
+        qs = VectorConnection.objects.filter(name__iexact=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A vector connection with this name already exists.")
+        return name
+
+    def clean_collection_prefix(self):
+        prefix = (self.cleaned_data.get("collection_prefix") or "").strip()
+        if not self.PREFIX_PATTERN.match(prefix):
+            raise forms.ValidationError(
+                "Only lowercase letters, digits, '_' and '-' (max 40 characters)."
+            )
+        return prefix
+
+    def clean(self):
+        from core.models import VectorConnection
+        from core.netguard import is_safe_endpoint_url
+
+        cleaned = super().clean()
+        ptype = cleaned.get("provider_type")
+        if ptype == VectorConnection.ProviderType.QDRANT:
+            url = (cleaned.get("url") or "").strip().rstrip("/")
+            if not url:
+                self.add_error("url", "A Qdrant URL is required.")
+            elif not url.startswith(("http://", "https://")):
+                self.add_error("url", "Must start with http:// or https://")
+            else:
+                is_safe, why = is_safe_endpoint_url(url)
+                if not is_safe:
+                    self.add_error("url", why)
+            cleaned["url"] = url
+        else:
+            cleaned["url"] = ""
+            cleaned["collection_prefix"] = ""
+            cleaned["api_key"] = ""
+        return cleaned
+
+    def save(self):
+        from core.models import VectorConnection
+
+        connection = self.instance or VectorConnection()
+        connection.provider_type = self.cleaned_data["provider_type"]
+        connection.name = self.cleaned_data["name"]
+        connection.enabled = bool(self.cleaned_data.get("enabled"))
+        connection.is_default = bool(self.cleaned_data.get("is_default"))
+        if connection.provider_type == VectorConnection.ProviderType.QDRANT:
+            connection.config = {
+                "url": self.cleaned_data["url"],
+                "collection_prefix": self.cleaned_data.get("collection_prefix") or "",
+            }
+            api_key = self.cleaned_data.get("api_key")
+            if api_key:
+                connection.set_credentials({"api_key": api_key})
+        else:
+            connection.config = {}
+            connection.credentials_encrypted = ""
+        connection.save()
+        return connection
+
+
+class VectorCollectionForm(forms.Form):
+    """Create a VectorCollection in the active workspace.
+
+    Field-level checks live here (so errors land on the right input); the
+    cross-field rules (provider tested, dimension pinned, backend implemented)
+    are ``VectorService.create_collection``'s and surface as non-field errors.
+    """
+
+    name = forms.CharField(
+        max_length=64,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "docs"}),
+        label="Collection name",
+        help_text='Used in scripts as: get_collection("name") — lowercase letters, digits, "_" and "-".',
+    )
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "What is indexed here?"}
+        ),
+        label="Description",
+    )
+    connection = forms.ModelChoiceField(
+        queryset=None,
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Vector store",
+    )
+    embedding_provider = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        empty_label="None — I will supply vectors myself",
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Embedding provider",
+        help_text="Pins the provider's model and dimension to this collection.",
+    )
+    dimension = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=8192,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. 1536"}),
+        label="Dimension",
+        help_text="Only for a vectors-only collection; taken from the provider otherwise.",
+    )
+    metric = forms.ChoiceField(
+        choices=(),
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+        label="Similarity metric",
+    )
+    include_in_backup = forms.BooleanField(
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Include points in backups",
+    )
+
+    def __init__(self, *args, workspace=None, **kwargs):
+        from core.models import EmbeddingProvider, VectorCollection
+        from core.services import VectorService
+
+        self._workspace = workspace
+        super().__init__(*args, **kwargs)
+        self.fields["connection"].queryset = VectorService.supported_connections()
+        default = VectorService.default_connection()
+        if default is not None:
+            self.fields["connection"].initial = default.pk
+        self.fields["embedding_provider"].queryset = EmbeddingProvider.objects.filter(enabled=True)
+        self.fields["metric"].choices = VectorCollection.Metric.choices
+        self.fields["metric"].initial = VectorCollection.Metric.COSINE
+
+    def clean_name(self):
+        from core.models import VectorCollection
+        from core.models.vector_collection import NAME_RE, NAME_RULE
+
+        name = (self.cleaned_data.get("name") or "").strip()
+        if not NAME_RE.match(name):
+            raise forms.ValidationError(f"Name must be {NAME_RULE}.")
+        qs = VectorCollection.objects.filter(name__iexact=name)
+        if self._workspace is not None:
+            qs = qs.filter(workspace=self._workspace)
+        if qs.exists():
+            raise forms.ValidationError(
+                "A collection with this name already exists in this workspace."
+            )
+        return name
+
+    def clean(self):
+        cleaned = super().clean()
+        provider = cleaned.get("embedding_provider")
+        if provider is None and not cleaned.get("dimension"):
+            self.add_error("dimension", "Give a dimension, or pick an embedding provider.")
+        if provider is not None and provider.dimension is None:
+            self.add_error(
+                "embedding_provider",
+                "This provider has not been tested yet — run Test on it under Services so its "
+                "dimension is known.",
+            )
+        return cleaned

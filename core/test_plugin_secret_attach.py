@@ -181,7 +181,14 @@ class OwnedCountsTests(_LoggedIn):
         # must list every model the cleanup actually deletes.
         self.assertEqual(
             PluginService.owned_resource_counts("pp"),
-            {"scripts": 1, "secrets": 1, "datastores": 1, "libraries": 0, "total": 3},
+            {
+                "scripts": 1,
+                "secrets": 1,
+                "datastores": 1,
+                "libraries": 0,
+                "vector_collections": 0,
+                "total": 3,
+            },
         )
 
     def test_counts_zero_for_unknown(self):

@@ -24,6 +24,9 @@ class CoreConfig(AppConfig):
 
         post_migrate.connect(self._on_post_migrate, sender=self)
 
+        # System checks (manage.py check / runserver / test): vector-store prerequisites.
+        from core import checks  # noqa: F401
+
     def _on_post_migrate(self, sender, **kwargs):
         """Run after migrations are complete to set up recurring schedules."""
         self._ensure_heartbeat_schedule()

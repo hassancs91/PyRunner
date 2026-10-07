@@ -17,6 +17,7 @@ from .claude_service import ClaudeService, ClaudeServiceError
 from .recaptcha_service import RecaptchaService
 from .plugin_service import PluginService, PluginInstallError
 from .channel_service import ChannelService, ChannelServiceError
+from core.vectors.service import VectorService, VectorError
 
 __all__ = [
     "ScheduleService",
@@ -41,4 +42,6 @@ __all__ = [
     "PluginInstallError",
     "ChannelService",
     "ChannelServiceError",
+    "VectorService",
+    "VectorError",
 ]

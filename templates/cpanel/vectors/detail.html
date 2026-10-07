@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}{{ collection.name }} - Vectors - {{ instance_name }}{% endblock %}
+
+{% block content %}
+<div class="flex">
+    {% include "cpanel/_sidebar.html" %}
+
+    <div class="flex-1 min-w-0">
+        <div class="px-5 lg:px-8 py-7 max-w-4xl mx-auto space-y-5">
+
+            <!-- Header -->
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <nav class="flex items-center gap-1.5 eyebrow text-faint mb-3">
+                        <a href="{% url 'cpanel:vector_list' %}" class="hover:text-text transition-colors">Vectors</a>
+                        <span>/</span>
+                        <span class="text-muted">{{ collection.name }}</span>
+                    </nav>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h1 class="text-[22px] font-semibold tracking-tight font-mono">{{ collection.name }}</h1>
+                        {% if collection.status == "ready" %}
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-fail/10 text-fail"><span class="w-1.5 h-1.5 rounded-full bg-fail"></span>Error</span>
+                        {% endif %}
+                        {% include "cpanel/_owner_pill.html" with obj=collection %}
+                    </div>
+                    {% if collection.description %}<p class="text-sm text-muted mt-1.5">{{ collection.description }}</p>{% endif %}
+                </div>
+            </div>
+
+            <!-- Error banner + retry -->
+            {% if collection.status == "error" %}
+            <div class="rounded-2xl border border-fail/30 bg-fail/5 p-5 space-y-3">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-fail flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <div class="text-sm min-w-0">
+                        <p class="font-medium text-text">Store unavailable</p>
+                        <p class="mt-1 text-muted break-words">{{ collection.last_error }}</p>
+                    </div>
+                </div>
+                <form method="post" action="{% url 'cpanel:vector_retry' pk=collection.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Retry</button>
+                </form>
+            </div>
+            {% endif %}
+
+            {% if over_soft_limit %}
+            <div class="rounded-2xl border border-warn/30 bg-warn/5 p-4 text-sm text-muted">
+                <span class="font-medium text-text">Large collection.</span> Above {{ soft_limit }} points the Local store's exact search slows down and backups grow; a Qdrant connection is the better home for collections this size.
+            </div>
+            {% endif %}
+
+            <!-- Stats -->
+            <section class="rounded-2xl border border-line bg-panel p-5 space-y-4">
+                <h2 class="text-sm font-medium text-text">Collection</h2>
+                <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+                    <div>
+                        <dt class="eyebrow text-faint">Points</dt>
+                        <dd class="font-mono tnum text-text mt-0.5">{{ collection.points_count }}</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Dimension · metric</dt>
+                        <dd class="font-mono text-text mt-0.5">{{ collection.dimension }} · {{ collection.get_metric_display }}</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Store</dt>
+                        <dd class="text-text mt-0.5">{{ collection.connection.name }}<span class="block text-xs text-faint">{{ collection.connection.get_provider_type_display }} · {{ size_display }}</span></dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Embeddings</dt>
+                        <dd class="text-text mt-0.5">
+                            {% if collection.embedding_provider %}{{ collection.embedding_provider.name }}<span class="block text-xs font-mono text-faint">{{ collection.embedding_model }}</span>
+                            {% else %}<span class="text-faint">Vectors only</span>{% endif %}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Tokens embedded</dt>
+                        <dd class="font-mono tnum text-text mt-0.5">{{ collection.tokens_embedded }}</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Embedding calls</dt>
+                        <dd class="font-mono tnum text-text mt-0.5">{{ collection.embed_calls }}</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Created</dt>
+                        <dd class="text-text mt-0.5">{{ collection.created_at|timesince }} ago</dd>
+                    </div>
+                    <div>
+                        <dt class="eyebrow text-faint">Backup</dt>
+                        <dd class="mt-0.5 flex items-center gap-2">
+                            {% if collection.include_in_backup %}<span class="text-ok">Included</span>{% else %}<span class="text-faint">Excluded</span>{% endif %}
+                            <form method="post" action="{% url 'cpanel:vector_backup_toggle' pk=collection.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">{% if collection.include_in_backup %}Exclude{% else %}Include{% endif %}</button>
+                            </form>
+                        </dd>
+                    </div>
+                </dl>
+                <p class="text-xs text-faint">Local collections travel inside backups as their SQLite image ({{ size_display }} here) when included — large ones are skipped with a warning and re-embedded after a restore.</p>
+            </section>
+
+            <!-- Search -->
+            {% if collection.status == "ready" %}
+            <section class="rounded-2xl border border-line bg-panel p-5 space-y-4">
+                <div>
+                    <h2 class="text-sm font-medium text-text">Search</h2>
+                    <p class="text-xs text-muted mt-1">{% if collection.embedding_provider %}Runs a real query through <span class="text-text">{{ collection.embedding_provider.name }}</span> (counted in the usage above).{% else %}This collection has no embedding provider — queries need vectors, which scripts supply through <code class="font-mono">search_vector()</code>.{% endif %}</p>
+                </div>
+                {% if collection.embedding_provider %}
+                <form method="post" action="{% url 'cpanel:vector_search' pk=collection.pk %}" class="space-y-3">
+                    {% csrf_token %}
+                    <div class="flex flex-wrap gap-3">
+                        <input type="text" name="query" value="{{ query }}" placeholder="What are you looking for?" class="flex-1 min-w-[240px] px-3.5 py-2.5 bg-ink border border-line rounded-lg text-text text-sm placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
+                        <input type="number" name="k" value="{{ k }}" min="1" max="50" class="w-20 px-3 py-2.5 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors" title="Top k">
+                        <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Search</button>
+                    </div>
+                    <input type="text" name="filter" value="{{ filter_text }}" placeholder='Optional payload filter, e.g. {"tier": "public"}' class="w-full px-3.5 py-2 bg-ink border border-line rounded-lg text-text text-xs font-mono placeholder-faint/60 focus:outline-none focus:ring-2 focus:ring-ok/30 focus:border-ok/60 transition-colors">
+                </form>
+                {% if search_error %}
+                <div class="rounded-lg border border-fail/30 bg-fail/5 p-3 text-sm text-fail">{{ search_error }}</div>
+                {% endif %}
+                {% if results is not None %}
+                    {% if results %}
+                    <div class="rounded-lg border border-line-soft divide-y divide-line-soft">
+                        {% for hit in results %}
+                        <div class="p-3 space-y-1">
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="font-mono text-xs text-info">{{ hit.id }}</span>
+                                <span class="font-mono tnum text-xs text-muted">score {{ hit.score|floatformat:4 }}</span>
+                            </div>
+                            {% if hit.text %}<p class="text-sm text-text whitespace-pre-wrap break-words">{{ hit.text|truncatechars:400 }}</p>{% endif %}
+                            <p class="font-mono text-[11px] text-faint break-all">{{ hit.payload_json|truncatechars:300 }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-muted">No points matched.</p>
+                    {% endif %}
+                {% endif %}
+                {% endif %}
+            </section>
+
+            <!-- Browse -->
+            <section class="rounded-2xl border border-line bg-panel p-5 space-y-4">
+                <div>
+                    <h2 class="text-sm font-medium text-text">Points</h2>
+                    <p class="text-xs text-muted mt-1">The first {{ sample|length }} point(s) by id.</p>
+                </div>
+                {% if sample_error %}
+                <div class="rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-muted">Could not read points: {{ sample_error }}</div>
+                {% elif sample %}
+                <div class="overflow-x-auto rounded-lg border border-line-soft">
+                    <table class="w-full min-w-[560px]">
+                        <thead>
+                            <tr class="border-b border-line-soft text-left">
+                                <th class="px-4 py-2.5 eyebrow text-faint font-normal">Id</th>
+                                <th class="px-4 py-2.5 eyebrow text-faint font-normal">Text</th>
+                                <th class="px-4 py-2.5 eyebrow text-faint font-normal">Payload</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            {% for item in sample %}
+                            <tr class="hover:bg-panel-hi/50 transition-colors align-top">
+                                <td class="px-4 py-2.5 font-mono text-xs text-info whitespace-nowrap">{{ item.id }}</td>
+                                <td class="px-4 py-2.5 text-sm text-muted max-w-md">{{ item.text|default:"—"|truncatechars:160 }}</td>
+                                <td class="px-4 py-2.5 font-mono text-[11px] text-faint max-w-xs break-all">{{ item.payload_json|truncatechars:160 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-sm text-muted">No points yet — scripts and plugins add them with <code class="font-mono text-info">add_texts()</code> / <code class="font-mono text-info">add_vectors()</code>.</p>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            <!-- Usage -->
+            <section class="rounded-2xl border border-line bg-panel p-5">
+                <h2 class="text-sm font-medium text-text mb-2">Using this collection in a script</h2>
+                <code class="block px-3 py-3 bg-ink border border-line-soft rounded-lg text-sm font-mono text-text whitespace-pre overflow-x-auto">from pyrunner_vectors import get_collection
+
+col = get_collection("{{ collection.name }}")
+col.add_texts([{"id": "p1", "text": "How do I schedule a script?", "payload": {"tier": "public"}}])
+hits = col.search("scheduling", k=5, filter={"tier": "public"})</code>
+                <p class="text-xs text-faint mt-2">The <code class="font-mono">pyrunner_vectors</code> helper and the plugin SDK's <code class="font-mono">VectorAPI</code> ship in the seam's next stage; this page already runs the same operations.</p>
+            </section>
+
+            <!-- Danger zone -->
+            <section class="rounded-2xl border border-fail/30 bg-panel p-5 space-y-3">
+                <div>
+                    <h2 class="text-sm font-medium text-fail">Danger zone</h2>
+                    <p class="text-xs text-muted mt-1">Deleting removes the collection and <strong class="text-text">all its points</strong>. This cannot be undone.</p>
+                </div>
+                <form method="post" action="{% url 'cpanel:vector_delete' pk=collection.pk %}" class="space-y-3">
+                    {% csrf_token %}
+                    <div>
+                        <label for="confirm_name" class="block text-[13px] font-medium text-text mb-1.5">Type <code class="font-mono text-fail">{{ collection.name }}</code> to confirm</label>
+                        <input type="text" name="confirm_name" id="confirm_name" autocomplete="off"
+                               class="w-full sm:w-80 px-3 py-2 bg-ink border border-line rounded-lg text-sm font-mono text-text focus:outline-none focus:border-fail"
+                               placeholder="{{ collection.name }}">
+                    </div>
+                    {% if collection.owner_plugin and user.is_superuser %}
+                    <label class="flex items-center gap-2 text-xs text-muted">
+                        <input type="checkbox" name="force" value="1" class="rounded border-line text-fail focus:ring-fail">
+                        Force-delete this plugin-managed collection (superuser escape hatch)
+                    </label>
+                    {% endif %}
+                    <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-fail/30 bg-fail/10 text-fail hover:bg-fail/20 transition-colors">Delete collection</button>
+                </form>
+            </section>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

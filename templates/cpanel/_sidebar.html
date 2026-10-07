@@ -108,6 +108,14 @@
             <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6v6c0 1.66 3.582 3 8 3s8-1.34 8-3V6M4 6c0 1.66 3.582 3 8 3s8-1.34 8-3-3.582-3-8-3-8 1.34-8 3zm16 6v6c0 1.66-3.582 3-8 3s-8-1.34-8-3v-6"/></svg>
             <span>Databases</span>
         </a>
+
+        <!-- Vectors (vector collections; Owner/Admin only) -->
+        <a href="{% url 'cpanel:vector_list' %}"
+           class="relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors {% if 'vector' in request.resolver_match.url_name %}font-medium text-ok bg-ok/10{% else %}text-muted hover:text-text hover:bg-panel-hi{% endif %}">
+            {% if 'vector' in request.resolver_match.url_name %}<span class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-ok"></span>{% endif %}
+            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20l5-5m0 0l4 4 7-7m-11 3V9a2 2 0 012-2h3m6 0h.01M6 4h.01M18 4h.01M12 12h.01"/></svg>
+            <span>Vectors</span>
+        </a>
         {% endif %}
 
         <!-- Channels -->
