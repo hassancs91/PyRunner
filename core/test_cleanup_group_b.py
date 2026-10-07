@@ -122,7 +122,7 @@ class WebhookSSRFTests(TestCase):
 
     def test_dns_name_resolving_to_private_ip_blocked(self):
         with mock.patch(
-            "core.services.s3_service.socket.getaddrinfo",
+            "core.netguard.socket.getaddrinfo",
             return_value=[(2, 1, 6, "", ("10.1.2.3", 0))],
         ):
             self.assertFalse(
@@ -131,7 +131,7 @@ class WebhookSSRFTests(TestCase):
 
     def test_dns_name_resolving_to_public_ip_allowed(self):
         with mock.patch(
-            "core.services.s3_service.socket.getaddrinfo",
+            "core.netguard.socket.getaddrinfo",
             return_value=[(2, 1, 6, "", ("93.184.216.34", 0))],
         ):
             self.assertTrue(

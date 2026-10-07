@@ -734,3 +734,14 @@ PYRUNNER_RUN_ENV_DENYLIST = [
 PYRUNNER_RUN_RLIMIT_MEMORY_MB = int(os.environ.get("PYRUNNER_RUN_RLIMIT_MEMORY_MB", "0"))
 PYRUNNER_RUN_RLIMIT_CPU_SECONDS = int(os.environ.get("PYRUNNER_RUN_RLIMIT_CPU_SECONDS", "0"))
 PYRUNNER_RUN_RLIMIT_NPROC = int(os.environ.get("PYRUNNER_RUN_RLIMIT_NPROC", "0"))
+
+# SSRF stance for user-supplied outbound URLs (S3 endpoints, notification
+# webhooks, vector stores, Brain imports) — see core/netguard.py. False (default):
+# hosts that resolve to loopback / private / link-local / reserved addresses are
+# rejected, so a console user cannot aim the server at its own network. True:
+# the operator allows loopback + private (a Qdrant/MinIO/ntfy/Ollama sibling on
+# the compose network, or localhost in development). The cloud-metadata range
+# (169.254.0.0/16 etc.) and the unspecified addresses stay blocked either way.
+PYRUNNER_ALLOW_PRIVATE_NETWORK = (
+    os.environ.get("PYRUNNER_ALLOW_PRIVATE_NETWORK", "False").lower() == "true"
+)

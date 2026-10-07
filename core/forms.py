@@ -2295,7 +2295,7 @@ class StorageConnectionForm(forms.Form):
 
     def clean(self):
         from core.models import STORAGE_PRESETS, StorageConnection
-        from core.services.s3_service import is_safe_endpoint_url
+        from core.netguard import is_safe_endpoint_url
 
         cleaned = super().clean()
         ptype = cleaned.get("provider_type")

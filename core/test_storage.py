@@ -2,8 +2,9 @@
 Storage seam (object storage as a platform capability) — Stage 1 + Stage 2.
 
 Covers the full seam without a real bucket (boto3 is mocked throughout; the
-``is_safe_endpoint_url`` SSRF guard blocks localhost, so a local MinIO is not a
-usable test target — see docs/PLAN_storage_seam.md):
+``core.netguard`` SSRF guard blocks localhost unless the operator sets
+``PYRUNNER_ALLOW_PRIVATE_NETWORK``, so a local MinIO is not a default test
+target — see docs/PLAN_storage_seam.md):
 
 - StorageConnection: single-default invariant, is_configured/is_public
 - migration contract: connection config moved off GlobalSettings, backup policy
@@ -238,6 +239,20 @@ class StorageConnectionFormTests(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn("endpoint_url", form.errors)
+
+    @override_settings(PYRUNNER_ALLOW_PRIVATE_NETWORK=True)
+    def test_private_endpoint_accepted_when_operator_allows_it(self):
+        """The opt-in is what makes a compose-sibling or localhost MinIO usable."""
+        from core.forms import StorageConnectionForm
+
+        form = StorageConnectionForm(
+            self._post_data(
+                provider_type=StorageConnection.ProviderType.MINIO,
+                endpoint_url="http://localhost:9000",
+            )
+        )
+        form.is_valid()
+        self.assertNotIn("endpoint_url", form.errors)
 
     def test_endpoint_required_except_for_aws(self):
         from core.forms import StorageConnectionForm
@@ -849,7 +864,15 @@ class InternalStorageAPITests(TestCase):
 
         client = mock.Mock()
         payload = {"key": "a.txt", "data": base64.b64encode(b"x").decode()}
-        with mock.patch.object(S3Service, "get_client", return_value=client):
+        # The brake is a fixed window aligned to the epoch; pin the clock the
+        # bucket is derived from (the module binding only — the cache backend
+        # keeps the real clock for its expiry) so the 201 requests below cannot
+        # straddle a minute boundary, which resets the counter and made this
+        # test flake in long suite runs.
+        frozen = mock.Mock(time=mock.Mock(return_value=1_700_000_000.0))
+        with mock.patch.object(S3Service, "get_client", return_value=client), mock.patch(
+            "core.ratelimit.time", frozen
+        ):
             for _ in range(_RUN_WRITE_LIMIT):
                 self.assertEqual(self._post("put", payload).status_code, 200)
 

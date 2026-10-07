@@ -15,6 +15,8 @@ from django.core.mail.backends.smtp import EmailBackend as SMTPBackend
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from core.netguard import is_safe_endpoint_url
+
 from .encryption_service import EncryptionService, EncryptionError
 
 if TYPE_CHECKING:
@@ -46,10 +48,11 @@ class NotificationService:
         """
         Validate a webhook URL to prevent SSRF attacks.
 
-        Enforces http/https, then delegates the private/loopback/link-local IP
-        check to the shared ``is_safe_endpoint_url`` (S3), which DNS-RESOLVES the
-        hostname — so a public DNS name pointing at a private IP is caught too, not
-        just a literal private IP (the gap this function had before).
+        Enforces http/https, then delegates to the shared ``core.netguard`` guard,
+        which DNS-resolves the hostname (a public name pointing at a private IP is
+        caught too), blocks loopback/private hosts unless the operator set
+        ``PYRUNNER_ALLOW_PRIVATE_NETWORK``, and never lets the cloud-metadata range
+        or the unspecified addresses through.
 
         Args:
             url: The webhook URL to validate
@@ -57,24 +60,10 @@ class NotificationService:
         Returns:
             bool: True if URL is safe to use
         """
-        from core.services.s3_service import is_safe_endpoint_url
-
         try:
             parsed = urlparse(url)
-
-            # Require http or https scheme
-            if parsed.scheme not in ("http", "https"):
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
                 return False
-
-            hostname = parsed.hostname
-            if not hostname:
-                return False
-
-            # Block the unspecified addresses (is_safe_endpoint_url covers
-            # localhost / 127.x / ::1 / private / link-local, but not these).
-            if hostname.lower() in ("0.0.0.0", "::", "[::]"):
-                return False
-
             is_safe, _ = is_safe_endpoint_url(url)
             return is_safe
         except Exception:

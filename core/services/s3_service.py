@@ -10,12 +10,10 @@ Supports any S3-compatible provider: Cloudflare R2, AWS, MinIO, DigitalOcean Spa
 Backblaze B2, etc.
 """
 
-import ipaddress
 import logging
-import socket
 from typing import Optional, Tuple
-from urllib.parse import urlparse
 
+from core.netguard import is_safe_endpoint_url  # noqa: F401  (re-exported, see below)
 from core.services.encryption_service import EncryptionService, EncryptionError
 
 logger = logging.getLogger(__name__)
@@ -29,68 +27,9 @@ DEFAULT_PRESIGN_SECONDS = 3600
 # `delete_objects` accepts at most 1000 keys per call.
 _DELETE_CHUNK = 1000
 
-
-def is_safe_endpoint_url(url: str) -> tuple[bool, str]:
-    """
-    Validate that an S3 endpoint URL doesn't point to internal/private resources.
-
-    Blocks:
-    - Private IP ranges (10.x, 172.16-31.x, 192.168.x)
-    - Loopback addresses (127.x, localhost)
-    - Link-local addresses (169.254.x - AWS metadata endpoint)
-    - Internal hostnames
-
-    Note this means a MinIO on localhost is NOT a usable target — the endpoint is
-    user-editable, so it is an SSRF vector and the guard is correct. Local
-    development against a real bucket needs a real (public) endpoint.
-
-    Args:
-        url: The endpoint URL to validate
-
-    Returns:
-        Tuple of (is_safe: bool, error_message: str)
-    """
-    if not url:
-        return True, ""
-
-    try:
-        parsed = urlparse(url)
-        hostname = parsed.hostname
-
-        if not hostname:
-            return False, "Invalid URL: no hostname found"
-
-        # Block localhost variations
-        if hostname.lower() in ("localhost", "localhost.localdomain"):
-            return False, "Internal endpoints are not allowed (localhost)"
-
-        # Try to resolve hostname to IP and check if it's private
-        try:
-            # Get all IP addresses for the hostname
-            addr_info = socket.getaddrinfo(hostname, None)
-            for _, _, _, _, sockaddr in addr_info:
-                ip_str = sockaddr[0]
-                ip = ipaddress.ip_address(ip_str)
-
-                # Block private, loopback, and link-local addresses
-                if ip.is_private:
-                    return False, f"Private IP addresses are not allowed ({ip_str})"
-                if ip.is_loopback:
-                    return False, f"Loopback addresses are not allowed ({ip_str})"
-                if ip.is_link_local:
-                    return False, f"Link-local addresses are not allowed ({ip_str})"
-                if ip.is_reserved:
-                    return False, f"Reserved addresses are not allowed ({ip_str})"
-
-        except socket.gaierror:
-            # Hostname doesn't resolve - could be intentional for custom DNS
-            # Allow it but log a warning
-            logger.warning(f"S3 endpoint hostname does not resolve: {hostname}")
-
-        return True, ""
-
-    except Exception as e:
-        return False, f"Invalid endpoint URL: {e}"
+# ``is_safe_endpoint_url`` is imported above and re-exported from core.netguard — one
+# SSRF policy for S3, webhooks, vector stores, ... (PYRUNNER_ALLOW_PRIVATE_NETWORK) —
+# so the original ``core.services.s3_service.is_safe_endpoint_url`` path keeps working.
 
 
 class S3ServiceError(Exception):

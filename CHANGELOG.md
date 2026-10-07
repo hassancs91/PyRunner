@@ -139,6 +139,17 @@ begins tracking at the current release; earlier history is in the git log.
   email being tried, per address, and a locked account refuses even the
   correct password until the cool-off passes. Locked yourself out? Run
   `python manage.py user unlock <email>` on the server.
+- **One SSRF guard, with an operator opt-in for private networks** — every
+  URL you type into the console that PyRun then calls out to (S3 endpoints,
+  notification webhooks, and the vector stores and Brain imports that follow)
+  now goes through a single guard, `core/netguard.py`. Behaviour is unchanged
+  by default: hosts that resolve to loopback, private or link-local addresses
+  are rejected. New: set `PYRUNNER_ALLOW_PRIVATE_NETWORK=true` to reach a
+  Qdrant, MinIO, ntfy or Ollama container on the same Docker network (or
+  localhost in development). The cloud-metadata range (`169.254.0.0/16`,
+  `fe80::/10`, `fd00:ec2::254`) and the unspecified addresses stay blocked
+  whatever the flag says, and rejected URLs now say which flag would allow
+  them.
 
 ## [1.16.0] — July 29, 2026
 
