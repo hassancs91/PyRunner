@@ -67,7 +67,7 @@
                     </div>
                     <div>
                         <dt class="eyebrow text-faint">Store</dt>
-                        <dd class="text-text mt-0.5">{{ collection.connection.name }}<span class="block text-xs text-faint">{{ collection.connection.get_provider_type_display }} · {{ size_display }}</span></dd>
+                        <dd class="text-text mt-0.5">{{ collection.connection.name }}<span class="block text-xs text-faint">{{ collection.connection.get_provider_type_display }} · {{ size_display }}</span>{% if not collection.is_local %}<span class="block text-xs font-mono text-faint break-all" title="The collection's name on the Qdrant server">{{ collection.backend_ref }}</span>{% endif %}</dd>
                     </div>
                     <div>
                         <dt class="eyebrow text-faint">Embeddings</dt>
@@ -90,6 +90,7 @@
                     </div>
                     <div>
                         <dt class="eyebrow text-faint">Backup</dt>
+                        {% if collection.is_local %}
                         <dd class="mt-0.5 flex items-center gap-2">
                             {% if collection.include_in_backup %}<span class="text-ok">Included</span>{% else %}<span class="text-faint">Excluded</span>{% endif %}
                             <form method="post" action="{% url 'cpanel:vector_backup_toggle' pk=collection.pk %}">
@@ -97,9 +98,16 @@
                                 <button type="submit" class="text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">{% if collection.include_in_backup %}Exclude{% else %}Include{% endif %}</button>
                             </form>
                         </dd>
+                        {% else %}
+                        <dd class="text-faint mt-0.5">Settings only</dd>
+                        {% endif %}
                     </div>
                 </dl>
+                {% if collection.is_local %}
                 <p class="text-xs text-faint">Local collections travel inside backups as their SQLite image ({{ size_display }} here) when included — large ones are skipped with a warning and re-embedded after a restore.</p>
+                {% else %}
+                <p class="text-xs text-faint">The points live on the Qdrant server: PyRun backups carry this collection's settings and reattach to the server collection on restore — back the Qdrant server up on its own.</p>
+                {% endif %}
             </section>
 
             <!-- Search -->
@@ -187,6 +195,21 @@ col = get_collection("{{ collection.name }}")
 col.add_texts([{"id": "p1", "text": "How do I schedule a script?", "payload": {"tier": "public"}}])
 hits = col.search("scheduling", k=5, filter={"tier": "public"})</code>
                 <p class="text-xs text-faint mt-2">The <code class="font-mono">pyrunner_vectors</code> helper and the plugin SDK's <code class="font-mono">VectorAPI</code> ship in the seam's next stage; this page already runs the same operations.</p>
+            </section>
+
+            <!-- Usage -->
+            <section class="rounded-2xl border border-line bg-panel p-5">
+                <h2 class="text-sm font-medium text-text mb-2">Using this collection in a script</h2>
+                <code class="block px-3 py-3 bg-ink border border-line-soft rounded-lg text-sm font-mono text-text whitespace-pre overflow-x-auto">from pyrunner_vectors import get_collection
+
+col = get_collection("{{ collection.name }}")
+{% if collection.embedding_provider %}col.add_texts([{"id": "doc-1", "text": "Some text to index", "payload": {"tier": "public"}}])
+hits = col.search("what am I looking for?", k=5, filter={"tier": "public"})
+{% else %}col.add_vectors([{"id": "doc-1", "vector": [...], "payload": {"tier": "public"}}])
+hits = col.search_vector([...], k=5, filter={"tier": "public"})
+{% endif %}for hit in hits:
+    print(hit["id"], hit["score"], hit["payload"])</code>
+                <p class="text-xs text-faint mt-2">Nothing to install and no keys in the script: <code class="font-mono">pyrunner_vectors</code> talks to PyRun, which does the work. {% if collection.owner_plugin %}This collection belongs to the <span class="text-text">{{ collection.owner_plugin }}</span> plugin, so only that plugin's scripts can open it.{% else %}Any script in this workspace can open it.{% endif %}</p>
             </section>
 
             <!-- Danger zone -->

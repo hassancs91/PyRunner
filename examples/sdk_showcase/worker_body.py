@@ -10,14 +10,19 @@
  Every run it:
    1. reads an injected secret from the environment ($DEMO_TOKEN), redacted,
    2. reads non-secret config (message, steps) from the owned data store,
-   3. loops `steps` times, writing a live progress heartbeat each step,
-   4. records a compact run summary into the data store (the dashboard reads it).
+   3. asks the owned vector collection which sample doc is nearest the message
+      (pyrunner_vectors — no API key, nothing to install),
+   4. loops `steps` times, writing a live progress heartbeat each step,
+   5. records a compact run summary into the data store (the dashboard reads it).
 
  It needs NO third-party packages, so it runs in any environment.
 =============================================================================
 """
 
+import hashlib
+import math
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -36,6 +41,7 @@ DEMO_TOKEN = os.environ.get("DEMO_TOKEN", "")
 # so the data-store name is never hardcoded (fall back to the literal slug).
 OWNER = os.environ.get("PYRUNNER_OWNER_PLUGIN") or "sdk_showcase"
 STATE_STORE = f"{OWNER}:state"
+VECTORS = f"{OWNER}:demo"  # the collection the plugin provisioned
 RUN_ID = os.environ.get("PYRUNNER_RUN_ID", "")  # ties live progress to this run
 HISTORY_LIMIT = 20
 
@@ -65,6 +71,31 @@ def load_config():
         "message": cfg.get("message", defaults["message"]),
         "steps": int(cfg.get("steps") or defaults["steps"]),
     }
+
+
+def toy_embedding(text, dim=64):
+    """The plugin's stand-in embedding (a signed hash per word, unit length) —
+    a copy of provisioning.toy_embedding, which this standalone script can't import."""
+    vector = [0.0] * dim
+    for word in re.findall(r"[a-z0-9]+", text.lower()):
+        h = int(hashlib.sha256(word.encode("utf-8")).hexdigest(), 16)
+        vector[h % dim] += 1.0 if (h >> 8) & 1 else -1.0
+    norm = math.sqrt(sum(x * x for x in vector)) or 1.0
+    return [x / norm for x in vector]
+
+
+def vector_demo(message):
+    """Best effort: the nearest sample doc to this run's message, via the loopback
+    helper. A missing collection or a standalone run just logs and moves on."""
+    try:
+        from pyrunner_vectors import get_collection
+
+        collection = get_collection(VECTORS)
+        hits = collection.search_vector(toy_embedding(message or "hello"), k=1)
+        nearest = f", nearest doc: {hits[0]['text']!r}" if hits else " (index the sample docs)"
+        log(f"  vectors:      {collection.count()} point(s) in '{VECTORS}'{nearest}")
+    except Exception as exc:
+        log(f"  vectors:      skipped ({exc})")
 
 
 def write_progress(state, *, index=0, total=0, phase=""):
@@ -119,6 +150,7 @@ def main():
     log(f"  DEMO_TOKEN:   {redacted}   (injected secret)")
     log(f"  message:      {message!r}   (from the data store)")
     log(f"  steps:        {steps}")
+    vector_demo(message)
     log("=" * 52)
 
     write_progress("running", index=0, total=steps, phase="starting")

@@ -13,17 +13,39 @@ begins tracking at the current release; earlier history is in the git log.
   piece of the 2.0 train. Services gains two cards: *Embedding Providers*
   (OpenAI, Voyage, Jina, Z.AI, a local Ollama, or any OpenAI-compatible
   `/v1/embeddings` endpoint; Test records the vector dimension) and *Vector
-  Stores* (the built-in **Local** store — one SQLite file per collection on the
-  data volume, searched exactly with numpy — is seeded and set as the default;
-  Qdrant connections can be saved and tested, their collections follow in the
-  seam's next stage). A new **Vectors** page per workspace creates collections,
+  Stores*: the built-in **Local** store (one SQLite file per collection on the
+  data volume, searched exactly with numpy), seeded and set as the default, and
+  **Qdrant** servers, where each collection becomes one Qdrant collection named
+  after its workspace. A new **Vectors** page per workspace creates collections,
   pins the provider's model and vector dimension to each one, runs real searches
   with JSON payload filters, browses points and deletes with a typed
-  confirmation. Backup format 1.9.0 carries providers and connections (upserted
-  by name, credentials encrypted as stored) and Local collections with their
-  points inline, up to `PYRUNNER_VECTOR_BACKUP_MAX_MB` (default 50) each.
-  Removing a plugin cleans up the collections it owns. Scripts and plugins get
-  the `pyrunner_vectors` helper and the SDK's `VectorAPI` in the next stage.
+  confirmation.
+  - **Scripts** use the new `pyrunner_vectors` helper (standard library only,
+    no keys in the run): `get_collection("docs")` then `add_texts`,
+    `add_vectors`, `search`, `search_vector`, `get`, `count`, `scroll`,
+    `delete` and `embed`. A plugin's collections are open to that plugin's
+    scripts only; every other collection to any script in its workspace. Each
+    run is braked at 2 000 embedding calls, 20 MB of embedded text and 200 000
+    points written or deleted, so a runaway loop can't run up a provider bill.
+  - **Plugins** get `VectorAPI` (plugin SDK 2.6): `provision("docs",
+    embedding_provider=..., dimension=..., metric=...)` is idempotent and
+    refuses to silently change a collection's model or dimension; `get`,
+    `list`, `delete` and the same operations as the helper. Manifests declare
+    `provisions.vector_collections`, and the plugin doctor checks it. The SDK
+    Showcase example gains a Vectors card.
+  - **One filter grammar on both stores** — equality, `$in`, ranges,
+    `$prefix`, `must` / `must_not` — with strict types, array fields that match
+    on any element, and scores that are always "higher is better", so a
+    collection answers the same on Local and on Qdrant.
+  - **Native Qdrant access** stays off unless the operator ticks *Share
+    credentials with runs* on the connection; then a script's
+    `credentials()` returns the URL, API key and physical collection name for
+    `qdrant-client`.
+  - Backup format 1.9.0 carries providers and connections (upserted by name,
+    credentials encrypted as stored) and Local collections with their points
+    inline, up to `PYRUNNER_VECTOR_BACKUP_MAX_MB` (default 50) each; Qdrant
+    collections are carried as settings and reattach to the server on restore.
+    Removing a plugin with *remove data* deletes the collections it owns.
 - **Cron expression schedules** — a sixth run mode that takes a standard
   5-field cron expression (`0 9 * * 1-5` for weekday mornings, `*/15 9-17 * * *`
   for every quarter hour during business hours), for anything the guided

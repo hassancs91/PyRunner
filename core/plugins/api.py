@@ -35,6 +35,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+# The one module-level core import: a dependency-free exception module (no
+# models, no app registry), re-exported so plugins can catch it.
+from core.vectors.errors import VectorError  # noqa: F401 — part of the SDK surface
+
 # Plugins declare the SDK version they target in plugin.json (e.g. "2.0"); bump
 # on a breaking change to the facade. The wrapped CORE services stay stable.
 # 2.1 (additive): ScriptAPI run-lifecycle surface (latest_run/runs/
@@ -51,7 +55,11 @@ from typing import Optional
 # assets StorageConnection, every key forced under apps/<owner>/; worker scripts
 # reach the same prefix through the pyrunner_storage helper
 # (docs/PLAN_storage_seam.md).
-API_VERSION = "2.5"
+# 2.6 (additive): VectorAPI — owner-scoped vector collections (embeddings +
+# similarity search with a portable payload filter) on the Local store or
+# Qdrant; worker scripts reach the same collections through the
+# pyrunner_vectors helper (docs/PLAN_vector_db.md).
+API_VERSION = "2.6"
 
 
 # --------------------------------------------------------------------------- #
@@ -1042,6 +1050,248 @@ class StorageAPI:
         if connection is None:
             return 0
         return S3Service.delete_prefix(connection, self.owner_root)
+
+
+# --------------------------------------------------------------------------- #
+# Vector collections — embeddings + similarity search
+# --------------------------------------------------------------------------- #
+
+class VectorCollectionHandle:
+    """Every operation on one collection — the same contract as the worker-side
+    ``pyrunner_vectors`` helper (same names, arguments and result shapes).
+
+    Errors raise ``VectorError`` with a stable ``code``. ``model`` is the
+    ``VectorCollection`` row for read-only display.
+    """
+
+    def __init__(self, collection):
+        self._collection = collection
+
+    @property
+    def name(self):
+        return self._collection.name
+
+    @property
+    def model(self):
+        return self._collection
+
+    @property
+    def dimension(self):
+        return self._collection.dimension
+
+    @property
+    def metric(self):
+        return self._collection.metric
+
+    @property
+    def embedding_model(self):
+        return self._collection.embedding_model
+
+    def _handle(self):
+        from core.services import VectorService
+
+        if not self._collection.is_ready:
+            raise VectorError(
+                f"Collection '{self.name}' is in an error state "
+                f"({self._collection.last_error or 'unknown'}).",
+                "not_ready",
+            )
+        return VectorService.handle(self._collection)
+
+    def add_texts(self, items):
+        """Embed and upsert ``[{"id", "text", "payload"?}]`` → ``{"added", "tokens", "truncated"}``."""
+        return self._handle().add_texts(items)
+
+    def add_vectors(self, items):
+        """Upsert ``[{"id", "vector", "payload"?, "text"?}]`` as given → ``{"added"}``."""
+        return self._handle().add_vectors(items)
+
+    def search(self, query, k=5, filter=None):  # noqa: A002 — the contract's name
+        """The ``k`` points nearest to ``query`` (embedded with the collection's
+        provider), best first: ``[{"id", "score", "payload", "text"}]``."""
+        return self._handle().search(query, k=k, filter=filter)
+
+    def search_vector(self, vector, k=5, filter=None):  # noqa: A002
+        return self._handle().search_vector(vector, k=k, filter=filter)
+
+    def get(self, ids, include_vectors=False):
+        return self._handle().get(ids, include_vectors=include_vectors)
+
+    def delete(self, ids=None, filter=None):  # noqa: A002
+        """Delete by ``ids`` or by ``filter`` (exactly one) → ``{"deleted"}``."""
+        return self._handle().delete(ids=ids, filter=filter)
+
+    def count(self, filter=None):  # noqa: A002
+        return self._handle().count(filter=filter)
+
+    def scroll(self, cursor=None, limit=100, filter=None, include_vectors=False):  # noqa: A002
+        """One page: ``(items, next_cursor)``; ``next_cursor`` is None at the end."""
+        return self._handle().scroll(
+            cursor=cursor, limit=limit, filter=filter, include_vectors=include_vectors
+        )
+
+    def embed(self, texts, input_type="document"):
+        """Embed ``texts`` with the collection's provider (counted, nothing stored)."""
+        return self._handle().embed(texts, input_type=input_type)
+
+    def stats(self):
+        return self._handle().stats()
+
+
+class VectorAPI:
+    """Owner-scoped vector collections. The stored ``name`` is auto-derived
+    ``"<owner>:<key>"`` (owner=None ⇒ the raw key), exactly like DataStoreAPI and
+    DatabaseAPI; a worker script opens the same collection with
+    ``pyrunner_vectors.get_collection("<owner>:<key>")``.
+
+    ``provision()`` creates the collection on a vector store — the default one
+    (the built-in Local store unless an admin changed it) or a named
+    ``connection`` — with an optional ``embedding_provider`` whose model and
+    dimension are **pinned** to it. Re-provisioning with the same arguments
+    returns the same collection; different ones raise ``VectorError`` (a new
+    model or dimension is a new collection + re-embed, never a silent change of
+    space).
+
+        vectors = VectorAPI(OWNER)
+        if vectors.is_available():
+            docs = vectors.provision("docs", embedding_provider="OpenAI")
+            docs.add_texts([{"id": "p1", "text": "...", "payload": {"url": "..."}}])
+            hits = docs.search("how do I ...", k=5)
+
+    Deleting the plugin with "remove data" deletes the collections it owns,
+    points included.
+    """
+
+    def __init__(self, owner=None, workspace=None):
+        self.owner = owner
+        self._workspace = workspace
+
+    def _ws(self):
+        return _resolve_workspace(self._workspace)
+
+    def _name_for(self, key):
+        return f"{self.owner}:{key}" if self.owner else key
+
+    def _qs(self):
+        from core.models import VectorCollection
+
+        qs = VectorCollection.objects.filter(workspace=self._ws()).select_related(
+            "connection", "embedding_provider"
+        )
+        return qs.filter(owner_plugin=self.owner) if self.owner else qs.filter(
+            owner_plugin__isnull=True
+        )
+
+    def is_available(self):
+        """Whether a vector store connection is enabled (the seeded Local one is,
+        unless an admin turned it off)."""
+        from core.services import VectorService
+
+        return VectorService.is_available()
+
+    @staticmethod
+    def _by_name(model, value, label):
+        """Accept an instance or a name; None stays None."""
+        if value is None or not isinstance(value, str):
+            return value
+        found = model.objects.filter(name=value).first()
+        if found is None:
+            raise VectorError(f"No {label} named '{value}'.", "invalid")
+        return found
+
+    def provision(
+        self,
+        key,
+        *,
+        embedding_provider=None,
+        connection=None,
+        dimension=None,
+        metric="cosine",
+        description=None,
+        created_by=None,
+    ):
+        """Ensure the owned collection exists (idempotent on the auto-derived name)
+        and return its handle.
+
+        ``embedding_provider`` / ``connection`` take a row or its name. Without a
+        provider the collection is vectors-only and needs ``dimension``. An
+        existing collection whose pinned provider, dimension, metric or store
+        differs from the arguments raises ``VectorError`` (code ``invalid``);
+        ``description`` (when given) is updated, and a row stuck in
+        ``status='error'`` is retried.
+        """
+        from core.models import EmbeddingProvider, VectorCollection, VectorConnection
+        from core.services import VectorService
+
+        provider = self._by_name(EmbeddingProvider, embedding_provider, "embedding provider")
+        store = self._by_name(VectorConnection, connection, "vector store connection")
+        name = self._name_for(key)
+        existing = self._qs().filter(name=name).first()
+        if existing is None:
+            if VectorCollection.objects.filter(workspace=self._ws(), name=name).exists():
+                raise VectorError(
+                    f"A collection named '{name}' already exists in this workspace and "
+                    "is not owned by this plugin.",
+                    "invalid",
+                )
+            collection = VectorService.create_collection(
+                workspace=self._ws(),
+                name=name,
+                connection=store,
+                embedding_provider=provider,
+                dimension=dimension,
+                metric=metric,
+                description=description or "",
+                owner_plugin=self.owner,
+                owner_key=key if self.owner else None,
+                created_by=created_by,
+            )
+            return VectorCollectionHandle(collection)
+
+        mismatched = []
+        if (provider.pk if provider else None) != existing.embedding_provider_id:
+            mismatched.append("embedding provider")
+        elif provider is not None and provider.model != existing.embedding_model:
+            mismatched.append("embedding model")
+        elif provider is not None and provider.dimension not in (None, existing.dimension):
+            mismatched.append("provider dimension")
+        if dimension is not None and int(dimension) != existing.dimension:
+            mismatched.append("dimension")
+        if metric != existing.metric:
+            mismatched.append("metric")
+        if store is not None and store.pk != existing.connection_id:
+            mismatched.append("vector store")
+        if mismatched:
+            raise VectorError(
+                f"Collection '{name}' already exists with a different "
+                f"{', '.join(mismatched)}; its shape is pinned. Provision a new key "
+                "(and re-embed) to change it.",
+                "invalid",
+            )
+        if description is not None and description != existing.description:
+            existing.description = description
+            existing.save(update_fields=["description", "updated_at"])
+        if not existing.is_ready:
+            VectorService.retry_backend(existing)
+        return VectorCollectionHandle(existing)
+
+    def get(self, key):
+        """The owned collection's handle, or None."""
+        collection = self._qs().filter(name=self._name_for(key)).first()
+        return VectorCollectionHandle(collection) if collection is not None else None
+
+    def list(self):
+        return [VectorCollectionHandle(c) for c in self._qs().order_by("name")]
+
+    def delete(self, key):
+        """Delete the owned collection and its points. True when one was deleted."""
+        from core.services import VectorService
+
+        collection = self._qs().filter(name=self._name_for(key)).first()
+        if collection is None:
+            return False
+        VectorService.delete_collection(collection)
+        return True
 
 
 # --------------------------------------------------------------------------- #

@@ -61,6 +61,8 @@ _API_METHODS_ALLOWED = {"GET"}
 _API_NETWORK_IMPORT_ROOTS = {"requests", "httpx", "urllib"}
 # The external-API surface (@resource/APIRequest/APIError) shipped in SDK 2.3.
 _API_RESOURCES_MIN_SDK = (2, 3)
+# VectorAPI shipped in SDK 2.6.
+_VECTORS_MIN_SDK = (2, 6)
 
 
 @dataclass
@@ -247,11 +249,26 @@ def _check_metadata(folder: Path, report: DoctorReport):
         if not isinstance(provisions, dict):
             failures.append("'provisions' must be an object.")
         else:
-            for count_key in ("scripts", "secrets", "datastores", "databases", "libraries", "schedules"):
+            # The counts a manifest may declare are exactly the resources the
+            # summaries know how to label — one table, so they can't drift.
+            from core.models.plugin import RESOURCE_LABELS
+
+            for count_key, _singular, _plural in RESOURCE_LABELS:
                 if count_key in provisions:
                     n = provisions[count_key]
                     if not isinstance(n, int) or isinstance(n, bool) or n < 0:
                         failures.append(f"provisions.{count_key} must be a non-negative integer.")
+            vectors = provisions.get("vector_collections")
+            if (
+                isinstance(vectors, int)
+                and not isinstance(vectors, bool)
+                and vectors > 0
+                and not _version_at_least(manifest.get("api"), _VECTORS_MIN_SDK)
+            ):
+                failures.append(
+                    'manifest "api" must be >= "2.6" to provision vector_collections '
+                    f"(found {manifest.get('api')!r})."
+                )
             if "secret_keys" in provisions:
                 sk = provisions["secret_keys"]
                 if not isinstance(sk, list) or not all(isinstance(v, str) for v in sk):

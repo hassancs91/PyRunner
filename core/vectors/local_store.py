@@ -37,12 +37,18 @@ import numpy as np
 from django.conf import settings
 
 from core.vectors import filters
+from core.vectors.errors import DimensionMismatch, StoreError, StoreFull
+from core.vectors.points import (
+    MAX_ID_LENGTH,  # noqa: F401 — re-exported (Stage 1 import path)
+    check_id,
+    check_payload,
+    check_text,
+)
 
 METRICS = ("cosine", "dot", "euclid")
 SOFT_LIMIT_POINTS = 50_000
 HARD_LIMIT_POINTS = 200_000
 SCHEMA_VERSION = 1
-MAX_ID_LENGTH = 256
 DTYPE = np.dtype("<f4")  # float32, little-endian, always — never the native order
 # SQLite binds at most 32 766 parameters per statement; id lists are chunked.
 _ID_CHUNK = 900
@@ -53,16 +59,9 @@ def _chunks(items, size=_ID_CHUNK):
         yield items[start : start + size]
 
 
-class LocalStoreError(Exception):
-    """Base class for local store failures (user-facing messages)."""
-
-
-class LocalStoreFull(LocalStoreError):
-    """The write would push the collection past ``HARD_LIMIT_POINTS``."""
-
-
-class DimensionMismatch(LocalStoreError):
-    """A vector's length does not match the collection's pinned dimension."""
+# The shared store errors (core.vectors.errors) under their Stage 1 names.
+LocalStoreError = StoreError
+LocalStoreFull = StoreFull
 
 
 def cache_budget_bytes() -> int:
@@ -495,22 +494,12 @@ class LocalStore:
     def _encode_point(self, point):
         if not isinstance(point, dict):
             raise LocalStoreError("each point must be an object")
-        pid = point.get("id")
-        if not isinstance(pid, str) or not pid or len(pid) > MAX_ID_LENGTH:
-            raise LocalStoreError(f"point id must be a non-empty string of at most {MAX_ID_LENGTH} chars")
+        pid = check_id(point.get("id"))
         if "vector" not in point:
             raise LocalStoreError(f"point {pid!r} has no vector")
         vector = self._prepare_vector(point["vector"], normalize=self.metric == "cosine")
-        payload = point.get("payload") or {}
-        if not isinstance(payload, dict):
-            raise LocalStoreError(f"point {pid!r}: payload must be an object")
-        try:
-            payload_json = json.dumps(payload, ensure_ascii=False)
-        except (TypeError, ValueError) as e:
-            raise LocalStoreError(f"point {pid!r}: payload is not JSON-serializable: {e}") from e
-        text = point.get("text")
-        if text is not None and not isinstance(text, str):
-            raise LocalStoreError(f"point {pid!r}: text must be a string")
+        _, payload_json = check_payload(pid, point.get("payload"))
+        text = check_text(pid, point.get("text"))
         return (pid, vector.tobytes(), payload_json, text)
 
     @staticmethod

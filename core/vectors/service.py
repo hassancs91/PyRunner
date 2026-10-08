@@ -1,18 +1,21 @@
 """
 VectorService — the single implementation behind every door.
 
-The console (Stage 1), the loopback helper and the plugin SDK (Stage 2) and the
-in-process consumers (Brain, agents) all resolve a ``VectorCollection``, obtain a
-``CollectionHandle`` and call the same methods. The handle owns the contract:
-one filter grammar, scores normalized so higher is better, usage counted on the
-collection and its provider, the pinned embedding model enforced.
+The console, the loopback helper (``pyrunner_vectors``), the plugin SDK
+(``VectorAPI``) and the in-process consumers (Brain, agents) all resolve a
+``VectorCollection``, obtain a ``CollectionHandle`` and call the same methods.
+The handle owns the contract: one filter grammar, scores normalized so higher is
+better, usage counted on the collection and its provider, the pinned embedding
+model enforced.
 
-Backends: the Local store ships here; ``IMPLEMENTED_BACKENDS`` is what the
-console offers when creating a collection — Qdrant joins it in Stage 2.
+Backends: the Local store (``local_store``) and Qdrant (``qdrant_store``), picked
+per collection from its connection. ``IMPLEMENTED_BACKENDS`` is what the console
+offers when creating a collection.
 
 Errors are ``VectorError`` with a stable ``code`` so the doors can map them
 (``not_found`` → 404, ``unsupported_filter`` / ``invalid`` → 400,
-``collection_full`` → 413, ``embedding_failed`` → 502, …).
+``collection_full`` → 413, ``embedding_failed`` → 502,
+``backend_unavailable`` → 503, …).
 """
 
 import logging
@@ -24,13 +27,14 @@ from django.db.models import F
 from django.utils import timezone
 
 from core.models import EmbeddingProvider, VectorCollection, VectorConnection
-from core.models.vector_collection import NAME_RE, NAME_RULE
+from core.models.vector_collection import NAME_RULE, is_valid_name
 from core.netguard import is_safe_endpoint_url
 from core.vectors import filters
+from core.vectors.errors import StoreError, VectorError
 
 logger = logging.getLogger(__name__)
 
-IMPLEMENTED_BACKENDS = {VectorConnection.ProviderType.LOCAL}
+IMPLEMENTED_BACKENDS = {VectorConnection.ProviderType.LOCAL, VectorConnection.ProviderType.QDRANT}
 MAX_DIMENSION = 8192
 MAX_SEARCH_K = 1000
 
@@ -47,29 +51,16 @@ def vectors_dir_display() -> str:
         return vectors_dir.name + "/"
 
 
-class VectorError(Exception):
-    """A vector operation failed; ``message`` is user-facing, ``code`` is stable."""
-
-    def __init__(self, message, code="error"):
-        super().__init__(message)
-        self.code = code
-
-
 def _translate(exc) -> VectorError:
     """Map backend / client exceptions onto VectorError codes."""
     from core.vectors.embeddings import EmbeddingError
-    from core.vectors.local_store import DimensionMismatch, LocalStoreError, LocalStoreFull
 
     if isinstance(exc, VectorError):
         return exc
     if isinstance(exc, filters.UnsupportedFilter):
         return VectorError(str(exc), "unsupported_filter")
-    if isinstance(exc, LocalStoreFull):
-        return VectorError(str(exc), "collection_full")
-    if isinstance(exc, DimensionMismatch):
-        return VectorError(str(exc), "dimension_mismatch")
-    if isinstance(exc, LocalStoreError):
-        return VectorError(str(exc), "invalid")
+    if isinstance(exc, StoreError):
+        return VectorError(str(exc), exc.code)
     if isinstance(exc, EmbeddingError):
         return VectorError(str(exc), "embedding_failed")
     return VectorError(str(exc) or exc.__class__.__name__, "error")
@@ -117,7 +108,13 @@ class VectorService:
         include_in_backup: bool = True,
     ) -> VectorCollection:
         name = (name or "").strip()
-        if not NAME_RE.match(name):
+        if not is_valid_name(name, owner_plugin):
+            if owner_plugin and ":" in name:
+                raise VectorError(
+                    f"A plugin collection is named '{owner_plugin}:<key>' with a key of "
+                    f"{NAME_RULE}; the whole name must fit 64 characters (got {name!r}).",
+                    "invalid",
+                )
             raise VectorError(f"Collection name must be {NAME_RULE}.", "invalid")
         if VectorCollection.objects.filter(workspace=workspace, name__iexact=name).exists():
             raise VectorError(
@@ -136,8 +133,7 @@ class VectorService:
             raise VectorError(f"Connection '{connection.name}' is disabled.", "invalid")
         if connection.provider_type not in IMPLEMENTED_BACKENDS:
             raise VectorError(
-                f"The {connection.get_provider_type_display()} backend is not available yet "
-                "(it arrives with the vector seam's Stage 2).",
+                f"The {connection.get_provider_type_display()} backend is not available.",
                 "invalid",
             )
 
@@ -188,12 +184,15 @@ class VectorService:
                 created_by=created_by,
                 include_in_backup=include_in_backup,
             )
-            collection.backend_ref = VectorCollection.local_backend_ref(collection.id)
+            if connection.is_local:
+                collection.backend_ref = VectorCollection.local_backend_ref(collection.id)
+            else:
+                collection.backend_ref = cls._unique_qdrant_ref(collection)
             collection.save()
 
-        # The file is created after the row is committed: a rolled-back row must
-        # never leave an orphan file behind, and a failed file leaves a visible
-        # row in status=error instead of a mystery.
+        # The store is created after the row is committed: a rolled-back row must
+        # never leave an orphan file (or server collection) behind, and a failed
+        # store leaves a visible row in status=error instead of a mystery.
         try:
             cls._create_backend(collection)
         except Exception as e:
@@ -206,19 +205,42 @@ class VectorService:
         return collection
 
     @staticmethod
-    def _create_backend(collection) -> None:
-        from core.vectors.local_store import LocalStore
+    def _unique_qdrant_ref(collection) -> str:
+        """The physical Qdrant name, suffixed with the row's id when another row on
+        the same connection already maps to it (names are unique per workspace,
+        but ``ws8`` is only 8 hex digits and owned names write ``:`` as ``__``)."""
+        ref = VectorCollection.qdrant_backend_ref(
+            collection.connection.collection_prefix, collection.workspace_id, collection.name
+        )
+        taken = VectorCollection.objects.filter(
+            connection=collection.connection, backend_ref=ref
+        ).exclude(pk=collection.pk)
+        return f"{ref}_{collection.id.hex[:8]}" if taken.exists() else ref
 
-        LocalStore.create(collection.file_path, collection.dimension, collection.metric)
+    @classmethod
+    def _create_backend(cls, collection) -> None:
+        if collection.is_local:
+            from core.vectors.local_store import LocalStore
+
+            LocalStore.create(collection.file_path, collection.dimension, collection.metric)
+        else:
+            cls._qdrant(collection).create()
 
     @classmethod
     def retry_backend(cls, collection) -> VectorCollection:
-        """Re-create a missing Local file for a row in status=error."""
+        """Re-create a missing store for a row in status=error.
+
+        Local: a lost file is recreated empty. Qdrant: the server collection is
+        created (or an empty one of the same shape adopted) — the same rule as
+        at creation, since a row in error never had points of its own.
+        """
         from core.vectors.local_store import LocalStore
 
         path = collection.file_path
         try:
-            if path is not None and not path.exists():
+            if not collection.is_local:
+                cls._qdrant(collection).create()
+            elif path is not None and not path.exists():
                 LocalStore.create(path, collection.dimension, collection.metric)
             else:
                 LocalStore.open(path)
@@ -234,15 +256,23 @@ class VectorService:
 
     @classmethod
     def delete_collection(cls, collection) -> None:
-        """Remove the backend files (best effort, logged) and the row."""
+        """Remove the backend store (best effort, logged) and the row.
+
+        A Qdrant drop that fails (server down) leaves the server collection
+        behind; a later collection mapping to the same name refuses to adopt it
+        while it holds points, so the leftover can't leak into a new collection.
+        """
         try:
             cls._delete_backend(collection)
-        except Exception as e:  # pragma: no cover — a missing file is not a reason to keep the row
-            logger.warning("Vector collection %s file cleanup failed: %s", collection.name, e)
+        except Exception as e:
+            logger.warning("Vector collection %s store cleanup failed: %s", collection.name, e)
         collection.delete()
 
-    @staticmethod
-    def _delete_backend(collection) -> None:
+    @classmethod
+    def _delete_backend(cls, collection) -> None:
+        if not collection.is_local:
+            cls._qdrant(collection).drop()
+            return
         from core.vectors.local_store import LocalStore
 
         path = collection.file_path
@@ -250,16 +280,36 @@ class VectorService:
             LocalStore(path, collection.dimension, collection.metric).delete_files()
 
     @staticmethod
-    def store_for(collection):
-        """The Local store behind ``collection`` (opens the file, validates its meta)."""
+    def _qdrant(collection):
+        from core.vectors.qdrant_store import QdrantStore
+
+        connection = collection.connection
+        return QdrantStore(
+            connection.url,
+            collection.backend_ref,
+            collection.dimension,
+            collection.metric,
+            api_key=connection.get_credentials().get("api_key", ""),
+        )
+
+    @classmethod
+    def store_for(cls, collection):
+        """The store behind ``collection``: the Local file (opened, meta checked) or Qdrant."""
         from core.vectors.local_store import LocalStore, LocalStoreError
 
-        path = collection.file_path
-        if path is None:
+        if not collection.connection.enabled:
             raise VectorError(
-                f"Collection '{collection.name}' lives on a backend that is not available yet.",
-                "invalid",
+                f"Collection '{collection.name}': its vector store "
+                f"'{collection.connection.name}' is disabled.",
+                "backend_unavailable",
             )
+        if not collection.is_local:
+            try:
+                return cls._qdrant(collection)
+            except StoreError as e:
+                raise VectorError(f"Collection '{collection.name}': {e}", e.code) from e
+
+        path = collection.file_path
         try:
             store = LocalStore.open(path)
         except LocalStoreError as e:
@@ -279,12 +329,49 @@ class VectorService:
 
     @staticmethod
     def size_bytes(collection) -> int:
+        """Bytes on the data volume (Local only; a Qdrant collection's size is the server's)."""
         from core.vectors.local_store import LocalStore
 
         path = collection.file_path
         if path is None or not path.exists():
             return 0
         return LocalStore(path, collection.dimension, collection.metric).size_bytes()
+
+    @staticmethod
+    def credentials_for(collection) -> dict:
+        """The native-access escape hatch: the Qdrant URL + key for one collection.
+
+        Only for a collection on a Qdrant connection whose operator turned on
+        "share credentials with runs" (``VectorConnection.exposes_credentials``).
+        The payload also names the physical collection and the id mapping, so a
+        script using ``qdrant-client`` reads and writes points PyRun understands.
+        """
+        from core.vectors.qdrant_store import ID_KEY, POINT_NAMESPACE, TEXT_KEY
+
+        connection = collection.connection
+        if connection.is_local:
+            raise VectorError(
+                f"Collection '{collection.name}' is on the Local store; credentials() "
+                "exists only for collections on a Qdrant connection.",
+                "unsupported",
+            )
+        if not connection.exposes_credentials:
+            raise VectorError(
+                f"The operator has not allowed runs to receive the credentials of "
+                f"'{connection.name}' (Services → Vector stores → Share credentials with runs).",
+                "credentials_not_allowed",
+            )
+        return {
+            "backend": "qdrant",
+            "url": connection.url,
+            "api_key": connection.get_credentials().get("api_key", ""),
+            "collection": collection.backend_ref,
+            "dimension": collection.dimension,
+            "metric": collection.metric,
+            "point_id_namespace": str(POINT_NAMESPACE),
+            "id_payload_key": ID_KEY,
+            "text_payload_key": TEXT_KEY,
+        }
 
     # ------------------------------------------------------------- services page
 

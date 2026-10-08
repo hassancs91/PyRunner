@@ -7,11 +7,16 @@ One "Set up demo" save provisions, owned by the ``sdk_showcase`` slug:
   * a DataStore  ``sdk_showcase:state``  (config + counter + runs + progress),
   * 1 owner-scoped Secret  (DEMO_TOKEN),
   * a managed Script  (key ``demo`` = the bundled stdlib worker),
-  * a Schedule (manual by default).
+  * a Schedule (manual by default),
+  * a vector collection  ``sdk_showcase:demo``  (vectors-only, toy word-hash
+    vectors, so it works with no embedding provider configured).
 
 Re-saving updates the same rows (idempotent on ``(owner_plugin, owner_key)``).
 """
 
+import hashlib
+import math
+import re
 from pathlib import Path
 
 from core.plugins.api import (
@@ -20,6 +25,7 @@ from core.plugins.api import (
     ScheduleAPI,
     ScriptAPI,
     SecretAPI,
+    VectorAPI,
 )
 
 from .forms import SECRET_FIELDS
@@ -33,6 +39,34 @@ DEFAULT_TIMEOUT = 120
 # Keys of the non-secret config persisted to the DataStore (the worker reads them).
 CONFIG_KEYS = ("message", "steps")
 
+VECTOR_KEY = "demo"
+VECTOR_DIM = 64
+SAMPLE_DOCS = (
+    ("schedules", "Run a script every morning with a daily schedule"),
+    ("schedules", "A cron expression runs the script on weekday mornings"),
+    ("secrets", "Store an API key as an encrypted secret for the script"),
+    ("secrets", "Grant a secret to one script so only that script reads the key"),
+    ("storage", "Archive generated files in the plugin storage space"),
+    ("vectors", "Search documents by meaning in a vector collection"),
+)
+
+
+def toy_embedding(text, dim=VECTOR_DIM):
+    """A stand-in embedding for the demo: a signed hash of each word, unit length.
+
+    Texts that share words land close together, which is enough to watch
+    ``search_vector`` rank them. A real collection gets an embedding provider
+    and uses ``add_texts`` / ``search`` instead — this keeps the showcase working
+    with no provider configured and no API spend. ``worker_body.py`` carries an
+    identical copy (it can't import this module); the tests pin the two together.
+    """
+    vector = [0.0] * dim
+    for word in re.findall(r"[a-z0-9]+", text.lower()):
+        h = int(hashlib.sha256(word.encode("utf-8")).hexdigest(), 16)
+        vector[h % dim] += 1.0 if (h >> 8) & 1 else -1.0
+    norm = math.sqrt(sum(x * x for x in vector)) or 1.0
+    return [x / norm for x in vector]
+
 
 def _worker_code():
     """The managed Script's code = bundled worker_body.py, with a drift guard.
@@ -42,7 +76,7 @@ def _worker_code():
     drifts them out of sync we fail loudly here at Save, not at run time.
     """
     code = Path(__file__).with_name("worker_body.py").read_text(encoding="utf-8")
-    expected = list(SECRET_FIELDS.values()) + list(CONFIG_KEYS)
+    expected = list(SECRET_FIELDS.values()) + list(CONFIG_KEYS) + [f":{VECTOR_KEY}", "toy_embedding"]
     missing = [token for token in expected if token not in code]
     if missing:
         raise ValueError(
@@ -125,6 +159,25 @@ def is_setup():
     return get_script() is not None
 
 
+def get_vectors():
+    """The owned demo collection's handle, or None before setup."""
+    return VectorAPI(OWNER).get(VECTOR_KEY)
+
+
+def vector_summary():
+    """A small {name, points, dimension, metric, store} for the vectors card (or None)."""
+    col = get_vectors()
+    if col is None:
+        return None
+    return {
+        "name": col.name,
+        "points": col.count(),
+        "dimension": col.dimension,
+        "metric": col.metric,
+        "store": col.model.connection.name,
+    }
+
+
 def owned_inventory():
     """Counts of every resource this plugin owns — the ownership grouping that
     makes a plugin's footprint visible and delete-guarded."""
@@ -133,6 +186,7 @@ def owned_inventory():
         "secrets": len(SecretAPI(OWNER).list()),
         "scripts": len(ScriptAPI(OWNER).list()),
         "schedules": len(ScheduleAPI(OWNER).list()),
+        "vector_collections": len(VectorAPI(OWNER).list()),
     }
 
 
@@ -244,7 +298,42 @@ def provision(data, *, created_by=None):
     if get_schedule() is None:
         ScheduleAPI(OWNER).sync(script, mode="manual")
 
+    # 7) A vectors-only collection (idempotent on the key). Skipped, with a
+    #    warning, when an admin has switched every vector store off.
+    vectors = VectorAPI(OWNER)
+    if vectors.is_available():
+        vectors.provision(
+            VECTOR_KEY,
+            dimension=VECTOR_DIM,
+            metric="cosine",
+            description="SDK Showcase demo (toy word-hash vectors)",
+            created_by=created_by,
+        )
+    else:
+        warnings.append("No vector store is enabled, so the vectors demo was skipped.")
+
     return script, warnings
+
+
+def index_sample_docs():
+    """Upsert the sample docs into the demo collection; returns the point count."""
+    col = get_vectors()
+    if col is None:
+        raise ValueError("Set up the demo first (it provisions the collection).")
+    col.add_vectors([
+        {"id": f"doc-{i}", "vector": toy_embedding(text), "payload": {"topic": topic}, "text": text}
+        for i, (topic, text) in enumerate(SAMPLE_DOCS)
+    ])
+    return col.count()
+
+
+def search_docs(query, topic=None, k=3):
+    """The ``k`` sample docs nearest to ``query``, optionally filtered by topic."""
+    col = get_vectors()
+    if col is None:
+        raise ValueError("Set up the demo first (it provisions the collection).")
+    flt = {"topic": topic} if topic else None
+    return col.search_vector(toy_embedding(query), k=k, filter=flt)
 
 
 def increment_counter():

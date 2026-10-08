@@ -217,10 +217,68 @@ secrets.grant(script, s)   # selected-mode</pre>
                 </div>
             </section>
 
-            <!-- ================= 6 · Ownership & cleanup ================= -->
+            <!-- ================= 6 · Vectors ================= -->
+            <section id="vectors" class="rounded-2xl border border-line bg-panel overflow-hidden">
+                <div class="px-5 py-4 border-b border-line-soft">
+                    <h2 class="text-sm font-semibold">6 · Vectors <span class="text-faint font-normal">— search by meaning</span></h2>
+                    <p class="eyebrow text-faint mt-1">VectorAPI · provision / add_vectors / search_vector · pyrunner_vectors in the worker</p>
+                </div>
+                {% if vectors %}
+                <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-4 flex-wrap">
+                            <div class="text-4xl font-semibold tabular-nums">{{ vectors.points }}</div>
+                            <div class="text-xs text-faint">point(s) in <span class="font-mono text-text">{{ vectors.name }}</span><br>{{ vectors.dimension }}-dim · {{ vectors.metric }} · on {{ vectors.store }}</div>
+                            <form method="post" action="{% url 'sdk_showcase:vectors_index' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-text hover:bg-panel-hi transition">Index sample docs</button>
+                            </form>
+                        </div>
+                        <form method="post" action="{% url 'sdk_showcase:vectors_search' %}" class="flex items-center gap-2 flex-wrap">
+                            {% csrf_token %}
+                            <input type="text" name="query" value="{{ vector_query }}" placeholder="e.g. run every morning" class="flex-1 px-3 py-2 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30">
+                            <select name="topic" class="px-3 py-2 bg-ink border border-line rounded-lg text-text text-sm focus:outline-none focus:ring-2 focus:ring-ok/30">
+                                <option value="">any topic</option>
+                                {% for t in vector_topics %}<option value="{{ t }}" {% if t == vector_topic %}selected{% endif %}>{{ t }}</option>{% endfor %}
+                            </select>
+                            <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg border border-line text-text hover:bg-panel-hi transition">Search</button>
+                        </form>
+                        {% if vector_results is not None %}
+                            {% if vector_results %}
+                            <div class="rounded-lg border border-line-soft divide-y divide-line-soft">
+                                {% for hit in vector_results %}
+                                <div class="p-3 flex items-start justify-between gap-3">
+                                    <p class="text-sm text-text">{{ hit.text }} <span class="text-xs text-faint">· {{ hit.payload.topic }}</span></p>
+                                    <span class="font-mono tabular-nums text-xs text-muted">{{ hit.score|floatformat:3 }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-xs text-faint">No points matched — index the sample docs first.</p>
+                            {% endif %}
+                        {% endif %}
+                        <p class="text-xs text-faint">The vectors here are toy word hashes, so no embedding provider is needed. A real collection pins a provider and uses <span class="font-mono text-text">add_texts</span> / <span class="font-mono text-text">search</span> with plain text.</p>
+                    </div>
+                    <pre class="text-xs text-muted bg-ink border border-line-soft rounded-lg p-3 overflow-x-auto">col = VectorAPI("sdk_showcase").provision(
+    "demo", dimension=64, metric="cosine")
+col.add_vectors([{"id": "doc-0", "vector": v,
+                  "payload": {"topic": "schedules"},
+                  "text": "Run a script every morning"}])
+col.search_vector(q, k=3, filter={"topic": "schedules"})
+
+# in the worker (no API key, nothing to install):
+from pyrunner_vectors import get_collection
+get_collection("sdk_showcase:demo").count()</pre>
+                </div>
+                {% else %}
+                <p class="p-5 text-xs text-faint">No vector store is enabled on this instance, so the collection wasn't provisioned. An admin can enable one under Services → Vector stores, then save the demo settings again.</p>
+                {% endif %}
+            </section>
+
+            <!-- ================= 7 · Ownership & cleanup ================= -->
             <section id="ownership" class="rounded-2xl border border-line bg-panel overflow-hidden">
                 <div class="px-5 py-4 border-b border-line-soft">
-                    <h2 class="text-sm font-semibold">6 · Ownership &amp; cleanup</h2>
+                    <h2 class="text-sm font-semibold">7 · Ownership &amp; cleanup</h2>
                     <p class="eyebrow text-faint mt-1">every resource is owner-stamped → grouped, filtered, delete-guarded</p>
                 </div>
                 <div class="p-5 flex items-center justify-between gap-4 flex-wrap">
@@ -229,6 +287,7 @@ secrets.grant(script, s)   # selected-mode</pre>
                         <span><span class="font-semibold tabular-nums">{{ inventory.secrets }}</span> <span class="text-faint">secret</span></span>
                         <span><span class="font-semibold tabular-nums">{{ inventory.scripts }}</span> <span class="text-faint">script</span></span>
                         <span><span class="font-semibold tabular-nums">{{ inventory.schedules }}</span> <span class="text-faint">schedule</span></span>
+                        <span><span class="font-semibold tabular-nums">{{ inventory.vector_collections }}</span> <span class="text-faint">vector collection</span></span>
                     </div>
                     <form method="post" action="{% url 'sdk_showcase:reset' %}">
                         {% csrf_token %}

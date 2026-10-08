@@ -124,6 +124,16 @@ class DoctorMetadataTests(SimpleTestCase):
         report = self._check({"slug": "goodplug", "provisions": {"databases": "one"}})
         self.assertFalse(report.ok)
 
+    def test_provisions_vector_collections_need_sdk_2_6(self):
+        manifest = {"slug": "goodplug", "api": "2.6", "provisions": {"vector_collections": 1}}
+        self.assertTrue(self._check(manifest).ok)
+        report = self._check({**manifest, "api": "2.5"})
+        self.assertFalse(report.ok)
+        self.assertIn('"api" must be >= "2.6"', report.format())
+        self.assertFalse(self._check({**manifest, "provisions": {"vector_collections": -1}}).ok)
+        # Declaring none needs no particular SDK.
+        self.assertTrue(self._check({"slug": "goodplug", "provisions": {"vector_collections": 0}}).ok)
+
     def test_provisions_secret_keys_must_be_list_of_strings(self):
         report = self._check({"slug": "goodplug", "provisions": {"secret_keys": [1, 2]}})
         self.assertFalse(report.ok)
@@ -176,6 +186,10 @@ class PluginAccessorTests(SimpleTestCase):
         # Not "2 librarys": the plural is spelled out, not built by appending "s".
         p = self._p({"provisions": {"libraries": 2}})
         self.assertEqual(p.provisions_summary, "2 libraries")
+
+    def test_provisions_summary_includes_vector_collections(self):
+        p = self._p({"provisions": {"scripts": 1, "vector_collections": 2}})
+        self.assertEqual(p.provisions_summary, "1 script, 2 vector collections")
 
     def test_provisions_summary_skips_zero_missing_and_bool(self):
         p = self._p({"provisions": {"scripts": 0, "secrets": True, "datastores": 2}})

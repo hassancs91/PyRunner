@@ -13,6 +13,8 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from core.plugins.api import VectorError
+
 from . import provisioning as prov
 from .forms import SetupForm
 
@@ -28,7 +30,7 @@ def _build_form(data=None):
     )
 
 
-def _render(request, form):
+def _render(request, form, **extra):
     is_setup = prov.is_setup()
     ctx = {
         "form": form,
@@ -43,7 +45,13 @@ def _render(request, form):
         "worker_runs": list(reversed(prov.get_runs()))[:10],
         "sdk_runs": prov.recent_runs(10),
         "is_active": prov.live_status()["active"],
+        "vectors": prov.vector_summary() if is_setup else None,
+        "vector_topics": sorted({topic for topic, _ in prov.SAMPLE_DOCS}),
+        "vector_query": "",
+        "vector_topic": "",
+        "vector_results": None,
     }
+    ctx.update(extra)
     return render(request, "sdk_showcase/index.html", ctx)
 
 
@@ -60,11 +68,16 @@ def setup(request):
         messages.error(request, "Please fix the errors below.")
         return _render(request, form)
     try:
-        prov.provision(form.cleaned_data, created_by=request.user)
+        _script, warnings = prov.provision(form.cleaned_data, created_by=request.user)
     except Exception as exc:
         messages.error(request, f"Could not set up the demo: {exc}")
         return _render(request, form)
-    messages.success(request, "Demo provisioned — data store, secret, script and schedule are ready.")
+    for warning in warnings:
+        messages.warning(request, warning)
+    messages.success(
+        request,
+        "Demo provisioned — data store, secret, script, schedule and vector collection are ready.",
+    )
     return redirect(reverse("sdk_showcase:index"))
 
 
@@ -114,6 +127,40 @@ def reset_demo(request):
     prov.reset_demo_data()
     messages.info(request, "Demo data reset (counter + history cleared).")
     return redirect(reverse("sdk_showcase:index") + "#ownership")
+
+
+@superuser_required
+@require_POST
+def index_docs(request):
+    try:
+        count = prov.index_sample_docs()
+    except (ValueError, VectorError) as exc:
+        messages.error(request, f"Could not index the sample docs: {exc}")
+    else:
+        messages.success(request, f"Sample docs indexed — the collection holds {count} point(s).")
+    return redirect(reverse("sdk_showcase:index") + "#vectors")
+
+
+@superuser_required
+@require_POST
+def search_docs(request):
+    query = (request.POST.get("query") or "").strip()
+    topic = request.POST.get("topic") or ""
+    results = []
+    if not query:
+        messages.error(request, "Type something to search for.")
+    else:
+        try:
+            results = prov.search_docs(query, topic=topic or None)
+        except (ValueError, VectorError) as exc:
+            messages.error(request, f"Search failed: {exc}")
+    return _render(
+        request,
+        _build_form(),
+        vector_query=query,
+        vector_topic=topic,
+        vector_results=results,
+    )
 
 
 @superuser_required

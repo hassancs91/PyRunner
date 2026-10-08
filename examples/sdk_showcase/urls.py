@@ -12,5 +12,7 @@ urlpatterns = [
     path("stop/", views.stop, name="stop"),
     path("schedule/", views.set_schedule, name="schedule"),
     path("reset/", views.reset_demo, name="reset"),
+    path("vectors/index/", views.index_docs, name="vectors_index"),
+    path("vectors/search/", views.search_docs, name="vectors_search"),
     path("status/", views.status, name="status"),
 ]

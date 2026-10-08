@@ -86,7 +86,7 @@
                             <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ col.dimension }}</td>
                             <td class="px-6 py-3.5 text-right font-mono tnum text-sm text-muted">{{ col.size_display }}</td>
                             <td class="px-6 py-3.5 text-sm whitespace-nowrap">
-                                {% if col.include_in_backup %}<span class="text-ok">Included</span>{% else %}<span class="text-faint">Excluded</span>{% endif %}
+                                {% if not col.is_local %}<span class="text-faint">Settings only</span>{% elif col.include_in_backup %}<span class="text-ok">Included</span>{% else %}<span class="text-faint">Excluded</span>{% endif %}
                             </td>
                             <td class="px-6 py-3.5">
                                 <div class="flex items-center justify-end gap-2">

@@ -11,7 +11,7 @@ collection takes vectors from the caller — but when set, the collection **pins
 later is a new collection + re-embed, never a silent change of space.
 
 ``backend_ref`` is the physical handle: ``vectors/<uuid>.sqlite`` under the data
-volume for the Local backend, ``<prefix>pyrun_<ws8>_<slug>`` for Qdrant.
+volume for the Local backend, ``<prefix>pyrun_<ws8>_<name>`` for Qdrant.
 """
 
 import re
@@ -25,6 +25,23 @@ from .workspace import WorkspaceScopedManager
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 NAME_RULE = "lowercase letters, digits, '_' and '-', starting with a letter (max 64)"
+# A plugin-provisioned collection is named "<plugin-slug>:<key>" (the SDK's
+# naming grammar, as for DataStores and Databases). The colon never appears in a
+# console-created name, so the two can't collide; the whole name still fits the
+# 64-character column.
+OWNED_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*:[a-z][a-z0-9_-]*$")
+MAX_NAME_LENGTH = 64
+
+
+def is_valid_name(name: str, owner_plugin=None) -> bool:
+    """A plain name always; ``<owner>:<key>`` only for a row owned by that plugin."""
+    if not isinstance(name, str) or len(name) > MAX_NAME_LENGTH:
+        return False
+    if NAME_RE.match(name):
+        return True
+    return bool(owner_plugin) and bool(OWNED_NAME_RE.match(name)) and name.startswith(
+        f"{owner_plugin}:"
+    )
 
 
 class VectorCollection(models.Model):
@@ -180,6 +197,14 @@ class VectorCollection(models.Model):
     @staticmethod
     def local_backend_ref(collection_id) -> str:
         return f"vectors/{collection_id}.sqlite"
+
+    @staticmethod
+    def qdrant_backend_ref(prefix: str, workspace_id, name: str) -> str:
+        """``{prefix}pyrun_<ws8>_<name>`` — readable on the server, and the workspace
+        prefix keeps tenants apart on a shared Qdrant. ``:`` (owned names) is not a
+        legal Qdrant name character, so it is written ``__``."""
+        ws8 = workspace_id.hex[:8] if workspace_id else "00000000"
+        return f"{prefix or ''}pyrun_{ws8}_{name.replace(':', '__')}"
 
     @classmethod
     def resolve_for_workspace(cls, name: str, workspace_id):

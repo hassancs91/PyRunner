@@ -3,11 +3,12 @@ Vector store connections (vector seam).
 
 An instance-global registry row per vector backend, shaped like
 ``SecretProvider`` / ``StorageConnection``: ``provider_type`` picks the adapter,
-``config`` holds the non-secret settings (Qdrant: ``url``, ``collection_prefix``;
-Local: nothing), ``credentials_encrypted`` the API key. A migration seeds one
-**Local** row (enabled, default) so a fresh instance can create a collection with
-zero setup; Qdrant rows are added from Services → Vector stores once
-``PYRUNNER_ALLOW_PRIVATE_NETWORK`` (or a public URL) makes the server reachable.
+``config`` holds the non-secret settings (Qdrant: ``url``, ``collection_prefix``,
+``expose_credentials``; Local: nothing), ``credentials_encrypted`` the API key.
+A migration seeds one **Local** row (enabled, default) so a fresh instance can
+create a collection with zero setup; Qdrant rows are added from Services →
+Vector stores once ``PYRUNNER_ALLOW_PRIVATE_NETWORK`` (or a public URL) makes
+the server reachable.
 
 Exactly one row may be ``is_default`` — enforced both in ``save()`` (clear the
 others first, in the same transaction) and by a partial unique constraint, so a
@@ -107,6 +108,14 @@ class VectorConnection(models.Model):
     @property
     def collection_prefix(self) -> str:
         return (self.config or {}).get("collection_prefix", "")
+
+    @property
+    def exposes_credentials(self) -> bool:
+        """Whether runs may receive this Qdrant connection's URL + API key through
+        ``credentials()``. An operator opt-in (default off): a Qdrant API key is
+        server-wide, so handing it to one collection's scripts opens every
+        collection on that server."""
+        return not self.is_local and bool((self.config or {}).get("expose_credentials"))
 
     def get_credentials(self) -> dict:
         """Decrypt and return the credential fields as a dict (``{}`` if unset)."""

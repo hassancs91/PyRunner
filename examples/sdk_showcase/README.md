@@ -8,19 +8,21 @@ in isolation* so you can lift the pattern into your own plugin.
 
 It is **self-provisioning** like every SDK plugin: one **Set up demo** save
 creates and keeps in sync a data store, an owner-scoped secret, a managed script,
-and a schedule — all owned by the `sdk_showcase` slug, all idempotent on re-save.
+a schedule and a vector collection — all owned by the `sdk_showcase` slug, all
+idempotent on re-save.
 
 ## What it demonstrates
 
 | Card | SDK surface |
 |---|---|
-| **Set up** | `DataStoreAPI` · `SecretAPI` · `ScriptAPI` · `ScheduleAPI` · `EnvironmentAPI` — the whole provisioning chain in `provision()` |
+| **Set up** | `DataStoreAPI` · `SecretAPI` · `ScriptAPI` · `ScheduleAPI` · `EnvironmentAPI` · `VectorAPI` — the whole provisioning chain in `provision()` |
 | **1 · Data store** | `DataStoreAPI.upsert`, `store.set/get`, owner auto-naming (`sdk_showcase:state`), idempotency — a counter |
 | **2 · Secrets** | `SecretAPI.upsert/grant` — encrypted, owner-scoped, injected into the script as the clean env var `$DEMO_TOKEN` (selected-mode) |
 | **3 · Run lifecycle** | `ScriptAPI.queue_run` / `latest_run` / `runs` / `cancel_latest_run`, the `RunView` read-model, live progress + **Stop** |
-| **4 · Worker output** | the script side — `pyrunner_datastore`, `$PYRUNNER_OWNER_PLUGIN`, the progress heartbeat, the run-history record |
+| **4 · Worker output** | the script side — `pyrunner_datastore`, `pyrunner_vectors`, `$PYRUNNER_OWNER_PLUGIN`, the progress heartbeat, the run-history record |
 | **5 · Schedule** | `ScheduleAPI.sync/list` (manual / interval / daily) |
-| **6 · Ownership** | the owned-resource inventory (`.list()` on each API); clean teardown on uninstall |
+| **6 · Vectors** | `VectorAPI.provision`, `add_vectors`, `search_vector` with a payload filter — toy word-hash vectors, so no embedding provider is needed (API 2.6) |
+| **7 · Ownership** | the owned-resource inventory (`.list()` on each API); clean teardown on uninstall |
 
 The **demo worker uses only the standard library** — no `requests`, no `boto3` —
 so it runs in *any* environment with zero package setup. That makes "see it work"
@@ -33,7 +35,8 @@ as low-friction as possible.
 2. **Upload** `sdk_showcase.zip` (Plugins → Upload), **Activate**, then **Restart**.
 3. Open **SDK Showcase** in the sidebar (superuser only), fill the short setup
    form, **Set up demo**, then explore the cards — increment the counter, run the
-   demo, watch progress, stop it, change the schedule.
+   demo, watch progress, stop it, change the schedule, index and search the
+   sample docs.
 
 ## Develop locally (dev mode)
 

@@ -216,7 +216,7 @@ never bypasses the run/sandbox seams.
 ```python
 from core.plugins.api import (
     EnvironmentAPI, ScriptAPI, SecretAPI, DataStoreAPI, DatabaseAPI, ScheduleAPI,
-    API_VERSION,
+    VectorAPI, API_VERSION,
 )
 
 OWNER = "my_flows"   # your slug — passes ownership through every call
@@ -480,6 +480,76 @@ for obj in pyrunner_storage.list("avatars/"):
 - **Uninstall cleans up.** Deleting your plugin with *remove data* clears
   `apps/<your-slug>/` — every workspace's files — along with your scripts,
   secrets, and stores.
+
+### Vector collections — search by meaning (API 2.6)
+
+When your plugin needs semantic search — "find the five help articles closest to
+this question", a RAG chatbot, de-duplicating similar items — use `VectorAPI`.
+A collection holds points (an id, a vector, a JSON payload and optional text);
+with an **embedding provider** attached, you hand it plain text and PyRun calls
+the provider for you.
+
+```python
+from core.plugins.api import VectorAPI, VectorError
+
+OWNER = "my_flows"
+
+vectors = VectorAPI(OWNER)
+if vectors.is_available():                      # a vector store is enabled
+    docs = vectors.provision("docs", embedding_provider="OpenAI")   # by name or row
+    docs.add_texts([
+        {"id": "kb-12", "text": "How to reset a password", "payload": {"lang": "en"}},
+    ])
+    hits = docs.search("I forgot my password", k=5, filter={"lang": "en"})
+    # → [{"id", "score", "payload", "text"}, ...], best first
+
+    raw = vectors.provision("embeddings", dimension=384, metric="dot")  # bring your own vectors
+    raw.add_vectors([{"id": "a", "vector": [...], "payload": {}}])
+    raw.search_vector([...], k=10)
+```
+
+In your **worker script** the same collection is one import away — stdlib only,
+no API key in the run:
+
+```python
+import os
+from pyrunner_vectors import get_collection
+
+OWNER = os.environ["PYRUNNER_OWNER_PLUGIN"]
+docs = get_collection(f"{OWNER}:docs")
+docs.add_texts([{"id": "kb-13", "text": "...", "payload": {"lang": "en"}}])
+page, cursor = docs.scroll(limit=100)
+```
+
+- **Names.** `provision("docs")` stores the collection as `"<owner>:<key>"`, like
+  DataStores and Databases; the worker opens it by that full name. The whole
+  name fits 64 characters.
+- **The shape is pinned.** The provider's model and vector dimension are fixed
+  on the collection when it is created. Re-provisioning with the same arguments
+  returns the same collection; a different provider, model, dimension, metric
+  or store raises `VectorError` — a new model is a new key and a re-embed, never
+  a silent change of space. `description=` is updated in place.
+- **Filters** are JSON on top-level payload fields: `{"field": value}`,
+  `{"field": {"$in": [...]}}`, `$gt` / `$gte` / `$lt` / `$lte`,
+  `{"field": {"$prefix": "x"}}`, and `{"must": [...], "must_not": [...]}`.
+  Types are strict (`1` never matches `true` or `"1"`), an array field matches
+  when any element does, and `{"field": None}` means missing or null. Scores are
+  always "higher is better", whatever the metric. Payload keys and filter
+  fields starting with `_pyrun_` are reserved.
+- **Where it lives.** `provision()` uses the instance's default vector store
+  (the built-in Local one unless an admin changed it) or `connection="name"`.
+  Local is one SQLite file per collection — comfortable to ~50 000 points,
+  refused above 200 000; a Qdrant connection has no such cap.
+- **Access.** Your collections are open to your plugin's scripts only; a
+  collection without an owner is open to every script in its workspace. Each
+  run is braked at 2 000 embedding calls, 20 MB of embedded text and 200 000
+  points written or deleted (`VectorError` code `run_budget_exceeded`).
+- **Errors** are `VectorError` with a stable `code`: `invalid`,
+  `unsupported_filter`, `dimension_mismatch`, `model_mismatch`,
+  `collection_full`, `embedding_failed`, `backend_unavailable`, `not_ready`.
+- **Uninstall cleans up.** Deleting your plugin with *remove data* deletes the
+  collections it owns, points included. Declare them in `plugin.json` as
+  `"provisions": {"vector_collections": 1}` (needs `"api": "2.6"`).
 
 ---
 

@@ -3498,6 +3498,16 @@ class VectorConnectionForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
         label="Default for new collections",
     )
+    expose_credentials = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECK_CLASS}),
+        label="Share credentials with runs",
+        help_text=(
+            "Lets a script's credentials() call receive this Qdrant's URL and API key for "
+            "native qdrant-client use. The key is server-wide: any script that can open a "
+            "collection here can then read every collection on the server."
+        ),
+    )
 
     def __init__(self, *args, instance=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -3509,6 +3519,7 @@ class VectorConnectionForm(forms.Form):
             self.fields["collection_prefix"].initial = instance.collection_prefix
             self.fields["enabled"].initial = instance.enabled
             self.fields["is_default"].initial = instance.is_default
+            self.fields["expose_credentials"].initial = instance.exposes_credentials
 
     def clean_name(self):
         from core.models import VectorConnection
@@ -3535,6 +3546,19 @@ class VectorConnectionForm(forms.Form):
 
         cleaned = super().clean()
         ptype = cleaned.get("provider_type")
+        if (
+            self.instance is not None
+            and ptype
+            and ptype != self.instance.provider_type
+            and self.instance.collections.exists()
+        ):
+            # Existing collections were created on this backend; switching it
+            # would point every one of them at a store that doesn't have them.
+            self.add_error(
+                "provider_type",
+                "This connection holds collections, so its backend can't change. "
+                "Add a new connection instead.",
+            )
         if ptype == VectorConnection.ProviderType.QDRANT:
             url = (cleaned.get("url") or "").strip().rstrip("/")
             if not url:
@@ -3550,6 +3574,7 @@ class VectorConnectionForm(forms.Form):
             cleaned["url"] = ""
             cleaned["collection_prefix"] = ""
             cleaned["api_key"] = ""
+            cleaned["expose_credentials"] = False
         return cleaned
 
     def save(self):
@@ -3564,6 +3589,7 @@ class VectorConnectionForm(forms.Form):
             connection.config = {
                 "url": self.cleaned_data["url"],
                 "collection_prefix": self.cleaned_data.get("collection_prefix") or "",
+                "expose_credentials": bool(self.cleaned_data.get("expose_credentials")),
             }
             api_key = self.cleaned_data.get("api_key")
             if api_key:

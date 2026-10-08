@@ -801,7 +801,7 @@ print(answer)</code></pre>
                                                 {{ c.name }}
                                                 {% if c.is_default %}<span class="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-md bg-ok/10 text-ok align-middle"><span class="w-1 h-1 rounded-full bg-ok"></span>Default</span>{% endif %}
                                                 {% if not c.enabled %}<span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-panel-hi text-faint align-middle">Disabled</span>{% endif %}
-                                                {% if not c.implemented %}<span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-warn/10 text-warn align-middle" title="Collections on this backend arrive with the seam's next stage.">Stage 2</span>{% endif %}
+                                                {% if c.exposes_credentials %}<span class="ml-1.5 inline-flex items-center px-2 py-0.5 text-[11px] rounded-md bg-warn/10 text-warn align-middle" title="Scripts that can open a collection here may receive this server's URL and API key through credentials().">Key shared with runs</span>{% endif %}
                                             </td>
                                             <td class="px-4 py-2.5 text-muted whitespace-nowrap">{{ c.get_provider_type_display }}</td>
                                             <td class="px-4 py-2.5 font-mono text-xs text-muted">{% if c.is_local %}{{ vectors_dir }}{% else %}{{ c.url|default:"—" }}{% endif %}</td>
@@ -870,9 +870,13 @@ print(answer)</code></pre>
                                 <div class="flex flex-wrap gap-6 mb-5 p-4 bg-panel-hi/40 border border-line-soft rounded-lg">
                                     <label class="flex items-center gap-2 cursor-pointer">{{ vector_connection_form.enabled }}<span class="text-sm text-muted">{{ vector_connection_form.enabled.label }}</span></label>
                                     <label class="flex items-center gap-2 cursor-pointer">{{ vector_connection_form.is_default }}<span class="text-sm text-muted">{{ vector_connection_form.is_default.label }}</span></label>
+                                    <div class="vec-qdrant-only w-full">
+                                        <label class="flex items-center gap-2 cursor-pointer">{{ vector_connection_form.expose_credentials }}<span class="text-sm text-muted">{{ vector_connection_form.expose_credentials.label }}</span></label>
+                                        <p class="mt-1.5 text-xs text-faint">{{ vector_connection_form.expose_credentials.help_text }}</p>
+                                    </div>
                                 </div>
                                 <p id="vec-local-note" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs">The Local store needs no settings: one SQLite file per collection under {{ vectors_dir }}, searched exactly with numpy. Comfortable to ~{{ vector_soft_limit }} points per collection; single-container deployments only.</p>
-                                <p id="vec-qdrant-note" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs">Collections on Qdrant arrive with the seam's next stage; you can already save and test the connection. A Qdrant container on the same Docker network needs PYRUNNER_ALLOW_PRIVATE_NETWORK=true.</p>
+                                <p id="vec-qdrant-note" class="hidden mb-5 p-3 rounded-lg bg-info/10 border border-info/30 text-info text-xs">Each collection becomes one Qdrant collection named after its workspace and name (with the prefix above, if any), created when the collection is. Searches and filters run on the server; backups carry the collection's settings, not its points. A Qdrant container on the same Docker network needs PYRUNNER_ALLOW_PRIVATE_NETWORK=true.</p>
                                 <div class="flex items-center gap-2.5">
                                     <button type="submit" class="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-ok text-ink hover:opacity-90 transition">Save connection</button>
                                     <button type="button" onclick="vecTestForm(this)" class="text-[13px] px-3.5 py-2 rounded-lg border border-line text-muted hover:text-text hover:border-faint transition-colors">Test</button>
@@ -1518,6 +1522,7 @@ function vecEditConnection(id) {
     vecFormField('collection_prefix').value = c.collection_prefix || '';
     vecFormField('enabled').checked = c.enabled;
     vecFormField('is_default').checked = c.is_default;
+    vecFormField('expose_credentials').checked = c.expose_credentials;
     vecFormField('api_key').value = '';  // blank keeps the stored key
     document.getElementById('vec-credentials-saved').classList.toggle('hidden', !c.has_credentials);
     vecApplyType();

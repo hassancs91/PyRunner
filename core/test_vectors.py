@@ -157,6 +157,10 @@ class FilterGrammarTests(SimpleTestCase):
                 p["opt"] = None
             if rng.random() < 0.3:
                 del p["flag"]
+            # Arrays match on any element; mixed types never cross-match.
+            p["topics"] = [t for t in ("rag", "agents", "evals") if rng.random() < 0.4]
+            p["mixed"] = [None, 1, True, "1", 2.5, {"x": 1}][int(rng.integers(6))]
+            p["case"] = ["Alpha", "alpha", "ALPHA", "beta"][int(rng.integers(4))]
             payloads.append(p)
         conn = sqlite3.connect(":memory:")
         conn.execute("CREATE TABLE points (id INTEGER PRIMARY KEY, payload TEXT)")
@@ -178,6 +182,19 @@ class FilterGrammarTests(SimpleTestCase):
             {"must_not": [{"url": {"$prefix": "https://b."}}, {"n": {"$lte": 3}}]},
             {"n": {"$in": [1, 2, 3, 4, 5]}},
             {"tier": {"$in": []}},
+            {"topics": "rag"},
+            {"topics": {"$in": ["agents", "evals"]}},
+            {"topics": {"$prefix": "ag"}},
+            {"topics": None},
+            {"must_not": [{"topics": "rag"}]},
+            {"mixed": 1},
+            {"mixed": True},
+            {"mixed": "1"},
+            {"mixed": {"$gte": 1}},
+            {"mixed": {"$in": [None, 2.5]}},
+            {"case": {"$prefix": "al"}},
+            {"case": {"$gte": "a"}},
+            {"case": {"$lt": "Z"}},
         ]
         for flt in cases:
             where, params = filters.to_sqlite(flt)
@@ -185,12 +202,28 @@ class FilterGrammarTests(SimpleTestCase):
             py_ids = {i for i, p in enumerate(payloads) if filters.matches(p, flt)}
             self.assertEqual(sql_ids, py_ids, flt)
 
-    def test_prefix_escapes_like_wildcards(self):
-        where, params = filters.to_sqlite({"u": {"$prefix": "50%_off\\"}})
-        self.assertIn("LIKE ? ESCAPE", where)
-        self.assertEqual(params, ["50\\%\\_off\\\\%"])
-        self.assertTrue(filters.matches({"u": "50%_off\\x"}, {"u": {"$prefix": "50%_off\\"}}))
-        self.assertFalse(filters.matches({"u": "50Xoff"}, {"u": {"$prefix": "50%_off\\"}}))
+    def test_prefix_is_literal_and_case_sensitive(self):
+        """No LIKE: '%' / '_' are ordinary characters and ASCII case matters (LIKE
+        would ignore it, the Python reference does not)."""
+        payloads = [{"u": "50%_off\\x"}, {"u": "50Xoff"}, {"u": "ABCdef"}, {"u": "abcdef"}, {"u": 5}]
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE points (id INTEGER PRIMARY KEY, payload TEXT)")
+        conn.executemany(
+            "INSERT INTO points (id, payload) VALUES (?, ?)",
+            [(i, json.dumps(p)) for i, p in enumerate(payloads)],
+        )
+        for prefix, expected in (("50%_off\\", {0}), ("abc", {3}), ("ABC", {2}), ("", {0, 1, 2, 3})):
+            flt = {"u": {"$prefix": prefix}}
+            where, params = filters.to_sqlite(flt)
+            self.assertNotIn("LIKE", where)
+            sql_ids = {r[0] for r in conn.execute(f"SELECT id FROM points WHERE {where}", params)}
+            py_ids = {i for i, p in enumerate(payloads) if filters.matches(p, flt)}
+            self.assertEqual(sql_ids, expected, prefix)
+            self.assertEqual(py_ids, expected, prefix)
+
+    def test_reserved_field_names_are_refused(self):
+        with self.assertRaisesRegex(filters.UnsupportedFilter, "reserved"):
+            filters.validate({"_pyrun_id": "p1"})
 
 # =============================================================================
 # Local store
@@ -549,7 +582,9 @@ class ServiceTests(TestCase):
         other = Workspace.objects.create(name="Other")
         VectorService.create_collection(workspace=other, name="docs", embedding_provider=self.provider)
         q = VectorConnection.objects.create(provider_type="qdrant", name="Q", config={"url": "http://q"})
-        with self.assertRaisesRegex(VectorError, "not available yet"):
+        with mock.patch(
+            "core.vectors.service.IMPLEMENTED_BACKENDS", {VectorConnection.ProviderType.LOCAL}
+        ), self.assertRaisesRegex(VectorError, "not available"):
             self._create(name="onq", connection=q)
         only_vectors = self._create(name="raw", embedding_provider=None, dimension=3, metric="dot")
         self.assertEqual(only_vectors.embedding_model, "")

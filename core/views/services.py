@@ -43,7 +43,7 @@ from core.forms import (
 )
 from core.services import VectorError, VectorService
 from core.vectors.local_store import SOFT_LIMIT_POINTS
-from core.vectors.service import IMPLEMENTED_BACKENDS, vectors_dir_display
+from core.vectors.service import vectors_dir_display
 from core.services.s3_service import S3Service
 from core.services.claude_service import ClaudeService
 from core.services.encryption_service import EncryptionService
@@ -840,7 +840,6 @@ def _vector_cards_context() -> dict:
     connections = list(VectorConnection.objects.all())
     for c in connections:
         c.collection_count = connection_counts.get(c.id, 0)
-        c.implemented = c.provider_type in {str(t) for t in IMPLEMENTED_BACKENDS}
     connections_data = [
         {
             "id": str(c.id),
@@ -851,6 +850,7 @@ def _vector_cards_context() -> dict:
             "enabled": c.enabled,
             "is_default": c.is_default,
             "has_credentials": bool(c.credentials_encrypted),
+            "expose_credentials": c.exposes_credentials,
             "collection_count": c.collection_count,
         }
         for c in connections

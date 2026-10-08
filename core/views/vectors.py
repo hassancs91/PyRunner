@@ -3,9 +3,9 @@ Vectors console (vector seam Stage 1) — collections of the active workspace.
 
 Gated like Databases: a workspace Owner/Admin (or a superuser) manages
 collections, because creating one with an embedding provider spends that
-provider's budget. Scripts and plugins reach collections through the loopback
-helper / SDK in Stage 2; this page is where a human creates, inspects, searches
-and deletes them.
+provider's budget. Scripts reach collections through the ``pyrunner_vectors``
+helper and plugins through ``VectorAPI``; this page is where a human creates,
+inspects, searches and deletes them.
 """
 
 import json
@@ -57,6 +57,13 @@ def _human_size(num: int) -> str:
     return f"{num:.1f} GB"  # pragma: no cover
 
 
+def _size_display(collection) -> str:
+    """Bytes on the data volume for a Local collection; a Qdrant one lives on the server."""
+    if not collection.is_local:
+        return "on the server"
+    return _human_size(VectorService.size_bytes(collection))
+
+
 @login_required
 def vector_list_view(request: HttpRequest) -> HttpResponse:
     _require_manage(request)
@@ -66,8 +73,8 @@ def vector_list_view(request: HttpRequest) -> HttpResponse:
         .order_by("name")
     )
     for col in collections:
-        col.size_display = _human_size(VectorService.size_bytes(col))
-        col.over_soft_limit = col.points_count > SOFT_LIMIT_POINTS
+        col.size_display = _size_display(col)
+        col.over_soft_limit = col.is_local and col.points_count > SOFT_LIMIT_POINTS
     return render(
         request,
         "cpanel/vectors/list.html",
@@ -146,11 +153,11 @@ def _detail_context(request, collection, **extra) -> dict:
     context = {
         "collection": collection,
         "size_bytes": size,
-        "size_display": _human_size(size),
+        "size_display": _size_display(collection),
         "sample": sample,
         "sample_error": sample_error,
         "soft_limit": SOFT_LIMIT_POINTS,
-        "over_soft_limit": collection.points_count > SOFT_LIMIT_POINTS,
+        "over_soft_limit": collection.is_local and collection.points_count > SOFT_LIMIT_POINTS,
         "query": "",
         "k": 5,
         "filter_text": "",

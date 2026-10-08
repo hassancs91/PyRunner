@@ -5,13 +5,17 @@ Run in-tree with the normal Django test runner (so ``core.plugins.api`` is real)
 imported into the suite by ``core/test_sdk_showcase_plugin.py`` — the same splice
 shim pattern as ``examples/qdrant_backup/tests.py``. Coverage: idempotent
 provisioning through the SDK, the counter read/write, the worker secret/config
-contract, and form validation.
+contract, the vectors card (provision, index, filtered search, the worker's copy
+of the toy embedding), and form validation.
 """
 
+import runpy
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from . import provisioning as prov
 from .forms import SECRET_FIELDS, SetupForm
@@ -33,6 +37,14 @@ class WorkerContractTests(SimpleTestCase):
             with self.assertRaises(ValueError) as cm:
                 prov._worker_code()
         self.assertIn("zzz_unreferenced", str(cm.exception))
+
+    def test_worker_toy_embedding_matches_provisioning(self):
+        worker = runpy.run_path(
+            str(Path(prov.__file__).with_name("worker_body.py")), run_name="showcase_worker"
+        )
+        for text in ("Run a script every morning", "", "Ünïcode and 42 numbers"):
+            self.assertEqual(worker["toy_embedding"](text), prov.toy_embedding(text), text)
+        self.assertEqual(worker["VECTORS"].split(":", 1)[1], prov.VECTOR_KEY)
 
 
 # --------------------------------------------------------------------------- #
@@ -67,6 +79,7 @@ class SetupFormTests(SimpleTestCase):
 # Provisioning — one setup creates exactly the declared resources, idempotently.
 # --------------------------------------------------------------------------- #
 
+@override_settings(VECTORS_DIR=Path(tempfile.mkdtemp(prefix="pyrun-showcase-vectors-")))
 class ProvisionTests(TestCase):
     def setUp(self):
         from core.models import Environment, Workspace
@@ -104,7 +117,10 @@ class ProvisionTests(TestCase):
         self.assertEqual(self._counts(), {"scripts": 1, "secrets": 1, "stores": 1, "grants": 1, "schedules": 1})
         self.assertEqual(prov.get_config()["message"], "hi")
         self.assertEqual(prov.get_counter(), 0)
-        self.assertEqual(prov.owned_inventory(), {"datastores": 1, "secrets": 1, "scripts": 1, "schedules": 1})
+        self.assertEqual(
+            prov.owned_inventory(),
+            {"datastores": 1, "secrets": 1, "scripts": 1, "schedules": 1, "vector_collections": 1},
+        )
 
     def test_provision_is_idempotent(self):
         prov.provision(self._data())
@@ -139,3 +155,31 @@ class ProvisionTests(TestCase):
     def test_unknown_environment_raises(self):
         with self.assertRaises(ValueError):
             prov.provision(self._data(environment="ghost"))
+
+    def test_vectors_card_provision_index_and_search(self):
+        prov.provision(self._data())
+        prov.provision(self._data())  # idempotent: still one collection
+        summary = prov.vector_summary()
+        self.assertEqual(
+            (summary["name"], summary["points"], summary["dimension"], summary["metric"]),
+            (f"{prov.OWNER}:{prov.VECTOR_KEY}", 0, prov.VECTOR_DIM, "cosine"),
+        )
+        self.assertEqual(prov.owned_inventory()["vector_collections"], 1)
+        self.assertEqual(prov.index_sample_docs(), len(prov.SAMPLE_DOCS))
+        self.assertEqual(prov.index_sample_docs(), len(prov.SAMPLE_DOCS))  # upsert by id
+        hits = prov.search_docs("store an api key for the script")
+        self.assertEqual(hits[0]["payload"]["topic"], "secrets")
+        self.assertEqual(hits, sorted(hits, key=lambda h: -h["score"]))
+        filtered = prov.search_docs("store an api key for the script", topic="schedules")
+        self.assertTrue(filtered)
+        self.assertTrue(all(h["payload"]["topic"] == "schedules" for h in filtered))
+
+    def test_vectors_skipped_with_a_warning_when_no_store_is_enabled(self):
+        from core.models import VectorConnection
+
+        VectorConnection.objects.update(enabled=False)
+        _script, warnings = prov.provision(self._data())
+        self.assertEqual(len(warnings), 1)
+        self.assertIsNone(prov.vector_summary())
+        with self.assertRaises(ValueError):
+            prov.index_sample_docs()
